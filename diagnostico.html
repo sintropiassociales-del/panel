@@ -178,17 +178,33 @@ footer a{color:var(--teal);text-decoration:none;}
 <div id="sintro-nav"></div>
 
 
-<!-- MODAL -->
-<div class="modal-overlay" id="modal-overlay" onclick="closeModalOut(event)">
-  <div class="modal">
-    <div class="modal-head">
-      <div>
-        <h2>Registra tu interés</h2>
-        <p>Te contactamos en menos de 24 horas con una propuesta.</p>
-      </div>
-      <button class="modal-close" onclick="closeModal()"> </button>
-    </div>
-    <div class="modal-body">
+<!-- NAV -->
+
+
+<!-- HERO -->
+<section class="hero">
+  <div class="hero-tag">Diagnóstico social · Entrega en 24 horas</div>
+  <h1>Tu organización merece un análisis <em>que va más allá de los datos</em></h1>
+  <p>Cuéntanos de tu organización y responde el cuestionario de tu área. Recibes un diagnóstico preliminar gratuito con perspectiva antropológica y cultural — y la opción de obtener el reporte profesional completo.</p>
+  <div class="hero-badges">
+    <span class="badge">Empresas</span>
+    <span class="badge">OSC</span>
+    <span class="badge">Gobierno local</span>
+    <span class="badge">Metodología SiDiEs</span>
+    <span class="badge">Enfoque Geertziano</span>
+  </div>
+</section>
+<div class="section-divider"><hr class="divider-line"></div>
+
+<!-- PASO 1: DATOS DE LA ORGANIZACIÓN (antes de la prueba) -->
+<section class="quiz-section" id="sec-datos">
+  <div class="quiz-header">
+    <div class="quiz-header-tag">Paso 1 de 4</div>
+    <h2>Cuéntanos de tu organización</h2>
+    <p>Esto es parte del diagnóstico: con estos datos te enviamos tu resultado y, si nos autorizas, te contactamos con una propuesta.</p>
+  </div>
+  <div class="quiz-body">
+    <div style="padding:28px 28px 24px;">
       <div id="form-wrap">
         <form id="reg-form" onsubmit="submitForm(event)">
           <div class="form-row">
@@ -246,41 +262,24 @@ footer a{color:var(--teal);text-decoration:none;}
             <label for="reg-consentimiento">Autorizo a Sintropía Social a contactarme respecto a este diagnóstico y sus servicios. *</label>
           </div>
           <div id="reg-msg-error"></div>
-          <button type="submit" class="btn-submit" id="btn-submit">Enviar registro</button>
+          <button type="submit" class="btn-submit" id="btn-submit">Continuar al diagnóstico →</button>
           <p class="form-note">Tu información es confidencial y solo se usará para contactarte.</p>
         </form>
       </div>
       <div class="form-success" id="form-ok">
         <div class="check">✓</div>
-        <h3>¡Registro recibido!</h3>
-        <p>David revisará tu información y te contactará en menos de 24 horas con una propuesta personalizada.</p>
-        <p style="margin-top:10px;font-weight:500;">dsalgado@sintropiasocial.com</p>
+        <h3>¡Listo!</h3>
+        <p>Ya puedes continuar con tu diagnóstico. Si además quieres que te contactemos, David revisará tu información y te escribirá en menos de 24 horas.</p>
+        <button class="btn-submit" style="margin-top:14px;" onclick="continuarADiagnostico()">Continuar al diagnóstico →</button>
       </div>
     </div>
-  </div>
-</div>
-
-<!-- NAV -->
-
-
-<!-- HERO -->
-<section class="hero">
-  <div class="hero-tag">Diagnóstico social · Entrega en 24 horas</div>
-  <h1>Tu organización merece un análisis <em>que va más allá de los datos</em></h1>
-  <p>Responde el cuestionario de tu área. Recibes un diagnóstico preliminar gratuito con perspectiva antropológica y cultural — y la opción de obtener el reporte profesional completo.</p>
-  <div class="hero-badges">
-    <span class="badge">Empresas</span>
-    <span class="badge">OSC</span>
-    <span class="badge">Gobierno local</span>
-    <span class="badge">Metodología SiDiEs</span>
-    <span class="badge">Enfoque Geertziano</span>
   </div>
 </section>
 <div class="section-divider"><hr class="divider-line"></div>
 
-<!-- PASO 1: RUBROS -->
-<section class="rubros-section" id="sec-rubros">
-  <div class="section-label">Paso 1 — Elige tu área de interés</div>
+<!-- PASO 2: RUBROS -->
+<section class="rubros-section hidden" id="sec-rubros">
+  <div class="section-label">Paso 2 — Elige tu área de interés</div>
   <div class="rubros-grid">
     <div class="rubro-card" onclick="selectRubro('empleabilidad',this)">
       <span class="rubro-icon"> </span>
@@ -310,13 +309,13 @@ footer a{color:var(--teal);text-decoration:none;}
   </div>
 </section>
 
-<!-- PASO 2: HERRAMIENTAS -->
+<!-- PASO 3: HERRAMIENTAS -->
 <section class="herramientas-section hidden" id="sec-herramientas">
-  <div class="section-label">Paso 2 — ¿Qué necesitas generar?</div>
+  <div class="section-label">Paso 3 — ¿Qué necesitas generar?</div>
   <div class="herr-grid" id="herr-grid"></div>
 </section>
 
-<!-- PASO 3: CUESTIONARIO -->
+<!-- PASO 4: CUESTIONARIO -->
 <section class="quiz-section hidden" id="sec-quiz">
   <div class="quiz-header">
     <div class="quiz-header-tag" id="quiz-tag"></div>
@@ -379,10 +378,15 @@ footer a{color:var(--teal);text-decoration:none;}
 
 <script>
 // MODAL
-function openModal(){document.getElementById('modal-overlay').classList.add('open');document.body.style.overflow='hidden';}
-function closeModal(){document.getElementById('modal-overlay').classList.remove('open');document.body.style.overflow='';}
-function closeModalOut(e){if(e.target===document.getElementById('modal-overlay'))closeModal();}
-document.addEventListener('keydown',function(e){if(e.key==='Escape')closeModal();});
+// PASO 1 → PASO 2: al terminar de capturar los datos de la organización,
+// se revela el resto del diagnóstico. Antes esto vivía en un modal aparte
+// (que ya no tenía ningún botón que lo abriera); ahora la lógica es
+// secuencial: primero los datos, después la prueba.
+function continuarADiagnostico(){
+  hide('sec-datos');
+  show('sec-rubros');
+  document.getElementById('sec-rubros').scrollIntoView({behavior:'smooth',block:'start'});
+}
 
 // Esta página vive fuera de la Plataforma Sintropía (sitio principal), pero
 // el registro de interés se guarda en el mismo backend de Apps Script que
@@ -565,7 +569,7 @@ function renderQuiz(){
   var q=Q[est.rubro];
   var h=null;
   for(var hi=0;hi<HERR.length;hi++){if(HERR[hi].id===est.herr){h=HERR[hi];break;}}
-  document.getElementById('quiz-tag').textContent=q.titulo+' · '+h.name;
+  document.getElementById('quiz-tag').textContent='Paso 4 · '+q.titulo+' · '+h.name;
   var stepsHtml='';
   for(var i=0;i<q.preguntas.length;i++){
     var p=q.preguntas[i];
