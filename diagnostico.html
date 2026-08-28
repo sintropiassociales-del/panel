@@ -90,6 +90,7 @@ main{max-width:680px;margin:-28px auto 40px;padding:0 16px;}
 .btn-back:hover{color:var(--ink);}
 .btn-next{font-size:13px;font-weight:700;color:white;background:var(--teal);border:none;border-radius:8px;padding:10px 24px;cursor:pointer;transition:background .12s;}
 .btn-next:hover{background:var(--teal-mid);}
+.btn-next:disabled{background:var(--paper-dark);cursor:not-allowed;}
 
 /* RESULTADO */
 .result-section{padding:0 0 40px;animation:fadeIn .4s ease;}
@@ -419,7 +420,8 @@ function submitForm(e){
 // cuestionario). Si falla, no bloquea el diagnóstico que la persona ya
 // está viendo — solo se pierde el registro en el CRM.
 function _enviarRegistroDiagnostico(rubro, leadMagnet){
-  if(!datosOrg) return;
+  if(!datosOrg || est.registroEnviado) return;
+  est.registroEnviado = true;
   jsonp('capturarClienteDiagnostico', {
     organizacion: datosOrg.organizacion,
     categoria: datosOrg.categoria,
@@ -489,13 +491,13 @@ var Q={
 };
 
 // ESTADO
-var est={rubro:null,herr:null,step:0,resp:{}};
+var est={rubro:null,herr:null,step:0,resp:{},registroEnviado:false,correoResultadoEnviado:false};
 
 // FLUJO
 function selectRubro(rubro,card){
   document.querySelectorAll('.rubro-card').forEach(function(c){c.classList.remove('active');});
   card.classList.add('active');
-  est={rubro:rubro,herr:null,step:0,resp:{}};
+  est={rubro:rubro,herr:null,step:0,resp:{},registroEnviado:false,correoResultadoEnviado:false};
   var grid = document.getElementById('herr-grid');
   var html = '';
   for(var i=0;i<HERR.length;i++){
@@ -522,6 +524,7 @@ function selectHerr(herr,btn){
 }
 
 function renderQuiz(){
+  document.getElementById('btn-next').disabled=false;
   var q=Q[est.rubro];
   var h=null;
   for(var hi=0;hi<HERR.length;hi++){if(HERR[hi].id===est.herr){h=HERR[hi];break;}}
@@ -558,7 +561,16 @@ function nextStep(){
     est.step++;
     document.getElementById('step-'+est.step).classList.add('active');
     updNav();updProg();
-  } else { buildResult(); }
+  } else {
+    // Deshabilitar de inmediato: en el último paso este mismo botón dispara
+    // buildResult() (y con él, el registro en el CRM) — sin esto, un doble
+    // o triple clic antes de que la pantalla cambie a "sec-result" generaba
+    // varios registros duplicados del mismo lead.
+    var btn=document.getElementById('btn-next');
+    if(btn.disabled) return;
+    btn.disabled=true;
+    buildResult();
+  }
 }
 function prevStep(){
   if(est.step>0){
@@ -582,10 +594,30 @@ function buildResult(){
   var q=Q[est.rubro];
   document.getElementById('res-tag').textContent=q.titulo+' · '+h.name;
   document.getElementById('res-title').textContent='Diagnóstico preliminar — '+h.name;
-  document.getElementById('res-text').textContent=makeDiag(est.rubro,est.herr,est.resp,h.name,q.titulo);
+  var textoDiag=makeDiag(est.rubro,est.herr,est.resp,h.name,q.titulo);
+  document.getElementById('res-text').textContent=textoDiag;
   _enviarRegistroDiagnostico(est.rubro, 'Diagnóstico social — '+q.titulo+' · '+h.name);
+  _enviarResultadoMuestraCorreo(textoDiag);
   show('sec-result');
   document.getElementById('sec-result').scrollIntoView({behavior:'smooth',block:'start'});
+}
+
+// Correo automático con el resultado (PDF adjunto + oferta con IA) — mismo
+// mecanismo genérico que usan las demás muestras (ver apiEnviarResultadoMuestra
+// en WebApp.gs). Se manda una sola vez, junto con el registro en el CRM.
+function _enviarResultadoMuestraCorreo(textoDiag){
+  if(!datosOrg || est.correoResultadoEnviado) return;
+  est.correoResultadoEnviado = true;
+  jsonp('enviarResultadoMuestra', {
+    tipoMuestra: 'Diagnostico',
+    nombre: datosOrg.nombre,
+    correo: datosOrg.correo,
+    organizacion: datosOrg.organizacion,
+    tituloResultado: document.getElementById('res-title').textContent,
+    resumenTexto: textoDiag,
+    secciones: JSON.stringify([{ titulo: 'Diagnóstico preliminar', parrafos: [textoDiag] }]),
+    sitioWebTrampa: datosOrg.trampa
+  });
 }
 
 function makeDiag(rubro,herr,r,hNom,rNom){
@@ -738,7 +770,7 @@ function makeDiag(rubro,herr,r,hNom,rNom){
 
 
 function restart(){
-  est={rubro:null,herr:null,step:0,resp:{}};
+  est={rubro:null,herr:null,step:0,resp:{},registroEnviado:false,correoResultadoEnviado:false};
   document.querySelectorAll('.rubro-card').forEach(function(c){c.classList.remove('active');});
   hide('sec-herramientas');hide('sec-quiz');hide('sec-result');
   document.getElementById('sec-rubros').scrollIntoView({behavior:'smooth',block:'start'});
