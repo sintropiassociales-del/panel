@@ -3,8 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="description" content="Prueba una muestra gratuita del IMES Preparatoria, el Instrumento de Medición de Empleabilidad Social de Sintropía Social.">
-<title>Muestra IMES Preparatoria — Sintropía Social</title>
+<meta name="description" content="Prueba una muestra gratuita del IMES Universidad — habilidades sociales, de empleabilidad y técnicas para tu primer empleo profesional. Sintropía Social.">
+<title>Muestra IMES Universidad — Sintropía Social</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
@@ -50,6 +50,7 @@
   .progreso .paso.actual { background: var(--purple); }
   label { display: block; font-size: 13.5px; font-weight: 600; margin: 14px 0 5px; }
   label .req { color: var(--orange); }
+  label .opc { color: var(--subtle); font-weight: 400; }
   input[type=text], input[type=number], input[type=email], select {
     width: 100%; padding: 11px 12px; border: 1.5px solid var(--border); border-radius: 9px;
     font-size: 15px; font-family: inherit; background: #fff; color: var(--text);
@@ -128,7 +129,7 @@
 
 <header class="top">
   <div class="marca">Sintropía <span>Social</span></div>
-  <div class="subt">Muestra gratuita del IMES Preparatoria — Instrumento de Medición de Empleabilidad Social</div>
+  <div class="subt">Muestra gratuita del IMES Universidad — habilidades sociales, de empleabilidad y técnicas para tu primer empleo profesional</div>
 </header>
 
 <main>
@@ -156,49 +157,66 @@ var ESTADOS_MUNICIPIOS = {"Aguascalientes":["Aguascalientes","Asientos","Calvill
 var ESTADOS_MEXICO = Object.keys(ESTADOS_MUNICIPIOS);
 
 /* ============================================================
- * Reactivos — muestra de 2 de las 6 dimensiones del IMES (12 de 36 ítems),
- * reproducidos tal cual del instrumento completo. La versión completa suma
- * las 6 dimensiones + 15 preguntas abiertas y la aplica un/a facilitador/a;
- * esta muestra es solo autoevaluación rápida para conocer la herramienta.
+ * Reactivos — muestra del IMES Universidad: 3 dimensiones (habilidades
+ * sociales/socioemocionales, de empleabilidad y técnicas), 5 ítems cada
+ * una = 15 en total. Es una herramienta nueva y distinta del IMES de
+ * Preparatoria (muestra_imes.html) — pensada para estudiantes
+ * universitarios de cualquier carrera, con la mira puesta en el primer
+ * empleo profesional o las prácticas profesionales. El instrumento
+ * completo (con más ítems, bancos por carrera, etc.) todavía está en
+ * diseño; esta muestra es la versión breve de autoevaluación.
  * ============================================================ */
 var DIMENSIONES_MUESTRA = [
   {
-    clave: 'I', nombre: 'Comunicación efectiva y escucha activa',
+    clave: 'social', nombre: 'Habilidades sociales (socioemocionales)',
     items: [
-      'Expreso mis ideas con claridad cuando hablo con otras personas.',
-      'Escucho a los demás sin interrumpirlos, aunque no esté de acuerdo.',
-      'Sé adaptar mi forma de hablar según con quién estoy (maestra/o, empleador/a, compañero/a).',
-      'Cuando no entiendo algo, pregunto o busco la manera de aclararlo.',
-      'En situaciones de conflicto, busco explicar mi punto de vista sin agresividad.',
-      'Puedo redactar un correo electrónico o mensaje formal de manera adecuada.'
+      'Puedo trabajar en equipo con personas que piensan distinto a mí sin que se vuelva un conflicto personal.',
+      'Manejo la presión de fechas de entrega o exámenes sin que afecte mi desempeño o mis relaciones con otros.',
+      'Sé pedir ayuda o retroalimentación cuando algo se me dificulta, en vez de evitarlo.',
+      'Puedo dar retroalimentación honesta a un compañero de equipo sin que se sienta un ataque.',
+      'Reconozco mis propias emociones en situaciones de estrés y las manejo antes de que afecten mi trabajo.'
     ],
     interpretacion: {
-      desarrollo: 'Es un área en la que todavía te cuesta sentirte con seguridad — comunicar tus ideas o sostener una conversación difícil. Es normal, y es justo el tipo de habilidad que se fortalece rápido con práctica y acompañamiento.',
-      proceso: 'Tienes bases sólidas de comunicación, aunque hay situaciones — como dar una opinión distinta o hablar con alguien con más autoridad — donde todavía dudas. Con algo de práctica dirigida, esta habilidad puede consolidarse pronto.',
-      consolidada: 'Te comunicas con claridad y sabes escuchar incluso cuando no estás de acuerdo — una de las habilidades que más valoran los equipos de trabajo.'
+      desarrollo: 'Trabajar en equipo bajo presión y manejar tus emociones en momentos de estrés académico o laboral es algo en lo que todavía te cuesta sentirte con control. Es una habilidad que se entrena, no un rasgo de personalidad fijo, y suele fortalecerse rápido con práctica deliberada.',
+      proceso: 'Ya sabes trabajar con otros y pedir ayuda cuando la necesitas, aunque situaciones como dar retroalimentación honesta o manejar la presión de varias entregas a la vez todavía te cuestan. Con práctica dirigida, esto suele consolidarse pronto.',
+      consolidada: 'Manejas bien la presión, el trabajo en equipo y tus propias emociones en momentos difíciles — una combinación que los equipos de trabajo valoran tanto como el conocimiento técnico.'
     }
   },
   {
-    clave: 'V', nombre: 'Autogestión, responsabilidad y aprendizaje continuo',
+    clave: 'empleabilidad', nombre: 'Habilidades de empleabilidad',
     items: [
-      'Organizo mi tiempo para cumplir con mis responsabilidades sin que nadie me lo recuerde.',
-      'Cuando me comprometo a hacer algo, lo cumplo aunque surjan contratiempos.',
-      'Identifico mis propias fortalezas y áreas de mejora sin necesitar que otros me lo digan.',
-      'Busco aprender algo nuevo por cuenta propia, aunque no sea obligatorio.',
-      'Cuando recibo una crítica, la tomo como una oportunidad de mejorar, no como un ataque personal.',
-      'Me fijo metas concretas y reviso si las estoy cumpliendo.'
+      'Sé cómo adaptar mi currículum y carta de presentación según la vacante o práctica a la que aplico.',
+      'Puedo explicar en una entrevista, con ejemplos concretos, qué he aprendido en mis materias o proyectos.',
+      'Investigo la empresa u organización antes de una entrevista o proceso de selección.',
+      'Tengo claro qué tipo de trabajo o sector busco al terminar (o durante) la carrera.',
+      'Sé construir y mantener una red de contactos profesional (profesores, compañeros, egresados, LinkedIn).'
     ],
     interpretacion: {
-      desarrollo: 'Organizar tu tiempo y sostener compromisos sin que alguien más te lo recuerde es algo en lo que todavía estás construyendo confianza — es un proceso, no un rasgo fijo con el que se nace o no.',
-      proceso: 'Ya cumples tus responsabilidades y buscas mejorar por cuenta propia; terminar de consolidar esto suele ser cuestión de práctica constante más que de aprender algo nuevo desde cero.',
-      consolidada: 'Te haces cargo de tu tiempo, tus compromisos y tu propio aprendizaje sin depender de que alguien más te lo indique — una habilidad clave en cualquier trayectoria laboral.'
+      desarrollo: 'Prepararte para procesos de selección — adaptar tu CV, investigar a un empleador, tener claro qué buscas — es un área en la que apenas estás construyendo práctica. Es normal en esta etapa, y es justo lo que una búsqueda de empleo bien acompañada ayuda a resolver rápido.',
+      proceso: 'Ya tienes nociones claras de cómo prepararte para un proceso de selección, aunque hay pasos — como construir una red de contactos activa o tener muy definido tu objetivo profesional — que todavía puedes fortalecer.',
+      consolidada: 'Sabes prepararte para un proceso de selección de forma estratégica: adaptas tu perfil, investigas y tienes claridad sobre lo que buscas — una ventaja real frente a otros candidatos con tu mismo nivel de estudios.'
+    }
+  },
+  {
+    clave: 'tecnica', nombre: 'Habilidades técnicas',
+    items: [
+      'Manejo con soltura herramientas de oficina (hojas de cálculo, documentos, presentaciones).',
+      'Sé buscar, comparar y citar fuentes de información confiables para un trabajo o proyecto.',
+      'Puedo organizar y presentar datos o resultados de forma clara (tablas, gráficas, reportes).',
+      'Sé usar al menos una herramienta digital propia de mi área (gestión de proyectos, diseño, análisis de datos, código, u otra según tu carrera).',
+      'Cuando no sé usar una herramienta que necesito, puedo aprenderla por mi cuenta con tutoriales o documentación.'
+    ],
+    interpretacion: {
+      desarrollo: 'Las herramientas digitales y de organización de información que hoy piden la mayoría de los empleos son un área que todavía necesitas reforzar. Son habilidades muy entrenables, y suelen mejorar rápido con práctica constante.',
+      proceso: 'Ya usas con soltura varias herramientas digitales y sabes organizar información, aunque hay plataformas más específicas de tu área en las que todavía te falta práctica.',
+      consolidada: 'Manejas con soltura las herramientas digitales y de organización de información que la mayoría de los empleos esperan hoy, y puedes aprender nuevas plataformas por tu cuenta cuando lo necesitas — una base sólida para cualquier entorno de trabajo.'
     }
   }
 ];
 
 function _bandaDimension(puntaje) {
-  if (puntaje <= 10) return { clave: 'desarrollo', etiqueta: 'En desarrollo', claseCss: 'banda-desarrollo' };
-  if (puntaje <= 20) return { clave: 'proceso', etiqueta: 'En proceso', claseCss: 'banda-proceso' };
+  if (puntaje <= 9) return { clave: 'desarrollo', etiqueta: 'En desarrollo', claseCss: 'banda-desarrollo' };
+  if (puntaje <= 17) return { clave: 'proceso', etiqueta: 'En proceso', claseCss: 'banda-proceso' };
   return { clave: 'consolidada', etiqueta: 'Consolidada', claseCss: 'banda-consolidada' };
 }
 
@@ -251,9 +269,9 @@ function render() {
 
 function renderIntro() {
   app.innerHTML =
-    '<h1>Prueba una muestra del IMES Preparatoria</h1>' +
-    '<p class="subtle">El <b>Instrumento de Medición de Empleabilidad Social (IMES)</b>, en su versión para estudiantes de preparatoria, evalúa 6 dimensiones de habilidades para el trabajo a través de 36 reactivos, aplicado normalmente con acompañamiento de un/a facilitador/a. Esta es una muestra breve y gratuita — 12 reactivos, 2 de las 6 dimensiones — para que conozcas cómo funciona.</p>' +
-    '<p class="subtle">Toma menos de 3 minutos. Como parte de la evaluación te pediremos algunos datos primero, para poder enviarte tu resultado por correo, y al final verás tu resultado en ambas dimensiones.</p>' +
+    '<h1>Prueba una muestra del IMES Universidad</h1>' +
+    '<p class="subtle">El <b>IMES Universidad</b> es una nueva versión del Instrumento de Medición de Empleabilidad Social, pensada para estudiantes universitarios de cualquier carrera — mide habilidades sociales (socioemocionales), de empleabilidad y técnicas rumbo a tu primer empleo profesional. Esta muestra breve y gratuita — 15 reactivos, en las 3 dimensiones — te deja probar cómo funciona.</p>' +
+    '<p class="subtle">Toma menos de 4 minutos. Como parte de la evaluación te pediremos algunos datos primero, para poder enviarte tu resultado por correo, y al final verás tu resultado en las 3 dimensiones.</p>' +
     '<div class="fila-botones"><button class="primary" id="btnComenzar">Comenzar</button></div>';
   document.getElementById('btnComenzar').onclick = function () { state.paso = 1; render(); };
 }
@@ -326,7 +344,7 @@ function renderDatos() {
   app.innerHTML =
     progresoHtml() +
     '<h2>Empecemos — ¿a dónde te enviamos tu resultado?</h2>' +
-    '<p class="subtle" style="margin-top:0">Esto es parte de la evaluación: usamos estos datos únicamente para enviarte tu resultado por correo y, si nos autorizas al final, para contarte sobre el IMES completo y otros instrumentos de Sintropía Social.</p>' +
+    '<p class="subtle" style="margin-top:0">Esto es parte de la evaluación: usamos estos datos únicamente para enviarte tu resultado por correo y, si nos autorizas al final, para contarte sobre el IMES Universidad y otros instrumentos de Sintropía Social.</p>' +
     '<div id="secMsg"></div>' +
     '<form id="datosForm">' +
       '<label>Nombre <span class="req">*</span></label><input type="text" id="dNombre" value="' + escapeHtml(d.nombre || '') + '">' +
@@ -334,6 +352,11 @@ function renderDatos() {
       '<div class="row" style="display:flex;gap:12px">' +
         '<div style="flex:1"><label>Estado</label><select id="dEstado">' + opcionesEstado + '</select></div>' +
         '<div style="flex:1"><label>Municipio</label><select id="dMunicipio"><option value="">Selecciona un estado primero</option></select></div>' +
+      '</div>' +
+      '<label>Universidad <span class="opc">(opcional)</span></label><input type="text" id="dUniversidad" value="' + escapeHtml(d.universidad || '') + '">' +
+      '<div class="row" style="display:flex;gap:12px">' +
+        '<div style="flex:1"><label>Carrera <span class="opc">(opcional)</span></label><input type="text" id="dCarrera" value="' + escapeHtml(d.carrera || '') + '"></div>' +
+        '<div style="flex:1"><label>Semestre <span class="opc">(opcional)</span></label><input type="number" id="dSemestre" min="1" max="20" value="' + escapeHtml(d.semestre || '') + '"></div>' +
       '</div>' +
       '<label>Edad</label><input type="number" id="dEdad" min="10" max="99" value="' + escapeHtml(d.edad || '') + '">' +
       '<label>Correo electrónico <span class="req">*</span></label><input type="email" id="dEmail" placeholder="nombre@correo.com" value="' + escapeHtml(d.email || '') + '">' +
@@ -372,6 +395,9 @@ function renderDatos() {
       apellido: document.getElementById('dApellido').value.trim(),
       estado: document.getElementById('dEstado').value,
       municipio: document.getElementById('dMunicipio').value,
+      universidad: document.getElementById('dUniversidad').value.trim(),
+      carrera: document.getElementById('dCarrera').value.trim(),
+      semestre: document.getElementById('dSemestre').value,
       edad: document.getElementById('dEdad').value,
       email: email,
       telefono: document.getElementById('dTelefono').value.trim(),
@@ -407,9 +433,10 @@ function renderConfirmacion() {
     var btn = document.getElementById('btnVerResultado');
     btn.disabled = true; btn.textContent = 'Guardando...';
     var d = state.datos || {};
-    var resumenNotas = state.resultado.map(function (r) { return r.nombre + ': ' + r.puntaje + '/30 (' + r.banda.etiqueta + ')'; }).join(' — ');
+    var resumenNotas = 'IMES Universidad' + (d.universidad ? (' — ' + d.universidad) : '') + (d.carrera ? (', ' + d.carrera) : '') + (d.semestre ? (' (sem. ' + d.semestre + ')') : '') + '. ' +
+      state.resultado.map(function (r) { return r.nombre + ': ' + r.puntaje + '/25 (' + r.banda.etiqueta + ')'; }).join(' — ');
     await jsonp('capturarInteresadoMuestra', {
-      muestra: 'IMES',
+      muestra: 'IMESUniversidad',
       nombre: d.nombre,
       apellido: d.apellido,
       estado: d.estado,
@@ -434,7 +461,7 @@ function renderResultado() {
     return '<div class="resultado-dimension">' +
       '<span class="banda ' + r.banda.claseCss + '">' + r.banda.etiqueta + '</span>' +
       '<h3 style="margin:0 0 2px">' + escapeHtml(r.nombre) + '</h3>' +
-      '<p class="puntaje">' + r.puntaje + ' de 30 puntos</p>' +
+      '<p class="puntaje">' + r.puntaje + ' de 25 puntos</p>' +
       '<p>' + escapeHtml(r.texto) + '</p>' +
     '</div>';
   }).join('');
@@ -442,14 +469,14 @@ function renderResultado() {
   app.innerHTML =
     progresoHtml() +
     '<div class="pantalla-centrada"><h1>Tu resultado</h1>' +
-    '<p class="subtle">Esto es solo una muestra — la aplicación completa del IMES (36 reactivos, 6 dimensiones, más preguntas abiertas) da un panorama mucho más completo, acompañado por el equipo de Sintropía Social.</p></div>' +
+    '<p class="subtle">Esto es solo una muestra breve — la versión completa del IMES Universidad, todavía en desarrollo, dará un panorama mucho más completo, acompañado por el equipo de Sintropía Social.</p></div>' +
     bloquesHtml +
     '<div id="iaInterpretacion"></div>' +
     '<div class="fila-botones">' +
       '<button class="secondary" id="btnDescargarPdf">Descargar mi resultado en PDF</button>' +
     '</div>' +
     '<div class="cta">' +
-      '<h2>¿Buscas ayuda en tu búsqueda de trabajo?</h2>' +
+      '<h2>¿Buscas ayuda para tu primer empleo profesional?</h2>' +
       '<p>Escríbenos y alguien del equipo de Sintropía Social te contactará.</p>' +
       '<p><a href="mailto:comunicacion@sintropiasocial.com">comunicacion@sintropiasocial.com</a> · <a href="https://sintropiassociales-del.github.io/">sintropiassociales-del.github.io</a></p>' +
     '</div>';
@@ -466,9 +493,12 @@ function _cargarInterpretacionIA() {
   box.innerHTML = '<p class="subtle" id="iaCargando">Generando una breve interpretación personalizada…</p>';
   var d = state.datos || {};
   jsonp('generarInterpretacionMuestra', {
-    muestra: 'IMES',
+    muestra: 'IMESUniversidad',
     nombre: d.nombre,
     email: d.email,
+    universidad: d.universidad,
+    carrera: d.carrera,
+    semestre: d.semestre,
     resultados: JSON.stringify(state.resultado.map(function (r) {
       return { nombre: r.nombre, puntaje: r.puntaje, banda: r.banda.etiqueta };
     })),
@@ -494,14 +524,14 @@ function _enviarResultadoMuestraCorreo() {
   state.correoResultadoEnviado = true;
   var d = state.datos || {};
   var secciones = state.resultado.map(function (r) {
-    return { titulo: r.nombre, parrafos: [r.puntaje + ' de 30 puntos (' + r.banda.etiqueta + '). ' + r.texto] };
+    return { titulo: r.nombre, parrafos: [r.puntaje + ' de 25 puntos (' + r.banda.etiqueta + '). ' + r.texto] };
   });
-  var resumenTexto = state.resultado.map(function (r) { return r.nombre + ': ' + r.puntaje + '/30 (' + r.banda.etiqueta + ')'; }).join(' — ');
+  var resumenTexto = state.resultado.map(function (r) { return r.nombre + ': ' + r.puntaje + '/25 (' + r.banda.etiqueta + ')'; }).join(' — ');
   jsonp('enviarResultadoMuestra', {
-    tipoMuestra: 'IMES',
+    tipoMuestra: 'IMESUniversidad',
     nombre: d.nombre,
     correo: d.email,
-    tituloResultado: 'Tu resultado de la muestra IMES',
+    tituloResultado: 'Tu resultado de la muestra IMES Universidad',
     resumenTexto: resumenTexto,
     interpretacionIA: state.interpretacionIA || '',
     secciones: JSON.stringify(secciones),
@@ -533,7 +563,7 @@ function descargarResultadoPdf() {
   doc.rect(0, 0, 612, 70, 'F');
   doc.setTextColor(255, 255, 255);
   doc.setFont('helvetica', 'bold'); doc.setFontSize(16);
-  doc.text('Sintropía Social — Muestra IMES Preparatoria', margenIzq, 42);
+  doc.text('Sintropía Social — Muestra IMES Universidad', margenIzq, 42);
 
   y = 100;
   var d = state.datos || {};
@@ -543,7 +573,7 @@ function descargarResultadoPdf() {
   y += 20;
   doc.setFont('helvetica', 'normal'); doc.setFontSize(10);
   doc.setTextColor(107, 107, 120);
-  doc.text('Muestra breve — 12 de 36 reactivos, 2 de las 6 dimensiones del IMES completo.', margenIzq, y);
+  doc.text('Muestra breve — 15 reactivos en las 3 dimensiones del IMES Universidad.', margenIzq, y);
   y += 26;
 
   state.resultado.forEach(function (r) {
@@ -556,7 +586,7 @@ function descargarResultadoPdf() {
     y += 16;
     doc.setFont('helvetica', 'bold'); doc.setFontSize(9);
     doc.setTextColor(orange[0], orange[1], orange[2]);
-    doc.text(r.banda.etiqueta.toUpperCase() + '   ·   ' + r.puntaje + ' de 30 puntos', margenIzq, y);
+    doc.text(r.banda.etiqueta.toUpperCase() + '   ·   ' + r.puntaje + ' de 25 puntos', margenIzq, y);
     y += 16;
     doc.setFont('helvetica', 'normal'); doc.setFontSize(10.5);
     doc.setTextColor(60, 60, 60);
@@ -584,9 +614,9 @@ function descargarResultadoPdf() {
   y += 20;
   doc.setFont('helvetica', 'normal'); doc.setFontSize(9.5);
   doc.setTextColor(107, 107, 120);
-  doc.text('¿Buscas ayuda en tu búsqueda de trabajo? Escríbenos a comunicacion@sintropiasocial.com y alguien del equipo te contactará.', margenIzq, y, { maxWidth: anchoTexto });
+  doc.text('¿Buscas ayuda para tu primer empleo profesional? Escríbenos a comunicacion@sintropiasocial.com y alguien del equipo te contactará.', margenIzq, y, { maxWidth: anchoTexto });
 
-  doc.save('resultado-muestra-imes.pdf');
+  doc.save('resultado-muestra-imes-universidad.pdf');
 }
 
 render();
