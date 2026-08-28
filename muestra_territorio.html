@@ -1,0 +1,1019 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Mapa territorial gratuito — ubica tu proyecto, mapea tus actores clave y descubre qué tan bien conoces tu territorio. Muestra gratuita de Sintropía Social.">
+<title>Mapa territorial — Sintropía Social</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<style>
+  :root {
+    --purple: #631EEB;
+    --purple-dark: #4E17B8;
+    --orange: #FF7929;
+    --bg: #F5F3FC;
+    --card: #FFFFFF;
+    --text: #2C2C2C;
+    --subtle: #6B6B78;
+    --border: #E6E2F5;
+    --error: #C0392B;
+    --error-bg: #FDECEA;
+    --verde: #1E8449; --verde-bg: #EAF7EE; --verde-luz: #22C55E;
+    --amarillo: #B7770A; --amarillo-bg: #FEF6E0; --amarillo-luz: #FBBF24;
+    --rojo: #C0392B; --rojo-bg: #FDECEA; --rojo-luz: #E63946;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; font-family: 'Open Sans', -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+    background: var(--bg); color: var(--text); line-height: 1.55;
+  }
+  header.top {
+    background: var(--purple); color: #fff; padding: 26px 18px 44px; text-align: center;
+    border-radius: 0 0 22px 22px;
+  }
+  header.top .marca { font-size: 20px; font-weight: 800; letter-spacing: .3px; }
+  header.top .marca span { color: var(--orange); }
+  header.top .subt { font-size: 13.5px; opacity: .92; margin-top: 6px; max-width: 460px; margin-left: auto; margin-right: auto; }
+  main { max-width: 660px; margin: -26px auto 40px; padding: 0 16px; }
+  .card {
+    background: var(--card); border-radius: 14px; padding: 26px 24px; margin-bottom: 16px;
+    box-shadow: 0 6px 20px rgba(99,30,235,.08); border: 1px solid var(--border);
+  }
+  h1 { font-size: 21px; margin: 0 0 8px; }
+  h2 { font-size: 18px; margin: 0 0 4px; color: var(--purple-dark); }
+  h3 { font-size: 15px; margin: 22px 0 2px; color: var(--purple-dark); }
+  p.subtle, .subtle { color: var(--subtle); font-size: 13.5px; }
+  .progreso { display: flex; gap: 6px; margin: 18px 0 22px; }
+  .progreso .paso { flex: 1; height: 6px; border-radius: 4px; background: var(--border); }
+  .progreso .paso.hecho { background: var(--orange); }
+  .progreso .paso.actual { background: var(--purple); }
+  label { display: block; font-size: 13.5px; font-weight: 600; margin: 14px 0 5px; }
+  label .req { color: var(--orange); }
+  label .opc { color: var(--subtle); font-weight: 400; }
+  input[type=text], input[type=email], select, textarea {
+    width: 100%; padding: 11px 12px; border: 1.5px solid var(--border); border-radius: 9px;
+    font-size: 15px; font-family: inherit; background: #fff; color: var(--text);
+  }
+  input:focus, select:focus, textarea:focus { outline: none; border-color: var(--purple); }
+  .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  @media (max-width: 480px) { .row2 { grid-template-columns: 1fr; } }
+  .fila-botones { display: flex; gap: 10px; margin-top: 24px; flex-wrap: wrap; }
+  button {
+    font-family: inherit; font-size: 14.5px; font-weight: 700; border-radius: 999px;
+    padding: 12px 24px; border: none; cursor: pointer;
+  }
+  button.primary { background: var(--purple); color: #fff; }
+  button.primary:hover { background: var(--purple-dark); }
+  button.secondary { background: #fff; color: var(--purple); border: 1.5px solid var(--purple); }
+  button.tenue { background: #FAF8FF; color: var(--purple-dark); border: 1.5px dashed var(--border); }
+  button:disabled { opacity: .5; cursor: default; }
+  .msg { padding: 10px 13px; border-radius: 9px; font-size: 13.5px; margin: 12px 0; }
+  .msg.error { background: var(--error-bg); color: var(--error); }
+
+  /* Consentimiento + honeypot */
+  .consentimiento { display: flex; gap: 10px; align-items: flex-start; margin-top: 18px; background: #FAF8FF;
+    border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; }
+  .consentimiento input { margin-top: 3px; width: auto; }
+  .consentimiento label { margin: 0; font-weight: 400; font-size: 13px; }
+  .campo-trampa { position: absolute; left: -9999px; top: -9999px; opacity: 0; height: 0; overflow: hidden; }
+
+  /* Paso mapa */
+  #mapaLeaflet, #mapaRecap { width: 100%; height: 280px; border-radius: 12px; border: 1.5px solid var(--border); }
+  #mapaRecap { height: 200px; margin-bottom: 4px; }
+  .mapa-ficha { background: #FAF8FF; border: 1px solid var(--border); border-radius: 10px; padding: 10px 13px;
+    font-size: 13px; color: var(--subtle); margin-top: 10px; }
+  .mapa-ficha b { color: var(--text); }
+
+  /* Preguntas por dimensión (reactivos) */
+  .bloque-categoria { margin-bottom: 26px; }
+  .bloque-categoria .num-bloque { display: inline-block; font-size: 11.5px; font-weight: 700; letter-spacing: .5px;
+    color: var(--purple); text-transform: uppercase; margin-bottom: 2px; }
+  .bloque-categoria .nombre-categoria { font-size: 16px; font-weight: 700; margin: 0 0 14px; }
+  .pregunta-riesgo { border-top: 1px solid var(--border); padding: 16px 0; }
+  .pregunta-riesgo:first-of-type { border-top: none; padding-top: 4px; }
+  .pregunta-texto { font-size: 14.5px; font-weight: 600; margin-bottom: 10px; }
+  .opciones-riesgo { display: flex; gap: 8px; flex-wrap: wrap; }
+  .op-choice {
+    flex: 1; min-width: 90px; border: 1.5px solid var(--border); border-radius: 9px; background: #fff;
+    color: var(--subtle); font-weight: 600; font-size: 12.5px; padding: 10px 6px; cursor: pointer; text-align: center;
+    transition: background .12s, border-color .12s, color .12s;
+  }
+  .op-choice.marcada { background: var(--purple); border-color: var(--purple); color: #fff; }
+
+  /* Matriz de actores */
+  .actor-fila { border: 1.5px solid var(--border); border-radius: 12px; padding: 14px 16px; margin-bottom: 12px; position: relative; }
+  .actor-fila .quitar { position: absolute; top: 10px; right: 12px; background: none; border: none; color: var(--subtle);
+    font-size: 18px; padding: 0; cursor: pointer; line-height: 1; }
+  .actor-fila .quitar:hover { color: var(--error); }
+  .actor-fila label { margin-top: 10px; }
+  .actor-fila label:first-of-type { margin-top: 0; }
+  .cuadrante-wrap { display: flex; gap: 18px; flex-wrap: wrap; align-items: flex-start; margin-top: 16px; }
+  .cuadrante-columna { display: flex; flex-direction: column; gap: 5px; flex: 0 0 auto; }
+  .cuadrante-fila { display: flex; gap: 6px; }
+  .cuadrante-box { position: relative; width: 240px; height: 240px; flex: 0 0 240px; background: #fff;
+    border: 1.5px solid var(--border); border-radius: 10px; }
+  .cuadrante-box::before, .cuadrante-box::after { content: ''; position: absolute; background: var(--border); }
+  .cuadrante-box::before { left: 50%; top: 0; bottom: 0; width: 1px; }
+  .cuadrante-box::after { top: 50%; left: 0; right: 0; height: 1px; }
+  .cuadrante-etiqueta { position: absolute; font-size: 9.5px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: .3px; color: var(--subtle); max-width: 96px; line-height: 1.25; }
+  .cuadrante-etiqueta.tl { top: 6px; left: 6px; }
+  .cuadrante-etiqueta.tr { top: 6px; right: 6px; text-align: right; }
+  .cuadrante-etiqueta.bl { bottom: 6px; left: 6px; }
+  .cuadrante-etiqueta.br { bottom: 6px; right: 6px; text-align: right; }
+  .cuadrante-eje-y, .cuadrante-eje-x { font-size: 9.5px; font-weight: 700; color: var(--purple); text-transform: uppercase; letter-spacing: .4px; }
+  .cuadrante-eje-y { flex: 0 0 14px; writing-mode: vertical-rl; transform: rotate(180deg); display: flex;
+    align-items: center; justify-content: center; }
+  .cuadrante-eje-x { text-align: center; padding-left: 20px; }
+  .punto-actor { position: absolute; width: 22px; height: 22px; border-radius: 50%; background: var(--purple);
+    color: #fff; font-size: 10.5px; font-weight: 800; display: flex; align-items: center; justify-content: center;
+    transform: translate(-50%, -50%); box-shadow: 0 2px 6px rgba(99,30,235,.35); border: 2px solid #fff; }
+  .leyenda-actores { flex: 1; min-width: 200px; }
+  .leyenda-item { display: flex; gap: 9px; align-items: flex-start; font-size: 12.5px; margin-bottom: 10px; }
+  .leyenda-num { flex: 0 0 20px; height: 20px; border-radius: 50%; background: var(--purple); color: #fff;
+    font-size: 10px; font-weight: 800; display: flex; align-items: center; justify-content: center; }
+  .leyenda-item .nombre { font-weight: 700; }
+  .leyenda-item .estrategia { color: var(--purple-dark); font-weight: 600; }
+
+  /* Resultado */
+  .banda-box { text-align: center; padding: 8px 4px 4px; }
+  .banda-luz {
+    display: inline-block; width: 22px; height: 22px; border-radius: 50%; margin-right: 8px; vertical-align: middle;
+  }
+  .banda-luz.verde { background: var(--verde-luz); }
+  .banda-luz.amarillo { background: var(--amarillo-luz); }
+  .banda-luz.rojo { background: var(--rojo-luz); }
+  .banda-etiqueta {
+    display: inline-block; font-size: 15px; font-weight: 800; letter-spacing: .3px; text-transform: uppercase;
+    vertical-align: middle;
+  }
+  .banda-etiqueta.verde { color: var(--verde); }
+  .banda-etiqueta.amarillo { color: var(--amarillo); }
+  .banda-etiqueta.rojo { color: var(--rojo); }
+  .banda-puntaje { font-size: 13px; color: var(--subtle); margin: 6px 0 0; }
+
+  .categoria-resultado { border: 1.5px solid var(--border); border-radius: 12px; padding: 16px 18px; margin-bottom: 12px; }
+  .categoria-resultado .nombre { font-weight: 700; font-size: 14px; margin-bottom: 6px; }
+  .barra-riesgo { height: 8px; border-radius: 5px; background: var(--border); overflow: hidden; margin-bottom: 4px; }
+  .barra-riesgo .relleno { height: 100%; border-radius: 5px; }
+  .barra-riesgo .relleno.baja { background: var(--rojo-luz); }
+  .barra-riesgo .relleno.media { background: var(--amarillo-luz); }
+  .barra-riesgo .relleno.alta { background: var(--verde-luz); }
+
+  .cta { background: linear-gradient(135deg, var(--purple), var(--purple-dark)); color: #fff; border-radius: 14px;
+    padding: 22px 24px; margin-top: 8px; }
+  .cta h2 { color: #fff; }
+  .cta p { font-size: 13.5px; opacity: .95; }
+  .cta a { color: #fff; font-weight: 700; }
+  .cta .fila-botones a.boton-cta {
+    display: inline-block; text-decoration: none; border-radius: 999px; padding: 12px 22px; font-weight: 700; font-size: 14px;
+  }
+  .cta .boton-cta.solido { background: #fff; color: var(--purple-dark); }
+  .cta .boton-cta.contorno { border: 1.5px solid rgba(255,255,255,.7); color: #fff; }
+
+  footer.pie { text-align: center; font-size: 12px; color: var(--subtle); padding: 10px 16px 34px; }
+  footer.pie .wordmark { font-size: 14px; font-weight: 700; margin-bottom: 6px; }
+  footer.pie a { color: var(--purple); text-decoration: none; }
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="marca">Sintropía <span>Social</span></div>
+  <div class="subt">Mapa territorial — ubica tu proyecto, mapea a tus actores clave y descubre qué tan bien conoces tu territorio</div>
+</header>
+
+<main>
+  <div id="app" class="card">
+    <p class="subtle">Cargando...</p>
+  </div>
+</main>
+
+<footer class="pie">
+  <div class="wordmark"><span style="color:var(--purple)">Sintropía</span> <span style="color:var(--orange)">Social</span></div>
+  <a href="https://sintropiassociales-del.github.io/">Sintropía Social</a> · <a href="mailto:comunicacion@sintropiasocial.com">comunicacion@sintropiasocial.com</a>
+</footer>
+
+<script>
+var WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbxZbLiOP7QXvrgUIDhhVciVGY-Yval3YBvqBHOpQfK8El2wHXNNBtZvsnkbwMaJUss/exec';
+
+function escapeHtml(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+  });
+}
+
+function jsonp(action, params) {
+  return new Promise(function (resolve) {
+    var cbName = 'cb_' + Date.now() + '_' + Math.floor(Math.random() * 100000);
+    var url = WEB_APP_URL + '?action=' + encodeURIComponent(action) + '&callback=' + cbName;
+    params = params || {};
+    for (var k in params) {
+      if (params[k] !== undefined && params[k] !== null) url += '&' + encodeURIComponent(k) + '=' + encodeURIComponent(params[k]);
+    }
+    var script = document.createElement('script');
+    var cleaned = false;
+    function cleanup() { if (cleaned) return; cleaned = true; delete window[cbName]; if (script.parentNode) script.parentNode.removeChild(script); }
+    window[cbName] = function (data) { cleanup(); resolve(data); };
+    script.onerror = function () { cleanup(); resolve({ ok: false, error: 'No se pudo conectar. Revisa tu conexión a internet e intenta de nuevo.' }); };
+    setTimeout(function () { if (!cleaned) { cleanup(); resolve({ ok: false, error: 'La plataforma tardó demasiado en responder. Intenta de nuevo.' }); } }, 25000);
+    script.src = url;
+    document.body.appendChild(script);
+  });
+}
+var ESTADOS_MUNICIPIOS = {"Aguascalientes":["Aguascalientes","Asientos","Calvillo","Cosío","El Llano","Jesús María","Pabellón de Arteaga","Rincón de Romos","San Francisco de los Romo","San José de Gracia","Tepezalá"],"Baja California":["Ensenada","Mexicali","Playas de Rosarito","San Felipe","San Quintín","Tecate","Tijuana"],"Baja California Sur":["Comondú","La Paz","Loreto","Los Cabos","Mulegé"],"Campeche":["Calakmul","Calkiní","Campeche","Candelaria","Carmen","Champotón","Dzitbalché","Escárcega","Hecelchakán","Hopelchén","Palizada","Seybaplaya","Tenabo"],"Chiapas":["Acacoyagua","Acala","Acapetahua","Aldama","Altamirano","Amatenango de la Frontera","Amatenango del Valle","Amatán","Arriaga","Bejucal de Ocampo","Bella Vista","Benemérito de las Américas","Berriozábal","Bochil","Cacahoatán","Capitán Luis Ángel Vidal","Catazajá","Chalchihuitán","Chamula","Chanal","Chapultenango","Chenalhó","Chiapa de Corzo","Chiapilla","Chicoasén","Chicomuselo","Chilón","Cintalapa de Figueroa","Coapilla","Comitán de Domínguez","Copainalá","El Bosque","El Parral","El Porvenir","Emiliano Zapata","Escuintla","Francisco León","Frontera Comalapa","Frontera Hidalgo","Honduras de la Sierra","Huehuetán","Huitiupán","Huixtla","Huixtán","Ixhuatán","Ixtacomitán","Ixtapa","Ixtapangajoya","Jiquipilas","Jitotol","Juárez","La Concordia","La Grandeza","La Independencia","La Libertad","La Trinitaria","Larráinzar","Las Margaritas","Las Rosas","Mapastepec","Maravilla Tenejapa","Marqués de Comillas","Mazapa de Madero","Mazatán","Metapa","Mezcalapa","Mitontic","Montecristo de Guerrero","Motozintla","Nicolás Ruíz","Ocosingo","Ocotepec","Ocozocoautla de Espinosa","Ostuacán","Osumacinta","Oxchuc","Palenque","Pantelhó","Pantepec","Pichucalco","Pijijiapan","Pueblo Nuevo Solistahuacán","Rayón","Reforma","Rincón Chamula San Pedro","Sabanilla","Salto de Agua","San Andrés Duraznal","San Cristóbal de las Casas","San Fernando","San Juan Cancuc","San Lucas","Santiago el Pinar","Siltepec","Simojovel","Sitalá","Socoltenango","Solosuchiapa","Soyaló","Suchiapa","Suchiate","Sunuapa","Tapachula","Tapalapa","Tapilula","Tecpatán","Tenejapa","Teopisca","Tila","Tonalá","Totolapa","Tumbalá","Tuxtla Chico","Tuxtla Gutiérrez","Tuzantán","Tzimol","Unión Juárez","Venustiano Carranza","Villa Comaltitlán","Villa Corzo","Villaflores","Yajalón","Zinacantán","Ángel Albino Corzo"],"Chihuahua":["Ahumada","Aldama","Allende","Aquiles Serdán","Ascensión","Bachíniva","Balleza","Batopilas de Manuel Gómez Morín","Bocoyna","Buenaventura","Camargo","Carichí","Casas Grandes","Chihuahua","Chínipas","Coronado","Coyame del Sotol","Cuauhtémoc","Cusihuiriachi","Delicias","Dr. Belisario Domínguez","El Tule","Galeana","Gran Morelos","Guachochi","Guadalupe","Guadalupe y Calvo","Guazapares","Guerrero","Gómez Farías","Hidalgo del Parral","Huejotitán","Ignacio Zaragoza","Janos","Jiménez","Julimes","Juárez","La Cruz","López","Madera","Maguarichi","Manuel Benavides","Matachí","Matamoros","Meoqui","Morelos","Moris","Namiquipa","Nonoava","Nuevo Casas Grandes","Ocampo","Ojinaga","Praxedis G. Guerrero","Riva Palacio","Rosales","San Francisco de Borja","San Francisco de Conchos","San Francisco del Oro","Santa Bárbara","Santa Isabel","Satevó","Saucillo","Temósachic","Urique","Uruachi","Valle de Zaragoza","Valle del Rosario"],"Ciudad de México":["Azcapotzalco","Benito Juárez","Coyoacán","Cuajimalpa de Morelos","Cuauhtémoc","Gustavo A. Madero","Iztacalco","Iztapalapa","La Magdalena Contreras","Miguel Hidalgo","Milpa Alta","Tlalpan","Tláhuac","Venustiano Carranza","Xochimilco","Álvaro Obregón"],"Coahuila":["Abasolo","Acuña","Allende","Arteaga","Candela","Castaños","Cuatro Ciénegas","Escobedo","Francisco I. Madero","Frontera","General Cepeda","Guerrero","Hidalgo","Jiménez","Juárez","Lamadrid","Matamoros","Monclova","Morelos","Múzquiz","Nadadores","Nava","Ocampo","Parras","Piedras Negras","Progreso","Ramos Arizpe","Sabinas","Sacramento","Saltillo","San Buenaventura","San Juan de Sabinas","San Pedro","Sierra Mojada","Torreón","Viesca","Villa Unión","Zaragoza"],"Colima":["Armería","Colima","Comala","Coquimatlán","Cuauhtémoc","Ixtlahuacán","Manzanillo","Minatitlán","Tecomán","Villa de Álvarez"],"Durango":["Canatlán","Canelas","Coneto de Comonfort","Cuencamé","Durango","El Oro","General Simón Bolívar","Guadalupe Victoria","Guanaceví","Gómez Palacio","Hidalgo","Indé","Lerdo","Mapimí","Mezquital","Nazas","Nombre de Dios","Nuevo Ideal","Ocampo","Otáez","Peñón Blanco","Poanas","Pueblo Nuevo","Pánuco de Coronado","Rodeo","San Bernardo","San Dimas","San Juan de Guadalupe","San Juan del Río","San Luis del Cordero","San Pedro del Gallo","Santa Clara","Santiago Papasquiaro","Súchil","Tamazula","Tepehuanes","Tlahualilo","Topia","Vicente Guerrero"],"Estado de México":["Acambay de Ruíz Castañeda","Acolman","Aculco","Almoloya de Alquisiras","Almoloya de Juárez","Almoloya del Río","Amanalco","Amatepec","Amecameca","Apaxco","Atenco","Atizapán","Atizapán de Zaragoza","Atlacomulco","Atlautla","Axapusco","Ayapango","Calimaya","Capulhuac","Chalco","Chapa de Mota","Chapultepec","Chiautla","Chicoloapan","Chiconcuac","Chimalhuacán","Coacalco de Berriozábal","Coatepec Harinas","Cocotitlán","Coyotepec","Cuautitlán","Cuautitlán Izcalli","Donato Guerra","Ecatepec de Morelos","Ecatzingo","El Oro","Huehuetoca","Hueypoxtla","Huixquilucan","Isidro Fabela","Ixtapaluca","Ixtapan de la Sal","Ixtapan del Oro","Ixtlahuaca","Jaltenco","Jilotepec","Jilotzingo","Jiquipilco","Jocotitlán","Joquicingo","Juchitepec","La Paz","Lerma","Luvianos","Malinalco","Melchor Ocampo","Metepec","Mexicaltzingo","Morelos","Naucalpan de Juárez","Nextlalpan","Nezahualcóyotl","Nicolás Romero","Nopaltepec","Ocoyoacac","Ocuilan","Otumba","Otzoloapan","Otzolotepec","Ozumba","Papalotla","Polotitlán","Rayón","San Antonio la Isla","San Felipe del Progreso","San José del Rincón","San Martín de las Pirámides","San Mateo Atenco","San Simón de Guerrero","Santo Tomás","Soyaniquilpan de Juárez","Sultepec","Tecámac","Tejupilco","Temamatla","Temascalapa","Temascalcingo","Temascaltepec","Temoaya","Tenancingo","Tenango del Aire","Tenango del Valle","Teoloyucan","Teotihuacán","Tepetlaoxtoc","Tepetlixpa","Tepotzotlán","Tequixquiac","Texcaltitlán","Texcalyacac","Texcoco","Tezoyuca","Tianguistenco","Timilpan","Tlalmanalco","Tlalnepantla de Baz","Tlatlaya","Toluca","Tonanitla","Tonatico","Tultepec","Tultitlán","Valle de Bravo","Valle de Chalco Solidaridad","Villa Guerrero","Villa Victoria","Villa de Allende","Villa del Carbón","Xalatlaco","Xonacatlán","Zacazonapan","Zacualpan","Zinacantepec","Zumpahuacán","Zumpango"],"Guanajuato":["Abasolo","Acámbaro","Apaseo el Alto","Apaseo el Grande","Atarjea","Celaya","Comonfort","Coroneo","Cortazar","Cuerámaro","Doctor Mora","Dolores Hidalgo Cuna de la Independencia Nacional","Guanajuato","Huanímaro","Irapuato","Jaral del Progreso","Jerécuaro","León","Manuel Doblado","Moroleón","Ocampo","Pueblo Nuevo","Purísima del Rincón","Pénjamo","Romita","Salamanca","Salvatierra","San Diego de la Unión","San Felipe","San Francisco del Rincón","San José de Iturbide","San Luis de la Paz","San Miguel de Allende","Santa Catarina","Santa Cruz de Juventino Rosas","Santiago Maravatío","Silao de la Victoria","Tarandacuao","Tarimoro","Tierra Blanca","Uriangato","Valle de Santiago","Victoria","Villagrán","Xichú","Yuriria"],"Guerrero":["Acapulco de Juárez","Acatepec","Ahuacuotzingo","Ajuchitlán del Progreso","Alcozauca de Guerrero","Alpoyeca","Apaxtla de Castrejón","Arcelia","Atenango del Río","Atlamajalcingo del Monte","Atlixtac","Atoyac de Álvarez","Ayutla de los Libres","Azoyú","Benito Juárez","Buenavista de Cuéllar","Chilapa de Álvarez","Chilpancingo de los Bravo","Coahuayutla de José María Izazaga","Cochoapa el Grande","Cocula","Copala","Copalillo","Copanatoyac","Coyuca de Benítez","Coyuca de Catalán","Cuajinicuilapa","Cualác","Cuautepec","Cuetzala del Progreso","Cutzamala de Pinzón","Eduardo Neri","Florencio Villarreal","General Canuto A. Neri","General Heliodoro Castillo","Huamuxtitlán","Huitzuco de los Figueroa","Iguala de la Independencia","Igualapa","Iliatenco","Ixcateopan de Cuauhtémoc","José Joaquín de Herrera","Juan R. Escudero","Juchitán","La Unión de Isidoro Montes de Oca","Las Vigas","Leonardo Bravo","Malinaltepec","Marquelia","Metlatónoc","Mochitlán","Mártir de Cuilapan","Olinalá","Ometepec","Pedro Ascencio Alquisiras","Petatlán","Pilcaya","Pungarabato","Quechultenango","San Luis Acatlán","San Marcos","San Miguel Totolapan","San Nicolás","Santa Cruz del Rincón","Taxco de Alarcón","Tecoanapa","Teloloapan","Tepecoacuilco de Trujano","Tetipac","Tixtla de Guerrero","Tlacoachistlahuaca","Tlacoapa","Tlalchapa","Tlalixtaquilla de Maldonado","Tlapa de Comonfort","Tlapehuala","Técpan de Galeana","Xalpatláhuac","Xochihuehuetlán","Xochistlahuaca","Zapotitlán Tablas","Zihuatanejo de Azueta","Zirándaro","Zitlala","Ñuu Savi"],"Hidalgo":["Acatlán","Acaxochitlán","Actopan","Agua Blanca de Iturbide","Ajacuba","Alfajayucan","Almoloya","Apan","Atitalaquia","Atlapexco","Atotonilco de Tula","Atotonilco el Grande","Calnali","Cardonal","Chapantongo","Chapulhuacán","Chilcuautla","Cuautepec de Hinojosa","El Arenal","Eloxochitlán","Emiliano Zapata","Epazoyucan","Francisco I. Madero","Huasca de Ocampo","Huautla","Huazalingo","Huehuetla","Huejutla de Reyes","Huichapan","Ixmiquilpan","Jacala de Ledezma","Jaltocán","Juárez Hidalgo","La Misión","Lolotla","Metepec","Metztitlán","Mineral de la Reforma","Mineral del Chico","Mineral del Monte","Mixquiahuala de Juárez","Molango de Escamilla","Nicolás Flores","Nopala de Villagrán","Omitlán de Juárez","Pachuca de Soto","Pacula","Pisaflores","Progreso de Obregón","San Agustín Metzquititlán","San Agustín Tlaxiaca","San Bartolo Tutotepec","San Felipe Orizatlán","San Salvador","Santiago Tulantepec de Lugo Guerrero","Santiago de Anaya","Singuilucan","Tasquillo","Tecozautla","Tenango de Doria","Tepeapulco","Tepehuacán de Guerrero","Tepeji del Río de Ocampo","Tepetitlán","Tetepango","Tezontepec de Aldama","Tianguistengo","Tizayuca","Tlahuelilpan","Tlahuiltepa","Tlanalapa","Tlanchinol","Tlaxcoapan","Tolcayuca","Tula de Allende","Tulancingo de Bravo","Villa de Tezontepec","Xochiatipan","Xochicoatlán","Yahualica","Zacualtipán de Ángeles","Zapotlán de Juárez","Zempoala","Zimapán"],"Jalisco":["Acatic","Acatlán de Juárez","Ahualulco de Mercado","Amacueca","Amatitán","Ameca","Arandas","Atemajac de Brizuela","Atengo","Atenguillo","Atotonilco el Alto","Atoyac","Autlán de Navarro","Ayotlán","Ayutla","Bolaños","Cabo Corrientes","Casimiro Castillo","Cañadas de Obregón","Chapala","Chimaltitán","Chiquilistlán","Cihuatlán","Cocula","Colotlán","Concepción de Buenos Aires","Cuautitlán de García Barragán","Cuautla","Cuquío","Degollado","Ejutla","El Arenal","El Grullo","El Limón","El Salto","Encarnación de Díaz","Etzatlán","Guachinango","Guadalajara","Gómez Farías","Hostotipaquillo","Huejuquilla el Alto","Huejúcar","Ixtlahuacán de los Membrillos","Ixtlahuacán del Río","Jalostotitlán","Jamay","Jesús María","Jilotlán de los Dolores","Jocotepec","Juanacatlán","Juchitlán","La Barca","La Huerta","La Manzanilla de la Paz","Lagos de Moreno","Magdalena","Mascota","Mazamitla","Mexticacán","Mezquitic","Mixtlán","Ocotlán","Ojuelos de Jalisco","Pihuamo","Poncitlán","Puerto Vallarta","Quitupan","San Cristóbal de la Barranca","San Diego de Alejandría","San Gabriel","San Ignacio Cerro Gordo","San Juan de los Lagos","San Juanito de Escobedo","San Julián","San Marcos","San Martín Hidalgo","San Martín de Bolaños","San Miguel el Alto","San Pedro Tlaquepaque","San Sebastián del Oeste","Santa María de los Ángeles","Santa María del Oro","Sayula","Tala","Talpa de Allende","Tamazula de Gordiano","Tapalpa","Tecalitlán","Techaluta de Montenegro","Tecolotlán","Tenamaxtlán","Teocaltiche","Teocuitatlán de Corona","Tepatitlán de Morelos","Tequila","Teuchitlán","Tizapán el Alto","Tlajomulco de Zúñiga","Tolimán","Tomatlán","Tonalá","Tonaya","Tonila","Totatiche","Tototlán","Tuxcacuesco","Tuxcueca","Tuxpan","Unión de San Antonio","Unión de Tula","Valle de Guadalupe","Valle de Juárez","Villa Corona","Villa Guerrero","Villa Hidalgo","Villa Purificación","Yahualica de González Gallo","Zacoalco de Torres","Zapopan","Zapotiltic","Zapotitlán de Vadillo","Zapotlanejo","Zapotlán del Rey","Zapotlán el Grande"],"Michoacán":["Acuitzio","Aguililla","Angamacutiro","Angangueo","Apatzingán","Aporo","Aquila","Ario","Arteaga","Briseñas","Buenavista","Carácuaro","Charapan","Charo","Chavinda","Cherán","Chilchota","Chinicuila","Chucándiro","Churintzio","Churumuco","Coahuayana","Coalcomán de Vázquez Pallares","Coeneo","Cojumatlán de Régules","Contepec","Copándaro","Cotija","Cuitzeo","Ecuandureo","Epitacio Huerta","Erongarícuaro","Gabriel Zamora","Hidalgo","Huandacareo","Huaniqueo","Huetamo","Huiramba","Indaparapeo","Irimbo","Ixtlán","Jacona","Jiménez","Jiquilpan","José Sixto Verduzco","Jungapeo","Juárez","La Huacana","La Piedad","Lagunillas","Los Reyes","Lázaro Cárdenas","Madero","Maravatío","Marcos Castellanos","Morelia","Morelos","Múgica","Nahuatzen","Nocupétaro","Nuevo Parangaricutiro","Nuevo Urecho","Numarán","Ocampo","Pajacuarán","Panindícuaro","Paracho","Parácuaro","Penjamillo","Peribán","Puruándiro","Purépero","Pátzcuaro","Queréndaro","Quiroga","Sahuayo","Salvador Escalante","San Lucas","Santa Ana Maya","Senguio","Susupuato","Tacámbaro","Tancítaro","Tangamandapio","Tangancícuaro","Tanhuato","Taretan","Tarímbaro","Tepalcatepec","Tingambato","Tingüindín","Tiquicheo de Nicolás Romero","Tlalpujahua","Tlazazalca","Tocumbo","Tumbiscatío","Turicato","Tuxpan","Tuzantla","Tzintzuntzan","Tzitzio","Uruapan","Venustiano Carranza","Villamar","Vista Hermosa","Yurécuaro","Zacapu","Zamora","Zinapécuaro","Zináparo","Ziracuaretiro","Zitácuaro","Álvaro Obregón"],"Morelos":["Amacuzac","Atlatlahucan","Axochiapan","Ayala","Coatetelco","Coatlán del Río","Cuautla","Cuernavaca","Emiliano Zapata","Hueyapan","Huitzilac","Jantetelco","Jiutepec","Jojutla","Jonacatepec de Leandro Valle","Mazatepec","Miacatlán","Ocuituco","Puente de Ixtla","Temixco","Temoac","Tepalcingo","Tepoztlán","Tetecala","Tetela del Volcán","Tlalnepantla","Tlaltizapán de Zapata","Tlaquiltenango","Tlayacapan","Totolapan","Xochitepec","Xoxocotla","Yautepec","Yecapixtla","Zacatepec","Zacualpan de Amilpas"],"Nayarit":["Acaponeta","Ahuacatlán","Amatlán de Cañas","Bahía de Banderas","Compostela","Del Nayar","Huajicori","Ixtlán del Río","Jala","La Yesca","Rosamorada","Ruíz","San Blas","San Pedro Lagunillas","Santa María del Oro","Santiago Ixcuintla","Tecuala","Tepic","Tuxpan","Xalisco"],"Nuevo León":["Abasolo","Agualeguas","Allende","Anáhuac","Apodaca","Aramberri","Bustamante","Cadereyta Jiménez","Cerralvo","China","Ciénega de Flores","Doctor Arroyo","Doctor Coss","Doctor González","El Carmen","Galeana","García","General Bravo","General Escobedo","General Terán","General Treviño","General Zaragoza","General Zuazua","Guadalupe","Hidalgo","Higueras","Hualahuises","Iturbide","Juárez","Lampazos de Naranjo","Linares","Los Aldamas","Los Herreras","Los Ramones","Marín","Melchor Ocampo","Mier y Noriega","Mina","Montemorelos","Monterrey","Parás","Pesquería","Rayones","Sabinas Hidalgo","Salinas Victoria","San Nicolás de los Garza","San Pedro Garza García","Santa Catarina","Santiago","Vallecillo","Villaldama"],"Oaxaca":["Abejones","Acatlán de Pérez Figueroa","Asunción Cacalotepec","Asunción Cuyotepeji","Asunción Ixtaltepec","Asunción Nochixtlán","Asunción Ocotlán","Asunción Tlacolulita","Ayoquezco de Aldama","Ayotzintepec","Calihualá","Candelaria Loxicha","Capulálpam de Méndez","Chahuites","Chalcatongo de Hidalgo","Chiquihuitlán de Benito Juárez","Ciudad Ixtepec","Ciénega de Zimatlán","Coatecas Altas","Coicoyán de las Flores","Concepción Buenavista","Concepción Pápalo","Constancia del Rosario","Cosolapa","Cosoltepec","Cuilápam de Guerrero","Cuyamecalco Villa de Zaragoza","El Barrio de la Soledad","El Espinal","Eloxochitlán de Flores Magón","Fresnillo de Trujano","Guadalupe Etla","Guadalupe de Ramírez","Guelatao de Juárez","Guevea de Humboldt","Heroica Ciudad de Ejutla de Crespo","Heroica Ciudad de Huajuapan de León","Heroica Ciudad de Juchitán de Zaragoza","Heroica Ciudad de Miahuatlán de Porfirio Díaz","Heroica Ciudad de Tlaxiaco","Heroica Villa Tezoatlán de Segura y Luna, Cuna de la Independencia de Oaxaca","Heroica Villa de San Blas Atempa","Heroico San Martín de los Cansecos","Huautepec","Huautla de Jiménez","Ixpantepec Nieves","Ixtlán de Juárez","La Compañía","La Pe","La Reforma","La Trinidad Vista Hermosa","Loma Bonita","Magdalena Apasco","Magdalena Jaltepec","Magdalena Mixtepec","Magdalena Ocotlán","Magdalena Peñasco","Magdalena Teitipac","Magdalena Tequisistlán","Magdalena Tlacotepec","Magdalena Yodocono de Porfirio Díaz","Magdalena Zahuatlán","Mariscala de Juárez","Matías Romero Avendaño","Mazatlán Villa de Flores","Mesones Hidalgo","Mixistlán de la Reforma","Monjas","Mártires de Tacubaya","Natividad","Nazareno Etla","Nejapa de Madero","Nuevo Zoquiápam","Oaxaca de Juárez","Ocotlán de Morelos","Pinotepa de Don Luis","Pluma Hidalgo","Putla Villa de Guerrero","Reforma de Pineda","Reyes Etla","Rojas de Cuauhtémoc","Salina Cruz","San Agustín Amatengo","San Agustín Atenango","San Agustín Chayuco","San Agustín Etla","San Agustín Loxicha","San Agustín Tlacotepec","San Agustín Yatareni","San Agustín de las Juntas","San Andrés Cabecera Nueva","San Andrés Dinicuiti","San Andrés Huaxpaltepec","San Andrés Huayápam","San Andrés Ixtlahuaca","San Andrés Lagunas","San Andrés Nuxiño","San Andrés Paxtlán","San Andrés Sinaxtla","San Andrés Solaga","San Andrés Teotilálpam","San Andrés Tepetlapa","San Andrés Yaá","San Andrés Zabache","San Andrés Zautla","San Antonino Castillo Velasco","San Antonino Monte Verde","San Antonino el Alto","San Antonio Acutla","San Antonio Huitepec","San Antonio Nanahuatípam","San Antonio Sinicahua","San Antonio Tepetlapa","San Antonio de la Cal","San Baltazar Chichicápam","San Baltazar Loxicha","San Baltazar Yatzachi el Bajo","San Bartolo Coyotepec","San Bartolo Soyaltepec","San Bartolo Yautepec","San Bartolomé Ayautla","San Bartolomé Loxicha","San Bartolomé Quialana","San Bartolomé Yucuañe","San Bartolomé Zoogocho","San Bernardo Mixtepec","San Carlos Yautepec","San Cristóbal Amatlán","San Cristóbal Amoltepec","San Cristóbal Lachirioag","San Cristóbal Suchixtlahuaca","San Dionisio Ocotepec","San Dionisio Ocotlán","San Dionisio del Mar","San Esteban Atatlahuca","San Felipe Jalapa de Díaz","San Felipe Tejalápam","San Felipe Usila","San Francisco Cahuacuá","San Francisco Cajonos","San Francisco Chapulapa","San Francisco Chindúa","San Francisco Huehuetlán","San Francisco Ixhuatán","San Francisco Jaltepetongo","San Francisco Lachigoló","San Francisco Logueche","San Francisco Nuxaño","San Francisco Ozolotepec","San Francisco Sola","San Francisco Telixtlahuaca","San Francisco Teopan","San Francisco Tlapancingo","San Francisco del Mar","San Gabriel Mixtepec","San Ildefonso Amatlán","San Ildefonso Sola","San Ildefonso Villa Alta","San Jacinto Amilpas","San Jacinto Tlacotepec","San Jerónimo Coatlán","San Jerónimo Silacayoapilla","San Jerónimo Sosola","San Jerónimo Taviche","San Jerónimo Tecóatl","San Jerónimo Tlacochahuaya","San Jorge Nuchita","San José Ayuquila","San José Chiltepec","San José Estancia Grande","San José Independencia","San José Lachiguiri","San José Tenango","San José del Peñasco","San José del Progreso","San Juan Achiutla","San Juan Atepec","San Juan Bautista Atatlahuca","San Juan Bautista Coixtlahuaca","San Juan Bautista Cuicatlán","San Juan Bautista Guelache","San Juan Bautista Jayacatlán","San Juan Bautista Lo de Soto","San Juan Bautista Suchitepec","San Juan Bautista Tlachichilco","San Juan Bautista Tlacoatzintepec","San Juan Bautista Tuxtepec","San Juan Bautista Valle Nacional","San Juan Cacahuatepec","San Juan Chicomezúchil","San Juan Chilateca","San Juan Cieneguilla","San Juan Coatzóspam","San Juan Colorado","San Juan Comaltepec","San Juan Cotzocón","San Juan Diuxi","San Juan Evangelista Analco","San Juan Guelavía","San Juan Guichicovi","San Juan Ihualtepec","San Juan Juquila Mixes","San Juan Juquila Vijanos","San Juan Lachao","San Juan Lachigalla","San Juan Lajarcia","San Juan Lalana","San Juan Mazatlán","San Juan Mixtepec","San Juan Mixtepec","San Juan Ozolotepec","San Juan Petlapa","San Juan Quiahije","San Juan Quiotepec","San Juan Sayultepec","San Juan Tabaá","San Juan Tamazola","San Juan Teita","San Juan Teitipac","San Juan Tepeuxila","San Juan Teposcolula","San Juan Yaeé","San Juan Yatzona","San Juan Yucuita","San Juan de los Cués","San Juan del Estado","San Juan del Río","San Juan Ñumí","San Lorenzo","San Lorenzo Albarradas","San Lorenzo Cacaotepec","San Lorenzo Cuaunecuiltitla","San Lorenzo Texmelúcan","San Lorenzo Victoria","San Lucas Camotlán","San Lucas Ojitlán","San Lucas Quiaviní","San Lucas Zoquiápam","San Luis Amatlán","San Marcial Ozolotepec","San Marcos Arteaga","San Martín Huamelúlpam","San Martín Itunyoso","San Martín Lachilá","San Martín Peras","San Martín Tilcajete","San Martín Toxpalan","San Martín Zacatepec","San Mateo Cajonos","San Mateo Etlatongo","San Mateo Nejápam","San Mateo Peñasco","San Mateo Piñas","San Mateo Río Hondo","San Mateo Sindihui","San Mateo Tlapiltepec","San Mateo Yoloxochitlán","San Mateo Yucutindoo","San Mateo del Mar","San Melchor Betaza","San Miguel Achiutla","San Miguel Ahuehuetitlán","San Miguel Aloápam","San Miguel Amatitlán","San Miguel Amatlán","San Miguel Chicahua","San Miguel Chimalapa","San Miguel Coatlán","San Miguel Ejutla","San Miguel Huautla","San Miguel Mixtepec","San Miguel Panixtlahuaca","San Miguel Peras","San Miguel Piedras","San Miguel Quetzaltepec","San Miguel Santa Flor","San Miguel Soyaltepec","San Miguel Suchixtepec","San Miguel Tecomatlán","San Miguel Tenango","San Miguel Tequixtepec","San Miguel Tilquiápam","San Miguel Tlacamama","San Miguel Tlacotepec","San Miguel Tulancingo","San Miguel Yotao","San Miguel del Puerto","San Miguel del Río","San Miguel el Grande","San Nicolás","San Nicolás Hidalgo","San Pablo Coatlán","San Pablo Cuatro Venados","San Pablo Etla","San Pablo Huitzo","San Pablo Huixtepec","San Pablo Macuiltianguis","San Pablo Tijaltepec","San Pablo Villa de Mitla","San Pablo Yaganiza","San Pedro Amuzgos","San Pedro Apóstol","San Pedro Atoyac","San Pedro Cajonos","San Pedro Comitancillo","San Pedro Coxcaltepec Cántaros","San Pedro Huamelula","San Pedro Huilotepec","San Pedro Ixcatlán","San Pedro Ixtlahuaca","San Pedro Jaltepetongo","San Pedro Jicayán","San Pedro Jocotipac","San Pedro Juchatengo","San Pedro Mixtepec","San Pedro Mixtepec","San Pedro Molinos","San Pedro Mártir","San Pedro Mártir Quiechapa","San Pedro Mártir Yucuxaco","San Pedro Nopala","San Pedro Ocopetatillo","San Pedro Ocotepec","San Pedro Pochutla","San Pedro Quiatoni","San Pedro Sochiápam","San Pedro Tapanatepec","San Pedro Taviche","San Pedro Teozacoalco","San Pedro Teutila","San Pedro Tidaá","San Pedro Topiltepec","San Pedro Totolápam","San Pedro Yaneri","San Pedro Yucunama","San Pedro Yólox","San Pedro el Alto","San Pedro y San Pablo Ayutla","San Pedro y San Pablo Teposcolula","San Pedro y San Pablo Tequixtepec","San Raymundo Jalpan","San Sebastián Abasolo","San Sebastián Coatlán","San Sebastián Ixcapa","San Sebastián Nicananduta","San Sebastián Río Hondo","San Sebastián Tecomaxtlahuaca","San Sebastián Teitipac","San Sebastián Tutla","San Simón Almolongas","San Simón Zahuatlán","San Vicente Coatlán","San Vicente Lachixío","San Vicente Nuñú","Santa Ana","Santa Ana Ateixtlahuaca","Santa Ana Cuauhtémoc","Santa Ana Tavela","Santa Ana Tlapacoyan","Santa Ana Yareni","Santa Ana Zegache","Santa Ana del Valle","Santa Catalina Quierí","Santa Catarina Cuixtla","Santa Catarina Ixtepeji","Santa Catarina Juquila","Santa Catarina Lachatao","Santa Catarina Loxicha","Santa Catarina Mechoacán","Santa Catarina Minas","Santa Catarina Quiané","Santa Catarina Quioquitani","Santa Catarina Tayata","Santa Catarina Ticuá","Santa Catarina Yosonotú","Santa Catarina Zapoquila","Santa Cruz Acatepec","Santa Cruz Amilpas","Santa Cruz Itundujia","Santa Cruz Mixtepec","Santa Cruz Nundaco","Santa Cruz Papalutla","Santa Cruz Tacache de Mina","Santa Cruz Tacahua","Santa Cruz Tayata","Santa Cruz Xitla","Santa Cruz Xoxocotlán","Santa Cruz Zenzontepec","Santa Cruz de Bravo","Santa Gertrudis","Santa Inés Yatzeche","Santa Inés de Zaragoza","Santa Inés del Monte","Santa Lucía Miahuatlán","Santa Lucía Monteverde","Santa Lucía Ocotlán","Santa Lucía del Camino","Santa Magdalena Jicotlán","Santa María Alotepec","Santa María Apazco","Santa María Atzompa","Santa María Camotlán","Santa María Chachoápam","Santa María Chilchotla","Santa María Chimalapa","Santa María Colotepec","Santa María Cortijo","Santa María Coyotepec","Santa María Ecatepec","Santa María Guelacé","Santa María Guienagati","Santa María Huatulco","Santa María Huazolotitlán","Santa María Ipalapa","Santa María Ixcatlán","Santa María Jacatepec","Santa María Jalapa del Marqués","Santa María Jaltianguis","Santa María Lachixío","Santa María Mixtequilla","Santa María Nativitas","Santa María Nduayaco","Santa María Ozolotepec","Santa María Petapa","Santa María Peñoles","Santa María Pápalo","Santa María Quiegolani","Santa María Sola","Santa María Tataltepec","Santa María Tecomavaca","Santa María Temaxcalapa","Santa María Temaxcaltepec","Santa María Teopoxco","Santa María Tepantlali","Santa María Texcatitlán","Santa María Tlahuitoltepec","Santa María Tlalixtac","Santa María Tonameca","Santa María Totolapilla","Santa María Xadani","Santa María Yalina","Santa María Yavesía","Santa María Yolotepec","Santa María Yosoyúa","Santa María Yucuhiti","Santa María Zacatepec","Santa María Zaniza","Santa María Zoquitlán","Santa María del Rosario","Santa María del Tule","Santa María la Asunción","Santiago Amoltepec","Santiago Apoala","Santiago Apóstol","Santiago Astata","Santiago Atitlán","Santiago Ayuquililla","Santiago Cacaloxtepec","Santiago Camotlán","Santiago Choápam","Santiago Comaltepec","Santiago Huajolotitlán","Santiago Huauclilla","Santiago Ihuitlán Plumas","Santiago Ixcuintepec","Santiago Ixtayutla","Santiago Jamiltepec","Santiago Jocotepec","Santiago Juxtlahuaca","Santiago Lachiguiri","Santiago Lalopa","Santiago Laollaga","Santiago Laxopa","Santiago Llano Grande","Santiago Matatlán","Santiago Miltepec","Santiago Minas","Santiago Nacaltepec","Santiago Nejapilla","Santiago Niltepec","Santiago Nundiche","Santiago Nuyoó","Santiago Pinotepa Nacional","Santiago Suchilquitongo","Santiago Tamazola","Santiago Tapextla","Santiago Tenango","Santiago Tepetlapa","Santiago Tetepec","Santiago Texcalcingo","Santiago Textitlán","Santiago Tilantongo","Santiago Tillo","Santiago Tlazoyaltepec","Santiago Xanica","Santiago Xiacuí","Santiago Yaitepec","Santiago Yaveo","Santiago Yolomécatl","Santiago Yosondúa","Santiago Yucuyachi","Santiago Zacatepec","Santiago Zoochila","Santiago del Río","Santo Domingo Albarradas","Santo Domingo Armenta","Santo Domingo Chihuitán","Santo Domingo Ingenio","Santo Domingo Ixcatlán","Santo Domingo Nuxaá","Santo Domingo Ozolotepec","Santo Domingo Petapa","Santo Domingo Roayaga","Santo Domingo Tehuantepec","Santo Domingo Teojomulco","Santo Domingo Tepuxtepec","Santo Domingo Tlatayápam","Santo Domingo Tomaltepec","Santo Domingo Tonaltepec","Santo Domingo Tonalá","Santo Domingo Xagacía","Santo Domingo Yanhuitlán","Santo Domingo Yodohino","Santo Domingo Zanatepec","Santo Domingo de Morelos","Santo Tomás Jalieza","Santo Tomás Mazaltepec","Santo Tomás Ocotepec","Santo Tomás Tamazulapan","Santos Reyes Nopala","Santos Reyes Pápalo","Santos Reyes Tepejillo","Santos Reyes Yucuná","Silacayoápam","Sitio de Xitlapehua","Soledad Etla","Tamazulápam del Espíritu Santo","Tanetze de Zaragoza","Taniche","Tataltepec de Valdés","Teococuilco de Marcos Pérez","Teotitlán de Flores Magón","Teotitlán del Valle","Teotongo","Tepelmeme Villa de Morelos","Tlacolula de Matamoros","Tlacotepec Plumas","Tlalixtac de Cabrera","Totontepec Villa de Morelos","Trinidad Zaachila","Unión Hidalgo","Valerio Trujano","Villa Díaz Ordaz","Villa Hidalgo Yalálag","Villa Sola de Vega","Villa Talea de Castro","Villa Tejúpam de la Unión","Villa de Chilapa de Díaz","Villa de Etla","Villa de Santiago Chazumba","Villa de Tamazulápam del Progreso","Villa de Tututepec","Villa de Zaachila","Yaxe","Yogana","Yutanduchi de Guerrero","Zapotitlán Lagunas","Zapotitlán Palmas","Zimatlán de Álvarez","Ánimas Trujano"],"Puebla":["Acajete","Acateno","Acatlán","Acatzingo","Acteopan","Ahuacatlán","Ahuatlán","Ahuazotepec","Ahuehuetitla","Ajalpan","Albino Zertuche","Aljojuca","Altepexi","Amixtlán","Amozoc","Aquixtla","Atempan","Atexcal","Atlequizayan","Atlixco","Atoyatempan","Atzala","Atzitzihuacán","Atzitzintla","Axutla","Ayotoxco de Guerrero","Calpan","Caltepec","Camocuautla","Caxhuacan","Cañada Morelos","Chalchicomula de Sesma","Chapulco","Chiautla","Chiautzingo","Chichiquila","Chiconcuautla","Chietla","Chigmecatitlán","Chignahuapan","Chignautla","Chila","Chila de la Sal","Chilchotla","Chinantla","Coatepec","Coatzingo","Cohetzala","Cohuecan","Coronango","Coxcatlán","Coyomeapan","Coyotepec","Cuapiaxtla de Madero","Cuautempan","Cuautinchán","Cuautlancingo","Cuayuca de Andrade","Cuetzalan del Progreso","Cuyoaco","Domingo Arenas","Eloxochitlán","Epatlán","Esperanza","Francisco Z. Mena","General Felipe Ángeles","Guadalupe","Guadalupe Victoria","Hermenegildo Galeana","Honey","Huaquechula","Huatlatlauca","Huauchinango","Huehuetla","Huehuetlán el Chico","Huehuetlán el Grande","Huejotzingo","Hueyapan","Hueytamalco","Hueytlalpan","Huitzilan de Serdán","Huitziltepec","Ixcamilpa de Guerrero","Ixcaquixtla","Ixtacamaxtitlán","Ixtepec","Izúcar de Matamoros","Jalpan","Jolalpan","Jonotla","Jopala","Juan C. Bonilla","Juan Galindo","Juan N. Méndez","La Magdalena Tlatlauquitepec","Lafragua","Libres","Los Reyes de Juárez","Mazapiltepec de Juárez","Mixtla","Molcaxac","Naupan","Nauzontla","Nealtican","Nicolás Bravo","Nopalucan","Ocotepec","Ocoyucan","Olintla","Oriental","Pahuatlán","Palmar de Bravo","Pantepec","Petlalcingo","Piaxtla","Puebla","Quecholac","Quimixtlán","Rafael Lara Grajales","San Andrés Cholula","San Antonio Cañada","San Diego la Mesa Tochimiltzingo","San Felipe Teotlalcingo","San Felipe Tepatlán","San Gabriel Chilac","San Gregorio Atzompa","San Jerónimo Tecuanipan","San Jerónimo Xayacatlán","San José Chiapa","San José Miahuatlán","San Juan Atenco","San Juan Atzompa","San Martín Texmelucan","San Martín Totoltepec","San Matías Tlalancaleca","San Miguel Ixitlán","San Miguel Xoxtla","San Nicolás Buenos Aires","San Nicolás de los Ranchos","San Pablo Anicano","San Pedro Cholula","San Pedro Yeloixtlahuaca","San Salvador Huixcolotla","San Salvador el Seco","San Salvador el Verde","San Sebastián Tlacotepec","Santa Catarina Tlaltempan","Santa Inés Ahuatempan","Santa Isabel Cholula","Santiago Miahuatlán","Santo Tomás Hueyotlipan","Soltepec","Tecali de Herrera","Tecamachalco","Tecomatlán","Tehuacán","Tehuitzingo","Tenampulco","Teopantlán","Teotlalco","Tepanco de López","Tepango de Rodríguez","Tepatlaxco de Hidalgo","Tepeaca","Tepemaxalco","Tepeojuma","Tepetzintla","Tepexco","Tepexi de Rodríguez","Tepeyahualco","Tepeyahualco de Cuauhtémoc","Tetela de Ocampo","Teteles de Ávila Castillo","Teziutlán","Tianguismanalco","Tilapa","Tlachichuca","Tlacotepec de Benito Juárez","Tlacuilotepec","Tlahuapan","Tlaltenango","Tlanepantla","Tlaola","Tlapacoya","Tlapanalá","Tlatlauquitepec","Tlaxco","Tochimilco","Tochtepec","Totoltepec de Guerrero","Tulcingo","Tuzamapan de Galeana","Tzicatlacoyan","Venustiano Carranza","Vicente Guerrero","Xayacatlán de Bravo","Xicotepec","Xicotlán","Xiutetelco","Xochiapulco","Xochiltepec","Xochitlán Todos Santos","Xochitlán de Vicente Suárez","Yaonáhuac","Yehualtepec","Zacapala","Zacapoaxtla","Zacatlán","Zapotitlán","Zapotitlán de Méndez","Zaragoza","Zautla","Zihuateutla","Zinacatepec","Zongozotla","Zoquiapan","Zoquitlán"],"Querétaro":["Amealco de Bonfil","Arroyo Seco","Cadereyta de Montes","Colón","Corregidora","El Marqués","Ezequiel Montes","Huimilpan","Jalpan de Serra","Landa de Matamoros","Pedro Escobedo","Peñamiller","Pinal de Amoles","Querétaro","San Joaquín","San Juan del Río","Tequisquiapan","Tolimán"],"Quintana Roo":["Bacalar","Benito Juárez","Cozumel","Felipe Carrillo Puerto","Isla Mujeres","José María Morelos","Lázaro Cárdenas","Othón P. Blanco","Playa del Carmen","Puerto Morelos","Tulum"],"San Luis Potosí":["Ahualulco del Sonido 13","Alaquines","Aquismón","Armadillo de los Infante","Axtla de Terrazas","Catorce","Cedral","Cerritos","Cerro de San Pedro","Charcas","Ciudad Fernández","Ciudad Valles","Ciudad del Maíz","Coxcatlán","Cárdenas","Ebano","El Naranjo","Guadalcázar","Huehuetlán","Lagunillas","Matehuala","Matlapa","Mexquitic de Carmona","Moctezuma","Rayón","Rioverde","Salinas","San Antonio","San Ciro de Acosta","San Luis Potosí","San Martín Chalchicuautla","San Nicolás Tolentino","San Vicente Tancuayalab","Santa Catarina","Santa María del Río","Santo Domingo","Soledad de Graciano Sánchez","Tamasopo","Tamazunchale","Tampacán","Tampamolón Corona","Tamuín","Tancanhuitz","Tanlajás","Tanquián de Escobedo","Tierra Nueva","Vanegas","Venado","Villa Hidalgo","Villa Juárez","Villa de Arista","Villa de Arriaga","Villa de Guadalupe","Villa de Pozos","Villa de Ramos","Villa de Reyes","Villa de la Paz","Xilitla","Zaragoza"],"Sinaloa":["Ahome","Angostura","Badiraguato","Choix","Concordia","Cosalá","Culiacán","El Fuerte","Eldorado","Elota","Escuinapa","Guasave","Juan José Ríos","Mazatlán","Mocorito","Navolato","Rosario","Salvador Alvarado","San Ignacio","Sinaloa"],"Sonora":["Aconchi","Agua Prieta","Altar","Arivechi","Arizpe","Atil","Bacadéhuachi","Bacanora","Bacerac","Bacoachi","Banámichi","Bavispe","Baviácora","Benito Juárez","Benjamín Hill","Bácum","Caborca","Cajeme","Cananea","Carbó","Cucurpe","Cumpas","Divisaderos","Empalme","Etchojoa","Fronteras","General Plutarco Elías Calles","Granados","Guaymas","Hermosillo","Huachinera","Huatabampo","Huásabas","Huépac","Imuris","La Colorada","Magdalena","Mazatán","Moctezuma","Naco","Nacozari de García","Navojoa","Nogales","Nácori Chico","Opodepe","Oquitoa","Pitiquito","Puerto Peñasco","Quiriego","Rayón","Rosario","Sahuaripa","San Felipe de Jesús","San Ignacio Río Muerto","San Javier","San Luis Río Colorado","San Miguel de Horcasitas","San Pedro de la Cueva","Santa Ana","Santa Cruz","Soyopa","Suaqui Grande","Sáric","Tepache","Trincheras","Tubutama","Ures","Villa Hidalgo","Villa Pesqueira","Yécora","Álamos","Ónavas"],"Tabasco":["Balancán","Centla","Centro","Comalcalco","Cunduacán","Cárdenas","Emiliano Zapata","Huimanguillo","Jalapa","Jalpa de Méndez","Jonuta","Macuspana","Nacajuca","Paraíso","Tacotalpa","Teapa","Tenosique"],"Tamaulipas":["Abasolo","Aldama","Altamira","Antiguo Morelos","Burgos","Bustamante","Camargo","Casas","Ciudad Madero","Cruillas","El Mante","González","Guerrero","Gustavo Díaz Ordaz","Gómez Farías","Güémez","Hidalgo","Jaumave","Jiménez","Llera","Mainero","Matamoros","Mier","Miguel Alemán","Miquihuana","Méndez","Nuevo Laredo","Nuevo Morelos","Ocampo","Padilla","Palmillas","Reynosa","Río Bravo","San Carlos","San Fernando","San Nicolás","Soto la Marina","Tampico","Tula","Valle Hermoso","Victoria","Villagrán","Xicoténcatl"],"Tlaxcala":["Acuamanala de Miguel Hidalgo","Amaxac de Guerrero","Apetatitlán de Antonio Carvajal","Apizaco","Atlangatepec","Atltzayanca","Benito Juárez","Calpulalpan","Chiautempan","Contla de Juan Cuamatzi","Cuapiaxtla","Cuaxomulco","El Carmen Tequexquitla","Emiliano Zapata","Españita","Huamantla","Hueyotlipan","Ixtacuixtla de Mariano Matamoros","Ixtenco","La Magdalena Tlaltelulco","Lázaro Cárdenas","Mazatecochco de José María Morelos","Muñoz de Domingo Arenas","Nanacamilpa de Mariano Arista","Natívitas","Panotla","Papalotla de Xicohténcatl","San Damián Texóloc","San Francisco Tetlanohcan","San Jerónimo Zacualpan","San José Teacalco","San Juan Huactzinco","San Lorenzo Axocomanitla","San Lucas Tecopilco","San Pablo del Monte","Sanctórum de Lázaro Cárdenas","Santa Ana Nopalucan","Santa Apolonia Teacalco","Santa Catarina Ayometla","Santa Cruz Quilehtla","Santa Cruz Tlaxcala","Santa Isabel Xiloxoxtla","Tenancingo","Teolocholco","Tepetitla de Lardizábal","Tepeyanco","Terrenate","Tetla de la Solidaridad","Tetlatlahuca","Tlaxcala","Tlaxco","Tocatlán","Totolac","Tzompantepec","Xaloztoc","Xaltocan","Xicohtzinco","Yauhquemehcan","Zacatelco","Ziltlaltépec de Trinidad Sánchez Santos"],"Veracruz":["Acajete","Acatlán","Acayucan","Actopan","Acula","Acultzingo","Agua Dulce","Alpatláhuac","Alto Lucero de Gutiérrez Barrios","Altotonga","Alvarado","Amatitlán","Amatlán de los Reyes","Angel R. Cabada","Apazapan","Aquila","Astacinga","Atlahuilco","Atoyac","Atzacan","Atzalan","Ayahualulco","Banderilla","Benito Juárez","Boca del Río","Calcahualco","Camarón de Tejeda","Camerino Z. Mendoza","Carlos A. Carrillo","Carrillo Puerto","Castillo de Teayo","Catemaco","Cazones de Herrera","Cerro Azul","Chacaltianguis","Chalma","Chiconamel","Chiconquiaco","Chicontepec","Chinameca","Chinampa de Gorostiza","Chocamán","Chontla","Chumatlán","Citlaltépetl","Coacoatzintla","Coahuitlán","Coatepec","Coatzacoalcos","Coatzintla","Coetzala","Colipa","Comapa","Cosamaloapan de Carpio","Cosautlán de Carvajal","Coscomatepec","Cosoleacaque","Cotaxtla","Coxquihui","Coyutla","Cuichapa","Cuitláhuac","Córdoba","El Higo","Emiliano Zapata","Espinal","Filomeno Mata","Fortín","Gutiérrez Zamora","Hidalgotitlán","Huatusco","Huayacocotla","Hueyapan de Ocampo","Huiloapan de Cuauhtémoc","Ignacio de la Llave","Ilamatlán","Isla","Ixcatepec","Ixhuacán de los Reyes","Ixhuatlancillo","Ixhuatlán de Madero","Ixhuatlán del Café","Ixhuatlán del Sureste","Ixmatlahuacan","Ixtaczoquitlán","Jalacingo","Jalcomulco","Jamapa","Jesús Carranza","Jilotepec","José Azueta","Juan Rodríguez Clara","Juchique de Ferrer","Jáltipan","La Antigua","La Perla","Landero y Coss","Las Choapas","Las Minas","Las Vigas de Ramírez","Lerdo de Tejada","Los Reyes","Magdalena","Maltrata","Manlio Fabio Altamirano","Mariano Escobedo","Martínez de la Torre","Mecatlán","Mecayapan","Medellín de Bravo","Miahuatlán","Minatitlán","Misantla","Mixtla de Altamirano","Moloacán","Nanchital de Lázaro Cárdenas del Río","Naolinco","Naranjal","Naranjos Amatlán","Nautla","Nogales","Oluta","Omealca","Orizaba","Otatitlán","Oteapan","Ozuluama de Mascareñas","Pajapan","Papantla","Paso de Ovejas","Paso del Macho","Perote","Platón Sánchez","Playa Vicente","Poza Rica de Hidalgo","Pueblo Viejo","Puente Nacional","Pánuco","Rafael Delgado","Rafael Lucio","Río Blanco","Saltabarranca","San Andrés Tenejapan","San Andrés Tuxtla","San Juan Evangelista","San Rafael","Santiago Sochiapan","Santiago Tuxtla","Sayula de Alemán","Sochiapa","Soconusco","Soledad Atzompa","Soledad de Doblado","Soteapan","Tamalín","Tamiahua","Tampico Alto","Tancoco","Tantima","Tantoyuca","Tatahuicapan de Juárez","Tatatila","Tecolutla","Tehuipango","Tempoal","Tenampa","Tenochtitlán","Teocelo","Tepatlaxco","Tepetlán","Tepetzintla","Tequila","Texcatepec","Texhuacán","Texistepec","Tezonapa","Tierra Blanca","Tihuatlán","Tlachichilco","Tlacojalpan","Tlacolulan","Tlacotalpan","Tlacotepec de Mejía","Tlalixcoyan","Tlalnelhuayocan","Tlaltetela","Tlapacoyan","Tlaquilpa","Tlilapan","Tomatlán","Tonayán","Totutla","Tres Valles","Tuxpan","Tuxtilla","Ursulo Galván","Uxpanapa","Vega de Alatorre","Veracruz","Villa Aldama","Xalapa","Xico","Xoxocotla","Yanga","Yecuatla","Zacualpan","Zaragoza","Zentla","Zongolica","Zontecomatlán de López y Fuentes","Zozocolco de Hidalgo","Álamo Temapache"],"Yucatán":["Abalá","Acanceh","Akil","Baca","Bokobá","Buctzotz","Cacalchén","Calotmul","Cansahcab","Cantamayec","Celestún","Cenotillo","Chacsinkín","Chankom","Chapab","Chemax","Chichimilá","Chicxulub Pueblo","Chikindzonot","Chocholá","Chumayel","Conkal","Cuncunul","Cuzamá","Dzan","Dzemul","Dzidzantún","Dzilam González","Dzilam de Bravo","Dzitás","Dzoncauich","Espita","Halachó","Hocabá","Hoctún","Homún","Huhí","Hunucmá","Ixil","Izamal","Kanasín","Kantunil","Kaua","Kinchil","Kopomá","Mama","Maní","Maxcanú","Mayapán","Mocochá","Motul","Muna","Muxupip","Mérida","Opichén","Oxkutzcab","Panabá","Peto","Progreso","Quintana Roo","Río Lagartos","Sacalum","Samahil","San Felipe","Sanahcat","Santa Elena","Seyé","Sinanché","Sotuta","Sucilá","Sudzal","Suma","Tahdziú","Tahmek","Teabo","Tecoh","Tekal de Venegas","Tekantó","Tekax","Tekit","Tekom","Telchac Pueblo","Telchac Puerto","Temax","Temozón","Tepakán","Tetiz","Teya","Ticul","Timucuy","Tinum","Tixcacalcupul","Tixkokob","Tixméhuac","Tixpéhual","Tizimín","Tunkás","Tzucacab","Uayma","Ucú","Umán","Valladolid","Xocchel","Yaxcabá","Yaxkukul","Yobaín"],"Zacatecas":["Apozol","Apulco","Atolinga","Benito Juárez","Calera","Cañitas de Felipe Pescador","Chalchihuites","Concepción del Oro","Cuauhtémoc","El Plateado de Joaquín Amaro","El Salvador","Fresnillo","Genaro Codina","General Enrique Estrada","General Francisco R. Murguía","General Pánfilo Natera","Guadalupe","Huanusco","Jalpa","Jerez","Jiménez del Teul","Juan Aldama","Juchipila","Loreto","Luis Moya","Mazapil","Melchor Ocampo","Mezquital del Oro","Miguel Auza","Momax","Monte Escobedo","Morelos","Moyahua de Estrada","Nochistlán de Mejía","Noria de Ángeles","Ojocaliente","Pinos","Pánuco","Río Grande","Sain Alto","Santa María de la Paz","Sombrerete","Susticacán","Tabasco","Tepechitlán","Tepetongo","Teúl de González Ortega","Tlaltenango de Sánchez Román","Trancoso","Trinidad García de la Cadena","Valparaíso","Vetagrande","Villa García","Villa González Ortega","Villa Hidalgo","Villa de Cos","Villanueva","Zacatecas"]};
+/* ============================================================
+ * Centros aproximados (capital del estado) para ubicar el mapa al elegir
+ * un estado — es solo un punto de partida; la persona ajusta el marcador
+ * a mano a la ubicación real de su proyecto en el paso siguiente.
+ * ============================================================ */
+var ESTADO_CENTROS = {
+  'Aguascalientes': [21.8853, -102.2916], 'Baja California': [32.6245, -115.4523],
+  'Baja California Sur': [24.1426, -110.3128], 'Campeche': [19.8301, -90.5349],
+  'Chiapas': [16.7516, -93.1029], 'Chihuahua': [28.6353, -106.0889],
+  'Ciudad de México': [19.4326, -99.1332], 'Coahuila': [25.4260, -101.0053],
+  'Colima': [19.2433, -103.7247], 'Durango': [24.0277, -104.6532],
+  'Estado de México': [19.2926, -99.6568], 'Guanajuato': [21.0190, -101.2574],
+  'Guerrero': [17.5506, -99.5024], 'Hidalgo': [20.1011, -98.7591],
+  'Jalisco': [20.6597, -103.3496], 'Michoacán': [19.7008, -101.1844],
+  'Morelos': [18.9186, -99.2342], 'Nayarit': [21.5041, -104.8942],
+  'Nuevo León': [25.6866, -100.3161], 'Oaxaca': [17.0732, -96.7266],
+  'Puebla': [19.0414, -98.2063], 'Querétaro': [20.5888, -100.3899],
+  'Quintana Roo': [18.5036, -88.3055], 'San Luis Potosí': [22.1565, -100.9855],
+  'Sinaloa': [24.8091, -107.3940], 'Sonora': [29.0729, -110.9559],
+  'Tabasco': [17.9895, -92.9475], 'Tamaulipas': [23.7369, -99.1411],
+  'Tlaxcala': [19.3182, -98.2375], 'Veracruz': [19.5438, -96.9102],
+  'Yucatán': [20.9674, -89.5926], 'Zacatecas': [22.7709, -102.5832]
+};
+var CENTRO_MEXICO = [23.6345, -102.5528]; // fallback antes de elegir estado
+
+var CATEGORIAS_CRM_OPCIONES = ['Gobierno y Sector Público', 'ONG y Fundaciones', 'Educación', 'Salud y Bienestar',
+  'Universidad', 'Cámara empresarial', 'Empresa privada', 'Retail y Consumo', 'Fintech y Servicios',
+  'Tecnología y Telecom', 'Turismo y Hospitalidad', 'Organismo internacional', 'Otro'];
+
+/* Mismas listas que usa INS-TER-01 (Mapa de actores y recursos) en la
+ * Plataforma Sintropía — para que la muestra hable el mismo idioma que el
+ * instrumento real. */
+var TIPOS_ACTOR_TER = ['Actor institucional', 'Actor comunitario', 'Actor privado / empresa', 'Recurso físico',
+  'Recurso financiero', 'Recurso humano / especialista'];
+var NIVELES_ACTOR_TER = ['Alta', 'Media', 'Baja'];
+
+/* ============================================================
+ * Diez reactivos, agrupados en 3 dimensiones. Escala 0-3 por reactivo
+ * ("Nunca" a "Siempre"), 30 puntos posibles en total — aquí, a diferencia
+ * del semáforo de riesgo SE, MÁS puntos = mejor mapeo territorial.
+ * ============================================================ */
+var OPCIONES_LIKERT_TER = [
+  { etiqueta: 'Nunca', puntos: 0 },
+  { etiqueta: 'Rara vez', puntos: 1 },
+  { etiqueta: 'Casi siempre', puntos: 2 },
+  { etiqueta: 'Siempre', puntos: 3 }
+];
+
+var DIMENSIONES_TERRITORIO = [
+  {
+    clave: 'actores', nombre: 'Identificación de actores y recursos',
+    items: [
+      '¿Tienes identificados y documentados a los actores clave (autoridades, líderes comunitarios, organizaciones) del territorio donde opera tu proyecto?',
+      '¿Sabes qué recursos físicos, financieros o humanos existen en esa zona y podrían aportar a tu proyecto?',
+      '¿Distingues con claridad qué actores tienen alta influencia sobre tu proyecto y cuáles solo tienen interés en él?',
+      '¿Actualizas tu mapeo cuando cambian las condiciones del territorio (nuevas autoridades, nuevos actores, etc.)?'
+    ]
+  },
+  {
+    clave: 'informacion', nombre: 'Información y diagnóstico territorial',
+    items: [
+      '¿Cuentas con datos actualizados (INEGI, fuentes locales, censos propios) sobre la población y condiciones del territorio donde trabajas?',
+      '¿Tu equipo conoce la historia, cultura y dinámicas sociales propias de la zona antes de diseñar una intervención?',
+      '¿Identificas los riesgos o tensiones del territorio (sociales, ambientales, de seguridad) que podrían afectar tu proyecto?'
+    ]
+  },
+  {
+    clave: 'uso', nombre: 'Uso estratégico del mapeo',
+    items: [
+      '¿Usas tu mapeo de actores para diseñar una estrategia diferenciada de involucramiento (a quién informar, a quién consultar, a quién sumar como aliado)?',
+      '¿Tu mapeo territorial influye directamente en decisiones reales del proyecto (dónde intervenir, con quién aliarte, qué recursos gestionar)?',
+      '¿Todo tu equipo — no solo una persona — tiene acceso y usa la información territorial que han recabado?'
+    ]
+  }
+];
+
+function _bandaTerritorio(puntaje) {
+  if (puntaje <= 9) return { clave: 'rojo', etiqueta: 'Territorio por mapear', claseCss: 'rojo' };
+  if (puntaje <= 19) return { clave: 'amarillo', etiqueta: 'Mapeo en construcción', claseCss: 'amarillo' };
+  return { clave: 'verde', etiqueta: 'Territorio bien mapeado', claseCss: 'verde' };
+}
+
+function _nivelBarraTer(sub, max) {
+  var pct = sub / max;
+  if (pct <= 0.33) return 'baja';
+  if (pct <= 0.66) return 'media';
+  return 'alta';
+}
+
+/* ---- Estrategia de involucramiento por cuadrante (matriz poder-interés) ----
+ * "Media" se trata como del lado alto de su eje (>= 0.5) — una simplificación
+ * razonable para una matriz de 2x2 con solo 3 niveles por eje. */
+var NIVEL_FRACCION = { 'Baja': 0.15, 'Media': 0.5, 'Alta': 0.85 };
+function _estrategiaCuadrante(influencia, interes) {
+  var ladoAltoInf = (NIVEL_FRACCION[influencia] || 0) >= 0.5;
+  var ladoAltoInt = (NIVEL_FRACCION[interes] || 0) >= 0.5;
+  if (ladoAltoInf && ladoAltoInt) return 'Gestionar de cerca';
+  if (ladoAltoInf && !ladoAltoInt) return 'Mantener satisfecho';
+  if (!ladoAltoInf && ladoAltoInt) return 'Mantener informado';
+  return 'Monitorear';
+}
+
+var RECOMENDACION_BANDA_TER = {
+  rojo: {
+    titulo: '¿Quieres blindar la planeación de tu proyecto?',
+    texto: 'Tu territorio de trabajo todavía tiene huecos importantes de información. Te recomendamos el Banco de Instrumentos (eje Territorio) de la Plataforma Sintropía — empezando por INS-TER-01, Mapa de actores y recursos — o que nuestro equipo te acompañe a levantarlo en campo.',
+    ctaSolido: 'Agenda una demo', ctaContorno: 'Escríbenos'
+  },
+  amarillo: {
+    titulo: '¿Quieres sistematizar tu mapeo territorial?',
+    texto: 'Ya tienes bases, pero hay huecos que vale la pena cerrar. Te recomendamos el Banco de Instrumentos (eje Territorio) en la Plataforma Sintropía, para que tu propio equipo complete y mantenga vivo el mapeo con nuestros formatos.',
+    ctaSolido: 'Agenda una demo', ctaContorno: 'Escríbenos'
+  },
+  verde: {
+    titulo: '¡Tu mapeo territorial ya cubre lo esencial!',
+    texto: 'Vas bien — tu proyecto ya conoce su territorio. Para mantenerlo así y sacarle más provecho estratégico, te compartimos recursos y noticias del sector.',
+    ctaSolido: 'Conoce más servicios', ctaContorno: 'Escríbenos'
+  }
+};
+
+/* ============================================================
+ * Estado de la app
+ * ============================================================ */
+var state = {
+  paso: 0,
+  datos: null,
+  ubicacion: null, // { lat, lng, tocado }
+  actores: [
+    { nombre: '', tipo: '', influencia: '', interes: '' },
+    { nombre: '', tipo: '', influencia: '', interes: '' },
+    { nombre: '', tipo: '', influencia: '', interes: '' }
+  ],
+  respuestas: {},
+  resultado: null,
+  interpretacionIA: null,
+  correoResultadoEnviado: false
+};
+var app = document.getElementById('app');
+var TOTAL_PASOS = 5; // 0 datos · 1 mapa · 2 actores · 3 reactivos · 4 resultado
+var mapaLeaflet = null, marcadorLeaflet = null;
+
+function progresoHtml() {
+  var html = '<div class="progreso">';
+  for (var i = 0; i < TOTAL_PASOS; i++) {
+    var cls = i < state.paso ? 'hecho' : (i === state.paso ? 'actual' : '');
+    html += '<div class="paso ' + cls + '"></div>';
+  }
+  return html + '</div>';
+}
+
+function render() {
+  if (state.paso === 0) return renderDatos();
+  if (state.paso === 1) return renderMapa();
+  if (state.paso === 2) return renderActores();
+  if (state.paso === 3) return renderReactivos();
+  return renderResultado();
+}
+
+/* ---- PASO 0: datos de la organización y ubicación general ---- */
+function renderDatos() {
+  var d = state.datos || {};
+  var municipiosDisponibles = d.estado ? (ESTADOS_MUNICIPIOS[d.estado] || []) : [];
+  app.innerHTML =
+    progresoHtml() +
+    '<h1>Mapa territorial de tu proyecto</h1>' +
+    '<p class="subtle">Ubica tu proyecto, mapea a tus actores clave y responde diez preguntas breves sobre qué tan bien conoces tu territorio — menos de 6 minutos. Primero, algunos datos para poder enviarte tu resultado.</p>' +
+    '<div id="secMsg"></div>' +
+    '<form id="datosForm">' +
+      '<label>Nombre completo <span class="req">*</span></label><input type="text" id="dNombre" value="' + escapeHtml(d.nombre || '') + '">' +
+      '<label>Organización <span class="req">*</span></label><input type="text" id="dOrganizacion" value="' + escapeHtml(d.organizacion || '') + '">' +
+      '<label>Categoría <span class="req">*</span></label>' +
+      '<select id="dCategoria">' +
+        '<option value="">Selecciona una opción</option>' +
+        CATEGORIAS_CRM_OPCIONES.map(function (c) {
+          return '<option' + (d.categoria === c ? ' selected' : '') + '>' + escapeHtml(c) + '</option>';
+        }).join('') +
+      '</select>' +
+      '<label>Correo electrónico <span class="req">*</span></label><input type="email" id="dEmail" placeholder="nombre@tuorganizacion.com" value="' + escapeHtml(d.email || '') + '">' +
+      '<div class="row2">' +
+        '<div><label>Teléfono <span class="opc">(opcional)</span></label><input type="text" id="dTelefono" value="' + escapeHtml(d.telefono || '') + '"></div>' +
+        '<div><label>Cargo <span class="opc">(opcional)</span></label><input type="text" id="dCargo" value="' + escapeHtml(d.cargo || '') + '"></div>' +
+      '</div>' +
+      '<h3>¿Dónde está el territorio de tu proyecto?</h3>' +
+      '<div class="row2">' +
+        '<div><label>Estado <span class="req">*</span></label><select id="dEstado">' +
+          '<option value="">Selecciona un estado</option>' +
+          Object.keys(ESTADOS_MUNICIPIOS).map(function (e) {
+            return '<option' + (d.estado === e ? ' selected' : '') + '>' + escapeHtml(e) + '</option>';
+          }).join('') +
+        '</select></div>' +
+        '<div><label>Municipio / alcaldía <span class="req">*</span></label><select id="dMunicipio">' +
+          (municipiosDisponibles.length ?
+            ('<option value="">Selecciona un municipio</option>' + municipiosDisponibles.map(function (m) {
+              return '<option' + (d.municipio === m ? ' selected' : '') + '>' + escapeHtml(m) + '</option>';
+            }).join('')) :
+            '<option value="">Selecciona un estado primero</option>') +
+        '</select></div>' +
+      '</div>' +
+      '<div class="row2">' +
+        '<div><label>Colonia / localidad <span class="opc">(opcional)</span></label><input type="text" id="dColonia" value="' + escapeHtml(d.colonia || '') + '"></div>' +
+        '<div><label>Código postal <span class="opc">(opcional)</span></label><input type="text" id="dCp" maxlength="5" value="' + escapeHtml(d.cp || '') + '"></div>' +
+      '</div>' +
+      '<p class="subtle" style="margin-top:6px">Colonia y código postal los escribes tú — no usamos un catálogo automático para no arriesgar un dato incorrecto. Estado y municipio sí vienen del catálogo oficial de la plataforma.</p>' +
+      '<input type="text" id="dTrampa" class="campo-trampa" tabindex="-1" autocomplete="off">' +
+      '<div class="consentimiento">' +
+        '<input type="checkbox" id="dConsentimiento"' + (d.consentimiento ? ' checked' : '') + '>' +
+        '<label for="dConsentimiento">Autorizo a Sintropía Social a contactarme para compartirme mi resultado y contarme sobre sus servicios. Puedo pedir que borren mis datos cuando quiera escribiendo a comunicacion@sintropiasocial.com.</label>' +
+      '</div>' +
+    '</form>' +
+    '<div class="fila-botones"><button class="primary" id="btnSiguiente">Continuar al mapa →</button></div>';
+
+  document.getElementById('dEstado').onchange = function () {
+    var estado = document.getElementById('dEstado').value;
+    var selMunicipio = document.getElementById('dMunicipio');
+    var municipios = ESTADOS_MUNICIPIOS[estado] || [];
+    selMunicipio.innerHTML = '<option value="">Selecciona un municipio</option>' +
+      municipios.map(function (m) { return '<option>' + escapeHtml(m) + '</option>'; }).join('');
+  };
+
+  document.getElementById('btnSiguiente').onclick = function () {
+    var msgBox = document.getElementById('secMsg');
+    var nombre = document.getElementById('dNombre').value.trim();
+    var organizacion = document.getElementById('dOrganizacion').value.trim();
+    var categoria = document.getElementById('dCategoria').value;
+    var email = document.getElementById('dEmail').value.trim();
+    var estado = document.getElementById('dEstado').value;
+    var municipio = document.getElementById('dMunicipio').value;
+    var consentimiento = document.getElementById('dConsentimiento').checked;
+    if (!nombre || !organizacion) { msgBox.innerHTML = '<div class="msg error">Escribe tu nombre y el de tu organización.</div>'; return; }
+    if (!categoria) { msgBox.innerHTML = '<div class="msg error">Selecciona una categoría.</div>'; return; }
+    if (!email || email.indexOf('@') === -1) { msgBox.innerHTML = '<div class="msg error">Escribe un correo electrónico válido.</div>'; return; }
+    if (!estado || !municipio) { msgBox.innerHTML = '<div class="msg error">Selecciona el estado y el municipio del territorio de tu proyecto.</div>'; return; }
+    if (!consentimiento) { msgBox.innerHTML = '<div class="msg error">Necesitamos tu autorización para poder contactarte con tu resultado.</div>'; return; }
+
+    var estadoCambio = (d.estado || '') !== estado;
+    state.datos = {
+      nombre: nombre, organizacion: organizacion, categoria: categoria, email: email,
+      telefono: document.getElementById('dTelefono').value.trim(),
+      cargo: document.getElementById('dCargo').value.trim(),
+      estado: estado, municipio: municipio,
+      colonia: document.getElementById('dColonia').value.trim(),
+      cp: document.getElementById('dCp').value.trim(),
+      consentimiento: true,
+      sitioWebTrampa: document.getElementById('dTrampa').value
+    };
+    // Si cambió el estado, recentra el mapa la próxima vez que se muestre.
+    if (estadoCambio) state.ubicacion = null;
+    state.paso = 1;
+    render();
+  };
+}
+
+/* ---- PASO 1: mapa — marca la ubicación aproximada del proyecto ---- */
+function renderMapa() {
+  var d = state.datos || {};
+  app.innerHTML =
+    progresoHtml() +
+    '<h2>Ubica tu territorio en el mapa</h2>' +
+    '<p class="subtle" style="margin-top:0">Da clic en el mapa o arrastra el marcador hasta la ubicación aproximada de tu proyecto en ' + escapeHtml(d.municipio || '') + ', ' + escapeHtml(d.estado || '') + '. No necesita ser exacta.</p>' +
+    '<div id="mapaLeaflet"></div>' +
+    '<div class="mapa-ficha" id="mapaFicha"></div>' +
+    '<div class="fila-botones">' +
+      '<button class="secondary" id="btnAtras">Atrás</button>' +
+      '<button class="primary" id="btnSiguiente">Continuar a los actores →</button>' +
+    '</div>';
+
+  var centro = (state.ubicacion && state.ubicacion.tocado) ?
+    [state.ubicacion.lat, state.ubicacion.lng] :
+    (ESTADO_CENTROS[d.estado] || CENTRO_MEXICO);
+  var zoomInicial = (state.ubicacion && state.ubicacion.tocado) ? 13 : 8;
+
+  if (mapaLeaflet) { mapaLeaflet.remove(); mapaLeaflet = null; marcadorLeaflet = null; }
+  mapaLeaflet = L.map('mapaLeaflet').setView(centro, zoomInicial);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 18,
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>'
+  }).addTo(mapaLeaflet);
+  marcadorLeaflet = L.marker(centro, { draggable: true }).addTo(mapaLeaflet);
+
+  function actualizarUbicacion(lat, lng, tocado) {
+    state.ubicacion = { lat: lat, lng: lng, tocado: !!tocado };
+    var ficha = document.getElementById('mapaFicha');
+    if (ficha) {
+      ficha.innerHTML = tocado ?
+        ('<b>Marcador colocado</b> — ' + lat.toFixed(4) + ', ' + lng.toFixed(4)) :
+        'Aún no has movido el marcador — está sobre el centro aproximado de ' + escapeHtml(d.estado || 'tu estado') + '. Da clic donde esté tu proyecto para precisarlo.';
+    }
+  }
+  actualizarUbicacion(centro[0], centro[1], state.ubicacion && state.ubicacion.tocado);
+
+  mapaLeaflet.on('click', function (e) {
+    marcadorLeaflet.setLatLng(e.latlng);
+    actualizarUbicacion(e.latlng.lat, e.latlng.lng, true);
+  });
+  marcadorLeaflet.on('dragend', function () {
+    var pos = marcadorLeaflet.getLatLng();
+    actualizarUbicacion(pos.lat, pos.lng, true);
+  });
+
+  document.getElementById('btnAtras').onclick = function () { state.paso = 0; render(); };
+  document.getElementById('btnSiguiente').onclick = function () { state.paso = 2; render(); };
+}
+
+/* ---- Matriz de actores (poder-interés): construcción del HTML del
+ * cuadrante + leyenda, reutilizada en el paso 2 (vista previa en vivo) y
+ * en el paso 4 (recap del resultado). ---- */
+function actoresValidos() {
+  return state.actores.filter(function (a) { return a.nombre.trim() && a.influencia && a.interes; });
+}
+
+function renderCuadranteHtml(actores) {
+  if (!actores.length) {
+    return '<p class="subtle">Agrega al menos 3 actores con nombre, influencia e interés para ver tu matriz.</p>';
+  }
+  var puntosHtml = actores.map(function (a, i) {
+    var x = NIVEL_FRACCION[a.interes] * 100;
+    var y = (1 - NIVEL_FRACCION[a.influencia]) * 100;
+    return '<div class="punto-actor" style="left:' + x + '%;top:' + y + '%" title="' + escapeHtml(a.nombre) + '">' + (i + 1) + '</div>';
+  }).join('');
+  var leyendaHtml = actores.map(function (a, i) {
+    var estrategia = _estrategiaCuadrante(a.influencia, a.interes);
+    return '<div class="leyenda-item">' +
+      '<div class="leyenda-num">' + (i + 1) + '</div>' +
+      '<div><div class="nombre">' + escapeHtml(a.nombre) + '</div>' +
+      '<div class="subtle">' + escapeHtml(a.tipo || 'Sin tipo') + ' · Influencia ' + escapeHtml(a.influencia) + ' · Interés ' + escapeHtml(a.interes) + '</div>' +
+      '<div class="estrategia">' + escapeHtml(estrategia) + '</div></div>' +
+    '</div>';
+  }).join('');
+  return '<div class="cuadrante-wrap">' +
+    '<div class="cuadrante-columna">' +
+      '<div class="cuadrante-fila">' +
+        '<div class="cuadrante-eje-y">Influencia →</div>' +
+        '<div class="cuadrante-box">' +
+          '<div class="cuadrante-etiqueta tl">Mantener satisfecho</div>' +
+          '<div class="cuadrante-etiqueta tr">Gestionar de cerca</div>' +
+          '<div class="cuadrante-etiqueta bl">Monitorear</div>' +
+          '<div class="cuadrante-etiqueta br">Mantener informado</div>' +
+          puntosHtml +
+        '</div>' +
+      '</div>' +
+      '<div class="cuadrante-eje-x">Interés →</div>' +
+    '</div>' +
+    '<div class="leyenda-actores">' + leyendaHtml + '</div>' +
+  '</div>';
+}
+
+function resumenActoresTexto(actores) {
+  if (!actores.length) return '';
+  return actores.map(function (a) {
+    var estrategia = _estrategiaCuadrante(a.influencia, a.interes);
+    return a.nombre + ' (' + (a.tipo || 'sin tipo') + ' — influencia ' + a.influencia + ', interés ' + a.interes + ' — ' + estrategia + ')';
+  }).join('; ');
+}
+
+/* ---- PASO 2: carga de actores clave ---- */
+function renderActores() {
+  var filasHtml = state.actores.map(function (a, i) {
+    return '<div class="actor-fila" data-idx="' + i + '">' +
+      (state.actores.length > 3 ? '<button type="button" class="quitar" data-idx="' + i + '" title="Quitar">×</button>' : '') +
+      '<label>Nombre del actor o recurso <span class="req">*</span></label>' +
+      '<input type="text" class="actNombre" data-idx="' + i + '" placeholder="ej. Ayuntamiento de..., líder comunitario, ONG local" value="' + escapeHtml(a.nombre) + '">' +
+      '<label>Tipo <span class="opc">(opcional)</span></label>' +
+      '<select class="actTipo" data-idx="' + i + '">' +
+        '<option value="">Selecciona un tipo</option>' +
+        TIPOS_ACTOR_TER.map(function (t) { return '<option' + (a.tipo === t ? ' selected' : '') + '>' + escapeHtml(t) + '</option>'; }).join('') +
+      '</select>' +
+      '<div class="row2">' +
+        '<div><label>Nivel de influencia <span class="req">*</span></label><select class="actInfluencia" data-idx="' + i + '">' +
+          '<option value="">Selecciona</option>' +
+          NIVELES_ACTOR_TER.map(function (n) { return '<option' + (a.influencia === n ? ' selected' : '') + '>' + n + '</option>'; }).join('') +
+        '</select></div>' +
+        '<div><label>Nivel de interés <span class="req">*</span></label><select class="actInteres" data-idx="' + i + '">' +
+          '<option value="">Selecciona</option>' +
+          NIVELES_ACTOR_TER.map(function (n) { return '<option' + (a.interes === n ? ' selected' : '') + '>' + n + '</option>'; }).join('') +
+        '</select></div>' +
+      '</div>' +
+    '</div>';
+  }).join('');
+
+  app.innerHTML =
+    progresoHtml() +
+    '<h2>¿Quiénes son los actores clave de tu territorio?</h2>' +
+    '<p class="subtle" style="margin-top:0">Carga al menos 3 — autoridades, organizaciones, líderes, empresas o recursos relevantes. Con esto armamos tu matriz de poder-interés (la misma lógica de INS-TER-01, el instrumento real de la Plataforma Sintropía).</p>' +
+    '<div id="secMsg"></div>' +
+    '<div id="filasActores">' + filasHtml + '</div>' +
+    '<button type="button" class="tenue" id="btnAgregarActor" style="width:100%;margin-top:4px">+ Agregar otro actor</button>' +
+    '<h3>Vista previa de tu matriz</h3>' +
+    '<div id="previaCuadrante">' + renderCuadranteHtml(actoresValidos()) + '</div>' +
+    '<div class="fila-botones">' +
+      '<button class="secondary" id="btnAtras">Atrás</button>' +
+      '<button class="primary" id="btnSiguiente">Continuar a los reactivos →</button>' +
+    '</div>';
+
+  function leerFilaDesdeDom(idx) {
+    var fila = app.querySelector('.actor-fila[data-idx="' + idx + '"]');
+    if (!fila) return;
+    state.actores[idx] = {
+      nombre: fila.querySelector('.actNombre').value,
+      tipo: fila.querySelector('.actTipo').value,
+      influencia: fila.querySelector('.actInfluencia').value,
+      interes: fila.querySelector('.actInteres').value
+    };
+    var previa = document.getElementById('previaCuadrante');
+    if (previa) previa.innerHTML = renderCuadranteHtml(actoresValidos());
+  }
+
+  Array.prototype.forEach.call(app.querySelectorAll('.actNombre, .actTipo, .actInfluencia, .actInteres'), function (el) {
+    el.addEventListener('input', function () { leerFilaDesdeDom(el.getAttribute('data-idx')); });
+    el.addEventListener('change', function () { leerFilaDesdeDom(el.getAttribute('data-idx')); });
+  });
+
+  Array.prototype.forEach.call(app.querySelectorAll('.quitar'), function (btn) {
+    btn.onclick = function () {
+      var idx = Number(btn.getAttribute('data-idx'));
+      state.actores.splice(idx, 1);
+      renderActores();
+    };
+  });
+
+  document.getElementById('btnAgregarActor').onclick = function () {
+    if (state.actores.length >= 8) return;
+    state.actores.push({ nombre: '', tipo: '', influencia: '', interes: '' });
+    renderActores();
+  };
+
+  document.getElementById('btnAtras').onclick = function () { state.paso = 1; render(); };
+  document.getElementById('btnSiguiente').onclick = function () {
+    var validos = actoresValidos();
+    if (validos.length < 3) {
+      document.getElementById('secMsg').innerHTML = '<div class="msg error">Completa nombre, influencia e interés de al menos 3 actores (llevas ' + validos.length + ').</div>';
+      return;
+    }
+    state.paso = 3;
+    render();
+  };
+}
+
+/* ---- PASO 3: diez reactivos, agrupados en 3 dimensiones ---- */
+function renderReactivos() {
+  var bloquesHtml = DIMENSIONES_TERRITORIO.map(function (dim, di) {
+    var itemsHtml = dim.items.map(function (texto, ii) {
+      var name = 'd' + di + 'i' + ii;
+      var opcionesHtml = OPCIONES_LIKERT_TER.map(function (op) {
+        var marcada = state.respuestas[name] === op.puntos;
+        return '<button type="button" class="op-choice' + (marcada ? ' marcada' : '') + '" data-name="' + name + '" data-puntos="' + op.puntos + '">' + escapeHtml(op.etiqueta) + '</button>';
+      }).join('');
+      return '<div class="pregunta-riesgo" data-name="' + name + '">' +
+        '<div class="pregunta-texto">' + escapeHtml(texto) + '</div>' +
+        '<div class="opciones-riesgo">' + opcionesHtml + '</div>' +
+      '</div>';
+    }).join('');
+    return '<div class="bloque-categoria">' +
+      '<div class="num-bloque">Dimensión ' + (di + 1) + ' de ' + DIMENSIONES_TERRITORIO.length + '</div>' +
+      '<div class="nombre-categoria">' + escapeHtml(dim.nombre) + '</div>' +
+      itemsHtml +
+    '</div>';
+  }).join('');
+
+  app.innerHTML =
+    progresoHtml() +
+    '<h2>Diez preguntas sobre tu mapeo territorial</h2>' +
+    '<p class="subtle" style="margin-top:0">Responde con honestidad — no hay respuestas correctas, solo un panorama de dónde estás hoy.</p>' +
+    '<div id="secMsg"></div>' +
+    bloquesHtml +
+    '<div class="fila-botones">' +
+      '<button class="secondary" id="btnAtras">Atrás</button>' +
+      '<button class="primary" id="btnVerResultado">Ver mi resultado</button>' +
+    '</div>';
+
+  Array.prototype.forEach.call(app.querySelectorAll('.op-choice'), function (btn) {
+    btn.onclick = function () {
+      var name = btn.getAttribute('data-name');
+      var puntos = Number(btn.getAttribute('data-puntos'));
+      state.respuestas[name] = puntos;
+      var grupo = app.querySelector('.pregunta-riesgo[data-name="' + name + '"]');
+      Array.prototype.forEach.call(grupo.querySelectorAll('.op-choice'), function (b) { b.classList.remove('marcada'); });
+      btn.classList.add('marcada');
+    };
+  });
+
+  document.getElementById('btnAtras').onclick = function () { state.paso = 2; render(); };
+  document.getElementById('btnVerResultado').onclick = async function () {
+    var totalPreguntas = DIMENSIONES_TERRITORIO.reduce(function (n, c) { return n + c.items.length; }, 0);
+    var respondidas = Object.keys(state.respuestas).length;
+    if (respondidas < totalPreguntas) {
+      document.getElementById('secMsg').innerHTML = '<div class="msg error">Responde las ' + totalPreguntas + ' preguntas antes de continuar (llevas ' + respondidas + ').</div>';
+      return;
+    }
+
+    var categorias = DIMENSIONES_TERRITORIO.map(function (dim, di) {
+      var maxDim = dim.items.length * 3;
+      var subtotal = dim.items.reduce(function (s, _t, ii) { return s + (state.respuestas['d' + di + 'i' + ii] || 0); }, 0);
+      return { nombre: dim.nombre, clave: dim.clave, subtotal: subtotal, max: maxDim, nivel: _nivelBarraTer(subtotal, maxDim) };
+    });
+    var puntajeTotal = categorias.reduce(function (s, c) { return s + c.subtotal; }, 0);
+    var banda = _bandaTerritorio(puntajeTotal);
+    var peor = categorias.slice().sort(function (a, b) { return (a.subtotal / a.max) - (b.subtotal / b.max); })[0];
+    var actores = actoresValidos();
+
+    state.resultado = { categorias: categorias, puntajeTotal: puntajeTotal, banda: banda, peor: peor, actores: actores };
+
+    var btn = document.getElementById('btnVerResultado');
+    btn.disabled = true; btn.textContent = 'Guardando...';
+    var d = state.datos || {};
+    var ubicacionTexto = d.municipio + ', ' + d.estado + (d.colonia ? (' — Col. ' + d.colonia) : '') + (d.cp ? (' — CP ' + d.cp) : '');
+    var coordTexto = state.ubicacion ? (' — coordenadas aprox. ' + state.ubicacion.lat.toFixed(4) + ', ' + state.ubicacion.lng.toFixed(4)) : '';
+    var resumenNotas = 'Mapa territorial: ' + banda.etiqueta + ' (' + puntajeTotal + '/30). ' +
+      'Mayor oportunidad: ' + peor.nombre + ' (' + peor.subtotal + '/' + peor.max + '). ' +
+      'Territorio: ' + ubicacionTexto + coordTexto + '. ' +
+      'Actores cargados (' + actores.length + '): ' + resumenActoresTexto(actores) + '. ' +
+      categorias.map(function (c) { return c.nombre + ': ' + c.subtotal + '/' + c.max; }).join(' — ');
+    await jsonp('capturarClienteDiagnostico', {
+      organizacion: d.organizacion,
+      categoria: d.categoria,
+      ejeInteres: 'Comunidad',
+      nombreContacto: d.nombre,
+      cargo: d.cargo,
+      correo: d.email,
+      telefono: d.telefono,
+      leadMagnet: 'Mapa territorial (Territorio)',
+      consentimiento: 'Sí',
+      notas: resumenNotas,
+      sitioWebTrampa: d.sitioWebTrampa
+    });
+    // El resultado se muestra siempre, incluso si el guardado del lead
+    // falla por algún motivo de red.
+    state.paso = 4;
+    render();
+  };
+}
+
+/* ---- PASO 4: resultado — banda + barras + recap de mapa y actores + IA + PDF + CTA ---- */
+var mapaRecapLeaflet = null;
+
+function renderResultado() {
+  var r = state.resultado, d = state.datos || {};
+  var rec = RECOMENDACION_BANDA_TER[r.banda.clave];
+
+  var categoriasHtml = r.categorias.map(function (c) {
+    var pct = Math.round((c.subtotal / c.max) * 100);
+    return '<div class="categoria-resultado">' +
+      '<div class="nombre">' + escapeHtml(c.nombre) + '</div>' +
+      '<div class="barra-riesgo"><div class="relleno ' + c.nivel + '" style="width:' + pct + '%"></div></div>' +
+      '<p class="subtle" style="margin:0">' + c.subtotal + ' de ' + c.max + ' puntos</p>' +
+    '</div>';
+  }).join('');
+
+  var ubicacionTexto = d.municipio + ', ' + d.estado + (d.colonia ? (' — Col. ' + d.colonia) : '') + (d.cp ? (' — CP ' + d.cp) : '');
+
+  app.innerHTML =
+    progresoHtml() +
+    '<div class="banda-box">' +
+      '<span class="banda-luz ' + r.banda.claseCss + '"></span>' +
+      '<span class="banda-etiqueta ' + r.banda.claseCss + '">' + r.banda.etiqueta + '</span>' +
+      '<p class="banda-puntaje">' + r.puntajeTotal + ' de 30 puntos · tu mayor oportunidad: ' + escapeHtml(r.peor.nombre) + '</p>' +
+    '</div>' +
+    categoriasHtml +
+    '<h3>Tu territorio</h3>' +
+    '<p class="subtle" style="margin-top:0">' + escapeHtml(ubicacionTexto) + '</p>' +
+    '<div id="mapaRecap"></div>' +
+    '<h3>Tu matriz de actores</h3>' +
+    renderCuadranteHtml(r.actores) +
+    '<div id="iaInterpretacion"></div>' +
+    '<div class="fila-botones">' +
+      '<button class="secondary" id="btnDescargarPdf">Descargar mi mapa territorial en PDF</button>' +
+    '</div>' +
+    '<div class="cta">' +
+      '<h2>' + escapeHtml(rec.titulo) + '</h2>' +
+      '<p>' + escapeHtml(rec.texto) + '</p>' +
+      '<div class="fila-botones">' +
+        '<a class="boton-cta solido" href="https://calendly.com/sintropiassociales/30min" target="_blank" rel="noopener">' + escapeHtml(rec.ctaSolido) + '</a>' +
+        '<a class="boton-cta contorno" href="mailto:comunicacion@sintropiasocial.com">' + escapeHtml(rec.ctaContorno) + '</a>' +
+      '</div>' +
+    '</div>';
+
+  if (mapaRecapLeaflet) { mapaRecapLeaflet.remove(); mapaRecapLeaflet = null; }
+  var centroRecap = state.ubicacion ? [state.ubicacion.lat, state.ubicacion.lng] : (ESTADO_CENTROS[d.estado] || CENTRO_MEXICO);
+  mapaRecapLeaflet = L.map('mapaRecap', { zoomControl: false, dragging: false, scrollWheelZoom: false }).setView(centroRecap, 12);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 18,
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>'
+  }).addTo(mapaRecapLeaflet);
+  L.marker(centroRecap).addTo(mapaRecapLeaflet);
+
+  document.getElementById('btnDescargarPdf').onclick = function () { descargarTerritorioPdf(); };
+  _cargarInterpretacionIA();
+}
+
+/* ---- Interpretación breve generada con IA (Gemini, del lado del servidor) ----
+ * Misma lógica que diagnostico.html: complementa el resultado de reglas
+ * fijas con una lectura rigurosa hecha a la medida de este caso concreto,
+ * conectando la dimensión con mayor oportunidad y la matriz de actores. */
+function _cargarInterpretacionIA() {
+  var box = document.getElementById('iaInterpretacion');
+  if (!box) return;
+  if (state.interpretacionIA) { _pintarInterpretacionIA(state.interpretacionIA); return; }
+  box.innerHTML = '<p class="subtle" id="iaCargando">Generando una interpretación personalizada de tu resultado…</p>';
+  var d = state.datos || {}, r = state.resultado;
+  jsonp('generarInterpretacionMuestra', {
+    muestra: 'Territorio',
+    nombre: d.nombre,
+    email: d.email,
+    resultados: JSON.stringify(r.categorias.map(function (c) {
+      return { nombre: c.nombre, puntaje: c.subtotal, max: c.max };
+    })),
+    banda: r.banda.etiqueta,
+    puntajeTotal: r.puntajeTotal,
+    peorDimension: r.peor.nombre,
+    resumenActores: resumenActoresTexto(r.actores),
+    ubicacion: d.municipio + ', ' + d.estado,
+    sitioWebTrampa: d.sitioWebTrampa
+  }).then(function (resp) {
+    if (resp && resp.ok && resp.interpretacion) {
+      state.interpretacionIA = resp.interpretacion;
+      _pintarInterpretacionIA(resp.interpretacion);
+    } else {
+      var elCargando = document.getElementById('iaCargando');
+      if (elCargando && elCargando.parentNode) elCargando.parentNode.removeChild(elCargando);
+    }
+    _enviarResultadoMuestraCorreo();
+  });
+}
+
+function _pintarInterpretacionIA(texto) {
+  var box = document.getElementById('iaInterpretacion');
+  if (!box) return;
+  box.innerHTML =
+    '<div class="categoria-resultado" style="border-color:var(--purple)">' +
+      '<div class="nombre" style="color:var(--purple-dark)">¿Qué te conviene hacer? — interpretación generada con IA</div>' +
+      '<p style="margin:0">' + escapeHtml(texto) + '</p>' +
+    '</div>';
+}
+
+/* ---- Correo automático con el resultado (PDF adjunto + oferta con IA) ---- */
+function _enviarResultadoMuestraCorreo() {
+  if (state.correoResultadoEnviado) return;
+  state.correoResultadoEnviado = true;
+  var d = state.datos || {}, r = state.resultado;
+  var secciones = r.categorias.map(function (c) {
+    return { titulo: c.nombre, parrafos: [c.subtotal + ' de ' + c.max + ' puntos.'] };
+  });
+  secciones.push({
+    titulo: 'Matriz de actores clave',
+    parrafos: r.actores.map(function (a) {
+      return a.nombre + ' — ' + (a.tipo || 'sin tipo') + ' — influencia ' + a.influencia + ', interés ' + a.interes + ' — ' + _estrategiaCuadrante(a.influencia, a.interes) + '.';
+    })
+  });
+  var resumenTexto = 'Mapa territorial: ' + r.banda.etiqueta + ' (' + r.puntajeTotal + '/30). ' +
+    'Mayor oportunidad: ' + r.peor.nombre + ' (' + r.peor.subtotal + '/' + r.peor.max + '). ' +
+    'Territorio: ' + d.municipio + ', ' + d.estado + '.';
+  jsonp('enviarResultadoMuestra', {
+    tipoMuestra: 'Territorio',
+    nombre: d.nombre,
+    correo: d.email,
+    organizacion: d.organizacion,
+    tituloResultado: 'Mapa territorial de tu proyecto',
+    resumenTexto: resumenTexto,
+    interpretacionIA: state.interpretacionIA || '',
+    secciones: JSON.stringify(secciones),
+    sitioWebTrampa: d.sitioWebTrampa
+  });
+}
+
+/* ---- Descargable en PDF ---- */
+function descargarTerritorioPdf() {
+  if (!window.jspdf || !window.jspdf.jsPDF) {
+    alert('No se pudo cargar el generador de PDF. Revisa tu conexión e intenta de nuevo.');
+    return;
+  }
+  var r = state.resultado, d = state.datos || {};
+  var doc = new window.jspdf.jsPDF({ unit: 'pt', format: 'letter' });
+  var purple = [99, 30, 235];
+  var coloresBanda = { verde: [30, 132, 73], amarillo: [154, 123, 10], rojo: [192, 57, 43] };
+  var margenIzq = 40, anchoTexto = 532, y;
+
+  doc.setFillColor(purple[0], purple[1], purple[2]);
+  doc.rect(0, 0, 612, 70, 'F');
+  doc.setTextColor(255, 255, 255);
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(16);
+  doc.text('Sintropía Social — Mapa territorial', margenIzq, 42);
+
+  y = 100;
+  doc.setTextColor(30, 30, 30);
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(14);
+  doc.text(d.organizacion || 'Tu organización', margenIzq, y);
+  y += 18;
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(10);
+  doc.setTextColor(80, 80, 90);
+  var ubicacionPdf = d.municipio + ', ' + d.estado + (d.colonia ? (' — Col. ' + d.colonia) : '') + (d.cp ? (' — CP ' + d.cp) : '');
+  doc.text(ubicacionPdf, margenIzq, y);
+  y += 22;
+
+  var col = coloresBanda[r.banda.clave];
+  doc.setFillColor(col[0], col[1], col[2]);
+  doc.circle(margenIzq + 7, y - 5, 6, 'F');
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(12);
+  doc.setTextColor(col[0], col[1], col[2]);
+  doc.text(r.banda.etiqueta.toUpperCase() + '   ·   ' + r.puntajeTotal + ' de 30 puntos', margenIzq + 20, y);
+  y += 24;
+
+  r.categorias.forEach(function (c) {
+    doc.setDrawColor(230, 226, 245); doc.setLineWidth(1);
+    doc.line(margenIzq, y, margenIzq + anchoTexto, y);
+    y += 16;
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(11);
+    doc.setTextColor(30, 30, 30);
+    doc.text(c.nombre + '  —  ' + c.subtotal + '/' + c.max, margenIzq, y);
+    y += 18;
+  });
+
+  // Matriz de actores
+  y += 4;
+  doc.setDrawColor(230, 226, 245); doc.line(margenIzq, y, margenIzq + anchoTexto, y);
+  y += 18;
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(11);
+  doc.setTextColor(purple[0], purple[1], purple[2]);
+  doc.text('Matriz de actores clave', margenIzq, y);
+  y += 16;
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(9.5);
+  doc.setTextColor(60, 60, 60);
+  r.actores.forEach(function (a) {
+    if (y > 700) { doc.addPage(); y = 60; }
+    var linea = '• ' + a.nombre + ' — ' + (a.tipo || 'sin tipo') + ' — influencia ' + a.influencia + ', interés ' + a.interes + ' — ' + _estrategiaCuadrante(a.influencia, a.interes) + '.';
+    var lineas = doc.splitTextToSize(linea, anchoTexto);
+    doc.text(lineas, margenIzq, y);
+    y += lineas.length * 12 + 4;
+  });
+
+  if (state.interpretacionIA) {
+    if (y > 650) { doc.addPage(); y = 60; }
+    y += 6;
+    doc.setDrawColor(230, 226, 245); doc.line(margenIzq, y, margenIzq + anchoTexto, y);
+    y += 18;
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(11);
+    doc.setTextColor(purple[0], purple[1], purple[2]);
+    doc.text('Interpretación', margenIzq, y);
+    y += 16;
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(10);
+    doc.setTextColor(60, 60, 60);
+    var lineasIa = doc.splitTextToSize(state.interpretacionIA, anchoTexto);
+    doc.text(lineasIa, margenIzq, y);
+    y += lineasIa.length * 13 + 6;
+  }
+
+  if (y > 650) { doc.addPage(); y = 60; }
+  var rec = RECOMENDACION_BANDA_TER[r.banda.clave];
+  y += 8;
+  doc.setDrawColor(230, 226, 245); doc.line(margenIzq, y, margenIzq + anchoTexto, y);
+  y += 20;
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(11);
+  doc.setTextColor(purple[0], purple[1], purple[2]);
+  var lineasTituloRec = doc.splitTextToSize(rec.titulo, anchoTexto);
+  doc.text(lineasTituloRec, margenIzq, y);
+  y += lineasTituloRec.length * 14 + 4;
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(9.5);
+  doc.setTextColor(80, 80, 90);
+  var lineasTextoRec = doc.splitTextToSize(rec.texto, anchoTexto);
+  doc.text(lineasTextoRec, margenIzq, y);
+  y += lineasTextoRec.length * 13 + 10;
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(9.5);
+  doc.setTextColor(99, 30, 235);
+  var etiquetaCita = 'Haz tu cita aquí';
+  doc.textWithLink(etiquetaCita, margenIzq, y, { url: 'https://calendly.com/sintropiassociales/30min' });
+  var anchoCita = doc.getTextWidth(etiquetaCita);
+  doc.setDrawColor(99, 30, 235); doc.setLineWidth(0.4);
+  doc.line(margenIzq, y + 1.5, margenIzq + anchoCita, y + 1.5);
+  doc.setTextColor(107, 107, 120);
+  doc.text(' o escríbenos a comunicacion@sintropiasocial.com.', margenIzq + anchoCita, y);
+  y += 30;
+
+  if (y > 730) { doc.addPage(); y = 60; }
+  doc.setDrawColor(230, 226, 245); doc.line(margenIzq, y, margenIzq + anchoTexto, y);
+  y += 22;
+  var centroX = margenIzq + anchoTexto / 2;
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(12);
+  doc.setTextColor(purple[0], purple[1], purple[2]);
+  doc.text('Sintropía Social', centroX, y, { align: 'center' });
+  y += 16;
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(9);
+  doc.setTextColor(107, 107, 120);
+  doc.text('sintropiassociales-del.github.io  ·  comunicacion@sintropiasocial.com', centroX, y, { align: 'center' });
+
+  doc.save('mapa-territorial-sintropia.pdf');
+}
+
+render();
+
+</script>
+</body>
+</html>
