@@ -108,7 +108,7 @@
     padding: 3px 10px; border-radius: 999px; margin-bottom: 8px;
   }
   .banda.banda-desarrollo { background: #FDF2E9; color: #B9560A; }
-  .banda.banda-proceso { background: #FDF6E3; color: #9A7B0A; }
+  .banda.banda-proceso { background: #FEF6E0; color: #B7770A; }
   .banda.banda-consolidada { background: var(--ok-bg); color: var(--ok); }
   .resultado-dimension .puntaje { font-size: 13px; color: var(--subtle); margin: 0 0 8px; }
   .resultado-dimension p { margin: 0; font-size: 14px; }
@@ -202,7 +202,7 @@ function _bandaDimension(puntaje) {
   return { clave: 'consolidada', etiqueta: 'Consolidada', claseCss: 'banda-consolidada' };
 }
 
-var state = { paso: 0, respuestas: {}, datos: null, resultado: null, interpretacionIA: null };
+var state = { paso: 0, respuestas: {}, datos: null, resultado: null, interpretacionIA: null, correoResultadoEnviado: false };
 
 function escapeHtml(s) {
   return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
@@ -484,6 +484,28 @@ function _cargarInterpretacionIA() {
       var elCargando = document.getElementById('iaCargando');
       if (elCargando && elCargando.parentNode) elCargando.parentNode.removeChild(elCargando);
     }
+    _enviarResultadoMuestraCorreo();
+  });
+}
+
+/* ---- Correo automático con el resultado (PDF adjunto + oferta con IA) ---- */
+function _enviarResultadoMuestraCorreo() {
+  if (state.correoResultadoEnviado) return;
+  state.correoResultadoEnviado = true;
+  var d = state.datos || {};
+  var secciones = state.resultado.map(function (r) {
+    return { titulo: r.nombre, parrafos: [r.puntaje + ' de 30 puntos (' + r.banda.etiqueta + '). ' + r.texto] };
+  });
+  var resumenTexto = state.resultado.map(function (r) { return r.nombre + ': ' + r.puntaje + '/30 (' + r.banda.etiqueta + ')'; }).join(' — ');
+  jsonp('enviarResultadoMuestra', {
+    tipoMuestra: 'IMES',
+    nombre: d.nombre,
+    correo: d.email,
+    tituloResultado: 'Tu resultado de la muestra IMES',
+    resumenTexto: resumenTexto,
+    interpretacionIA: state.interpretacionIA || '',
+    secciones: JSON.stringify(secciones),
+    sitioWebTrampa: d.sitioWebTrampa
   });
 }
 

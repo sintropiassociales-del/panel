@@ -21,9 +21,9 @@
     --border: #E6E2F5;
     --error: #C0392B;
     --error-bg: #FDECEA;
-    --verde: #1E8449; --verde-bg: #EAF7EE;
-    --amarillo: #9A7B0A; --amarillo-bg: #FDF6E3;
-    --rojo: #C0392B; --rojo-bg: #FDECEA;
+    --verde: #1E8449; --verde-bg: #EAF7EE; --verde-luz: #22C55E;
+    --amarillo: #B7770A; --amarillo-bg: #FEF6E0; --amarillo-luz: #FBBF24;
+    --rojo: #C0392B; --rojo-bg: #FDECEA; --rojo-luz: #E63946;
   }
   * { box-sizing: border-box; }
   body {
@@ -98,9 +98,9 @@
   .semaforo-luz {
     display: inline-block; width: 22px; height: 22px; border-radius: 50%; margin-right: 8px; vertical-align: middle;
   }
-  .semaforo-luz.verde { background: var(--verde); }
-  .semaforo-luz.amarillo { background: var(--amarillo); }
-  .semaforo-luz.rojo { background: var(--rojo); }
+  .semaforo-luz.verde { background: var(--verde-luz); }
+  .semaforo-luz.amarillo { background: var(--amarillo-luz); }
+  .semaforo-luz.rojo { background: var(--rojo-luz); }
   .semaforo-etiqueta {
     display: inline-block; font-size: 15px; font-weight: 800; letter-spacing: .3px; text-transform: uppercase;
     vertical-align: middle;
@@ -114,9 +114,9 @@
   .categoria-resultado .nombre { font-weight: 700; font-size: 14px; margin-bottom: 6px; }
   .barra-riesgo { height: 8px; border-radius: 5px; background: var(--border); overflow: hidden; margin-bottom: 4px; }
   .barra-riesgo .relleno { height: 100%; border-radius: 5px; }
-  .barra-riesgo .relleno.baja { background: var(--rojo); }
-  .barra-riesgo .relleno.media { background: var(--amarillo); }
-  .barra-riesgo .relleno.alta { background: var(--verde); }
+  .barra-riesgo .relleno.baja { background: var(--rojo-luz); }
+  .barra-riesgo .relleno.media { background: var(--amarillo-luz); }
+  .barra-riesgo .relleno.alta { background: var(--verde-luz); }
 
   .cta { background: linear-gradient(135deg, var(--purple), var(--purple-dark)); color: #fff; border-radius: 14px;
     padding: 22px 24px; margin-top: 8px; }
@@ -268,7 +268,7 @@ var MERCADOS_INTERES = ['Tecnología y Telecom', 'Retail y Consumo', 'Manufactur
 var JERARQUIA_INTERES = ['Operativo / base', 'Supervisión o coordinación', 'Mando medio / jefatura', 'Gerencial / dirección'];
 var MODALIDAD_INTERES = ['Presencial', 'Remoto', 'Híbrido', 'Cualquiera'];
 
-var state = { paso: 0, datos: null, respuestas: {}, resultado: null, enviado: false, interpretacionIA: null };
+var state = { paso: 0, datos: null, respuestas: {}, resultado: null, enviado: false, interpretacionIA: null, correoResultadoEnviado: false };
 var app = document.getElementById('app');
 var TOTAL_PASOS = 3; // 0 datos de contacto · 1 preguntas de preparación · 2 resultado
 
@@ -543,12 +543,39 @@ function renderResultado() {
       if (resp && resp.ok) {
         state.enviado = true;
         render();
+        // El correo con el resultado (PDF + oferta) solo se manda hasta
+        // aquí — cuando la persona ya autorizó el contacto — no antes,
+        // aunque el resultado y la interpretación ya se hayan mostrado en
+        // pantalla desde antes de este paso.
+        _enviarResultadoMuestraCorreo();
       } else {
         btn.disabled = false; btn.textContent = 'Enviarme vacantes a mi medida';
         msgBox.innerHTML = '<div class="msg error">' + ((resp && resp.error) ? resp.error : 'No se pudo enviar. Escríbenos a comunicacion@sintropiasocial.com') + '</div>';
       }
     };
   }
+}
+
+/* ---- Correo automático con el resultado (PDF adjunto + oferta con IA) ---- */
+function _enviarResultadoMuestraCorreo() {
+  if (state.correoResultadoEnviado) return;
+  state.correoResultadoEnviado = true;
+  var d = state.datos || {}, r = state.resultado;
+  var secciones = r.categorias.map(function (c) {
+    return { titulo: c.nombre, parrafos: [c.subtotal + ' de ' + c.max + ' puntos.'] };
+  });
+  var resumenTexto = 'Diagnóstico de búsqueda de empleo: ' + r.nivelGeneral.etiqueta + ' (' + r.puntajeTotal + '/30). ' +
+    'Área para reforzar primero: ' + r.peor.nombre + '.';
+  jsonp('enviarResultadoMuestra', {
+    tipoMuestra: 'BusquedaEmpleo',
+    nombre: d.nombre,
+    correo: d.email,
+    tituloResultado: 'Diagnóstico de tu búsqueda de empleo',
+    resumenTexto: resumenTexto,
+    interpretacionIA: state.interpretacionIA || '',
+    secciones: JSON.stringify(secciones),
+    sitioWebTrampa: d.sitioWebTrampa
+  });
 }
 
 function _resumenInteres(d) {

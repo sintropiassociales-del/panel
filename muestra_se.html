@@ -21,9 +21,9 @@
     --border: #E6E2F5;
     --error: #C0392B;
     --error-bg: #FDECEA;
-    --verde: #1E8449; --verde-bg: #EAF7EE;
-    --amarillo: #9A7B0A; --amarillo-bg: #FDF6E3;
-    --rojo: #C0392B; --rojo-bg: #FDECEA;
+    --verde: #1E8449; --verde-bg: #EAF7EE; --verde-luz: #22C55E;
+    --amarillo: #B7770A; --amarillo-bg: #FEF6E0; --amarillo-luz: #FBBF24;
+    --rojo: #C0392B; --rojo-bg: #FDECEA; --rojo-luz: #E63946;
   }
   * { box-sizing: border-box; }
   body {
@@ -97,9 +97,9 @@
   .semaforo-luz {
     display: inline-block; width: 22px; height: 22px; border-radius: 50%; margin-right: 8px; vertical-align: middle;
   }
-  .semaforo-luz.verde { background: var(--verde); }
-  .semaforo-luz.amarillo { background: var(--amarillo); }
-  .semaforo-luz.rojo { background: var(--rojo); }
+  .semaforo-luz.verde { background: var(--verde-luz); }
+  .semaforo-luz.amarillo { background: var(--amarillo-luz); }
+  .semaforo-luz.rojo { background: var(--rojo-luz); }
   .semaforo-etiqueta {
     display: inline-block; font-size: 15px; font-weight: 800; letter-spacing: .3px; text-transform: uppercase;
     vertical-align: middle;
@@ -113,9 +113,9 @@
   .categoria-resultado .nombre { font-weight: 700; font-size: 14px; margin-bottom: 6px; }
   .barra-riesgo { height: 8px; border-radius: 5px; background: var(--border); overflow: hidden; margin-bottom: 4px; }
   .barra-riesgo .relleno { height: 100%; border-radius: 5px; }
-  .barra-riesgo .relleno.baja { background: var(--verde); }
-  .barra-riesgo .relleno.media { background: var(--amarillo); }
-  .barra-riesgo .relleno.alta { background: var(--rojo); }
+  .barra-riesgo .relleno.baja { background: var(--verde-luz); }
+  .barra-riesgo .relleno.media { background: var(--amarillo-luz); }
+  .barra-riesgo .relleno.alta { background: var(--rojo-luz); }
 
   .cta { background: linear-gradient(135deg, var(--purple), var(--purple-dark)); color: #fff; border-radius: 14px;
     padding: 22px 24px; margin-top: 8px; }
@@ -265,7 +265,7 @@ var CATEGORIAS_CRM_OPCIONES = ['Gobierno y Sector Público', 'ONG y Fundaciones'
   'Universidad', 'Cámara empresarial', 'Empresa privada', 'Retail y Consumo', 'Fintech y Servicios',
   'Tecnología y Telecom', 'Turismo y Hospitalidad', 'Organismo internacional', 'Otro'];
 
-var state = { paso: 0, datos: null, respuestas: {}, resultado: null };
+var state = { paso: 0, datos: null, respuestas: {}, resultado: null, interpretacionIA: null, correoResultadoEnviado: false };
 var app = document.getElementById('app');
 var TOTAL_PASOS = 3; // 0 datos de la organización · 1 preguntas de riesgo · 2 resultado (semáforo)
 
@@ -467,6 +467,7 @@ function renderResultado() {
       '<p class="semaforo-puntaje">' + r.puntajeTotal + ' de 40 puntos de riesgo · tu mayor oportunidad: ' + escapeHtml(r.peor.nombre) + '</p>' +
     '</div>' +
     categoriasHtml +
+    '<div id="iaInterpretacion"></div>' +
     '<div class="fila-botones">' +
       '<button class="secondary" id="btnDescargarPdf">Descargar mi semáforo en PDF</button>' +
     '</div>' +
@@ -480,6 +481,77 @@ function renderResultado() {
     '</div>';
 
   document.getElementById('btnDescargarPdf').onclick = function () { descargarSemaforoPdf(); };
+  _cargarInterpretacionIA();
+}
+
+/* ---- Interpretación breve generada con IA (Gemini, del lado del servidor) ----
+ * Qué le conviene hacer a la organización para reducir sus riesgos —
+ * distinto del bloque de recomendación de arriba (que es fijo por nivel de
+ * semáforo): esto sí se redacta a la medida del desglose real por categoría. */
+function _cargarInterpretacionIA() {
+  var box = document.getElementById('iaInterpretacion');
+  if (!box) return;
+  if (state.interpretacionIA) { _pintarInterpretacionIA(state.interpretacionIA); return; }
+  box.innerHTML = '<p class="subtle" id="iaCargando">Generando una interpretación personalizada de tu resultado…</p>';
+  var d = state.datos || {}, r = state.resultado;
+  jsonp('generarInterpretacionMuestra', {
+    muestra: 'SemaforoSE',
+    nombre: d.nombre,
+    email: d.email,
+    resultados: JSON.stringify(r.categorias.map(function (c) {
+      return { nombre: c.nombre, puntaje: c.subtotal, max: c.max };
+    })),
+    semaforo: r.semaforo.etiqueta,
+    puntajeTotal: r.puntajeTotal,
+    peorCategoria: r.peor.nombre,
+    sitioWebTrampa: d.sitioWebTrampa
+  }).then(function (resp) {
+    if (resp && resp.ok && resp.interpretacion) {
+      state.interpretacionIA = resp.interpretacion;
+      _pintarInterpretacionIA(resp.interpretacion);
+    } else {
+      var elCargando = document.getElementById('iaCargando');
+      if (elCargando && elCargando.parentNode) elCargando.parentNode.removeChild(elCargando);
+    }
+    _enviarResultadoMuestraCorreo();
+  });
+}
+
+function _pintarInterpretacionIA(texto) {
+  var box = document.getElementById('iaInterpretacion');
+  if (!box) return;
+  box.innerHTML =
+    '<div class="categoria-resultado" style="border-color:var(--purple)">' +
+      '<div class="nombre" style="color:var(--purple-dark)">¿Qué te conviene hacer? — interpretación generada con IA</div>' +
+      '<p style="margin:0">' + escapeHtml(texto) + '</p>' +
+    '</div>';
+}
+
+/* ---- Correo automático con el resultado (PDF adjunto + oferta con IA) ----
+ * Se manda una sola vez, fire-and-forget (no bloquea ni condiciona nada en
+ * pantalla) justo después de que la interpretación ya cargó (o falló) —
+ * así el correo puede reutilizar ese mismo texto en vez de generarlo dos
+ * veces del lado del servidor. */
+function _enviarResultadoMuestraCorreo() {
+  if (state.correoResultadoEnviado) return;
+  state.correoResultadoEnviado = true;
+  var d = state.datos || {}, r = state.resultado;
+  var secciones = r.categorias.map(function (c) {
+    return { titulo: c.nombre, parrafos: [c.subtotal + ' de ' + c.max + ' puntos de riesgo.'] };
+  });
+  var resumenTexto = 'Semáforo de riesgo SE: ' + r.semaforo.etiqueta + ' (' + r.puntajeTotal + '/40). ' +
+    'Mayor oportunidad: ' + r.peor.nombre + ' (' + r.peor.subtotal + '/' + r.peor.max + ').';
+  jsonp('enviarResultadoMuestra', {
+    tipoMuestra: 'SemaforoSE',
+    nombre: d.nombre,
+    correo: d.email,
+    organizacion: d.organizacion,
+    tituloResultado: 'Semáforo de riesgo de tu proceso de contratación',
+    resumenTexto: resumenTexto,
+    interpretacionIA: state.interpretacionIA || '',
+    secciones: JSON.stringify(secciones),
+    sitioWebTrampa: d.sitioWebTrampa
+  });
 }
 
 /* ---- Descargable en PDF ---- */
@@ -524,12 +596,57 @@ function descargarSemaforoPdf() {
     y += 18;
   });
 
-  y += 6;
+  if (state.interpretacionIA) {
+    y += 6;
+    doc.setDrawColor(230, 226, 245); doc.line(margenIzq, y, margenIzq + anchoTexto, y);
+    y += 18;
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(11);
+    doc.setTextColor(purple[0], purple[1], purple[2]);
+    doc.text('Interpretación', margenIzq, y);
+    y += 16;
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(10);
+    doc.setTextColor(60, 60, 60);
+    var lineasIa = doc.splitTextToSize(state.interpretacionIA, anchoTexto);
+    doc.text(lineasIa, margenIzq, y);
+    y += lineasIa.length * 13 + 6;
+  }
+
+  // Mismo bloque de recomendación + contacto que ya se muestra en pantalla
+  // y en el correo — antes esta parte del PDF traía siempre el texto de
+  // "riesgo alto" sin importar el resultado real; ahora usa rec.titulo/texto,
+  // que sí varían según el semáforo (verde/amarillo/rojo).
+  y += 8;
   doc.setDrawColor(230, 226, 245); doc.line(margenIzq, y, margenIzq + anchoTexto, y);
   y += 20;
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(11);
+  doc.setTextColor(purple[0], purple[1], purple[2]);
+  var lineasTituloRec = doc.splitTextToSize(rec.titulo, anchoTexto);
+  doc.text(lineasTituloRec, margenIzq, y);
+  y += lineasTituloRec.length * 14 + 4;
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(9.5);
+  doc.setTextColor(80, 80, 90);
+  var lineasTextoRec = doc.splitTextToSize(rec.texto, anchoTexto);
+  doc.text(lineasTextoRec, margenIzq, y);
+  y += lineasTextoRec.length * 13 + 10;
   doc.setFont('helvetica', 'normal'); doc.setFontSize(9.5);
   doc.setTextColor(107, 107, 120);
-  doc.text('¿Quieres blindar tu proceso de contratación? Haz tu cita en calendly.com/sintropiassociales/30min o escríbenos a comunicacion@sintropiasocial.com.', margenIzq, y, { maxWidth: anchoTexto });
+  doc.text('Haz tu cita en calendly.com/sintropiassociales/30min o escríbenos a comunicacion@sintropiasocial.com.', margenIzq, y, { maxWidth: anchoTexto });
+  y += 30;
+
+  // Pie de marca, igual en espíritu al pie de los correos (wordmark +
+  // sitio + correo de contacto), para que el PDF se sienta parte del mismo
+  // sistema visual que ya conoce por el correo.
+  if (y > 730) { doc.addPage(); y = 60; }
+  doc.setDrawColor(230, 226, 245); doc.line(margenIzq, y, margenIzq + anchoTexto, y);
+  y += 22;
+  var centroX = margenIzq + anchoTexto / 2;
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(12);
+  doc.setTextColor(purple[0], purple[1], purple[2]);
+  doc.text('Sintropía Social', centroX, y, { align: 'center' });
+  y += 16;
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(9);
+  doc.setTextColor(107, 107, 120);
+  doc.text('sintropiassociales-del.github.io  ·  comunicacion@sintropiasocial.com', centroX, y, { align: 'center' });
 
   doc.save('semaforo-riesgo-se-sintropia.pdf');
 }

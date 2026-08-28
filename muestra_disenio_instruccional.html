@@ -85,7 +85,14 @@
   .op-choice.marcada { background: var(--purple); border-color: var(--purple); color: #fff; }
 
   /* Resultado — secuencia didáctica */
-  .secuencia-texto { font-size: 13.5px; line-height: 1.85; color: var(--text); white-space: pre-wrap; }
+  .secuencia-fase { border-top: 1px solid var(--border); padding: 16px 0; }
+  .secuencia-fase:first-of-type { border-top: none; padding-top: 4px; }
+  .secuencia-fase .num-fase { display: inline-block; font-size: 11.5px; font-weight: 700; letter-spacing: .5px;
+    color: var(--purple); text-transform: uppercase; margin-bottom: 6px; }
+  .secuencia-fase p { font-size: 13.5px; line-height: 1.85; color: var(--text); margin: 0; white-space: pre-wrap; }
+  .secuencia-duracion { background: #FAF8FF; border: 1px solid var(--border); border-radius: 10px;
+    padding: 12px 14px; margin-top: 18px; font-size: 13px; color: var(--subtle); }
+  .secuencia-duracion b { color: var(--purple-dark); }
 
   .cta { background: linear-gradient(135deg, var(--purple), var(--purple-dark)); color: #fff; border-radius: 14px;
     padding: 22px 24px; margin-top: 8px; }
@@ -180,7 +187,14 @@ var PREGUNTAS_DI = [
     hint: 'Opcional.', opcional: true }
 ];
 
-var state = { paso: 0, datos: null, respuestas: {}, secuencia: null, enviado: false };
+var state = { paso: 0, datos: null, respuestas: {}, secuencia: null, enviado: false, correoResultadoEnviado: false };
+
+var FASES_SECUENCIA = [
+  { clave: 'apertura', numero: '1 de 4', titulo: 'Apertura y encuadre' },
+  { clave: 'desarrollo', numero: '2 de 4', titulo: 'Desarrollo' },
+  { clave: 'practica', numero: '3 de 4', titulo: 'Práctica y aplicación' },
+  { clave: 'cierre', numero: '4 de 4', titulo: 'Cierre y evaluación' }
+];
 var app = document.getElementById('app');
 var TOTAL_PASOS = 3; // 0 datos de la organización · 1 preguntas · 2 resultado (secuencia didáctica)
 
@@ -308,7 +322,7 @@ function renderPreguntas() {
       sitioWebTrampa: d.sitioWebTrampa
     });
 
-    if (resp && resp.ok && resp.secuencia) {
+    if (resp && resp.ok && resp.secuencia && resp.secuencia.apertura) {
       state.secuencia = resp.secuencia;
     } else {
       state.secuencia = null;
@@ -341,9 +355,20 @@ function renderPreguntas() {
 /* ---- PASO 2: resultado — propuesta de secuencia didáctica ---- */
 function renderResultado() {
   var d = state.datos || {};
-  var secuenciaHtml = state.secuencia
-    ? '<div class="secuencia-texto">' + escapeHtml(state.secuencia) + '</div>'
-    : '<p class="subtle">No pudimos generar la propuesta automática en este momento — de cualquier forma, ya recibimos tus respuestas y alguien del equipo te escribirá con una propuesta hecha a mano.</p>';
+  var secuenciaHtml;
+  if (state.secuencia) {
+    secuenciaHtml = FASES_SECUENCIA.map(function (f) {
+      return '<div class="secuencia-fase">' +
+        '<div class="num-fase">Fase ' + f.numero + ' — ' + f.titulo + '</div>' +
+        '<p>' + escapeHtml(state.secuencia[f.clave] || '') + '</p>' +
+      '</div>';
+    }).join('') +
+    (state.secuencia.duracionSugerida
+      ? '<div class="secuencia-duracion"><b>Duración sugerida:</b> ' + escapeHtml(state.secuencia.duracionSugerida) + '</div>'
+      : '');
+  } else {
+    secuenciaHtml = '<p class="subtle">No pudimos generar la propuesta automática en este momento — de cualquier forma, ya recibimos tus respuestas y alguien del equipo te escribirá con una propuesta hecha a mano.</p>';
+  }
 
   app.innerHTML =
     progresoHtml() +
@@ -363,6 +388,34 @@ function renderResultado() {
     '</div>';
 
   document.getElementById('btnDescargarPdf').onclick = function () { descargarSecuenciaPdf(); };
+  _enviarResultadoMuestraCorreo();
+}
+
+/* ---- Correo automático con el resultado (PDF adjunto + oferta con IA) ----
+ * A diferencia de otras muestras, aquí la "secuencia" YA es el contenido
+ * generado con IA (no hay una interpretación aparte) — se manda tal cual
+ * apenas se muestra, una sola vez. */
+function _enviarResultadoMuestraCorreo() {
+  if (state.correoResultadoEnviado || !state.secuencia) return;
+  state.correoResultadoEnviado = true;
+  var d = state.datos || {};
+  var secciones = FASES_SECUENCIA.map(function (f) {
+    return { titulo: f.titulo, parrafos: [state.secuencia[f.clave] || ''] };
+  });
+  if (state.secuencia.duracionSugerida) secciones.push({ titulo: 'Duración sugerida', parrafos: [state.secuencia.duracionSugerida] });
+  var resumenTexto = FASES_SECUENCIA.map(function (f) {
+    return f.titulo + ': ' + (state.secuencia[f.clave] || '');
+  }).join(' ');
+  jsonp('enviarResultadoMuestra', {
+    tipoMuestra: 'DisenioInstruccional',
+    nombre: d.nombre,
+    correo: d.email,
+    organizacion: d.organizacion,
+    tituloResultado: 'Propuesta de secuencia didáctica',
+    resumenTexto: resumenTexto,
+    secciones: JSON.stringify(secciones),
+    sitioWebTrampa: d.sitioWebTrampa
+  });
 }
 
 /* ---- Descargable en PDF ---- */
@@ -392,15 +445,41 @@ function descargarSecuenciaPdf() {
   doc.line(margenIzq, y, margenIzq + anchoTexto, y);
   y += 18;
 
-  doc.setFont('helvetica', 'normal'); doc.setFontSize(9.5);
-  doc.setTextColor(50, 50, 50);
-  var texto = state.secuencia || 'No se generó una propuesta automática. El equipo de Sintropía Social te contactará con una propuesta hecha a mano.';
-  var lineas = doc.splitTextToSize(texto, anchoTexto);
   var alturaLinea = 12.5, alturaPagina = 730;
-  for (var i = 0; i < lineas.length; i++) {
-    if (y > alturaPagina) { doc.addPage(); y = 50; }
-    doc.text(lineas[i], margenIzq, y);
-    y += alturaLinea;
+  if (state.secuencia) {
+    FASES_SECUENCIA.forEach(function (f) {
+      if (y > alturaPagina - 30) { doc.addPage(); y = 50; }
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(10.5);
+      doc.setTextColor(purple[0], purple[1], purple[2]);
+      doc.text(f.titulo.toUpperCase(), margenIzq, y);
+      y += 15;
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(9.5);
+      doc.setTextColor(50, 50, 50);
+      var lineas = doc.splitTextToSize(state.secuencia[f.clave] || '', anchoTexto);
+      for (var i = 0; i < lineas.length; i++) {
+        if (y > alturaPagina) { doc.addPage(); y = 50; }
+        doc.text(lineas[i], margenIzq, y);
+        y += alturaLinea;
+      }
+      y += 8;
+    });
+    if (state.secuencia.duracionSugerida) {
+      if (y > alturaPagina - 30) { doc.addPage(); y = 50; }
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(10);
+      doc.setTextColor(purple[0], purple[1], purple[2]);
+      doc.text('DURACIÓN SUGERIDA', margenIzq, y);
+      y += 15;
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(9.5);
+      doc.setTextColor(50, 50, 50);
+      var lineasDur = doc.splitTextToSize(state.secuencia.duracionSugerida, anchoTexto);
+      doc.text(lineasDur, margenIzq, y);
+      y += lineasDur.length * alturaLinea + 8;
+    }
+  } else {
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(9.5);
+    doc.setTextColor(50, 50, 50);
+    doc.text('No se generó una propuesta automática. El equipo de Sintropía Social te contactará con una propuesta hecha a mano.', margenIzq, y, { maxWidth: anchoTexto });
+    y += 20;
   }
 
   if (y > alturaPagina - 40) { doc.addPage(); y = 50; }
