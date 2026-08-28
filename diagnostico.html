@@ -120,7 +120,7 @@ footer a{color:var(--teal);text-decoration:none;}
 .cta-cita{background:linear-gradient(135deg,var(--teal-dark) 0%,var(--teal) 100%);border-radius:12px;padding:22px 24px;margin:0 0 20px;color:white;}
 .cta-cita h3{font-weight:800;font-size:18px;margin-bottom:6px;color:white;}
 .cta-cita p{font-size:13.5px;opacity:.92;margin-bottom:14px;}
-.cta-cita .cta-buttons a{color:white;}
+.cta-cita .cta-buttons a:not(.btn-cita){color:white;}
 .cta-cita .btn-cita{background:white;color:var(--teal-dark);border:none;font-weight:700;}
 .cta-cita .btn-cita:hover{background:var(--amber-light);}
 .cta-cita .btn-mail-cita{border:1px solid rgba(255,255,255,.6);}
@@ -300,8 +300,8 @@ footer a{color:var(--teal);text-decoration:none;}
         <h3>¿Quieres un diagnóstico completo y personalizado?</h3>
         <p>Este es un diagnóstico preliminar automático. Haz tu cita y cuéntanos tu caso — lo revisamos contigo.</p>
         <div class="cta-buttons">
-          <a class="btn-donate btn-cita" href="https://calendly.com/sintropiassociales/30min" target="_blank" rel="noopener">Haz tu cita</a>
-          <a class="btn-mail" href="mailto:dsalgado@sintropiasocial.com">Escríbenos</a>
+          <a class="btn-cita" href="https://calendly.com/sintropiassociales/30min" target="_blank" rel="noopener">Haz tu cita</a>
+          <a class="btn-mail btn-mail-cita" href="mailto:dsalgado@sintropiasocial.com">Escríbenos</a>
         </div>
       </div>
       <button class="btn-restart" onclick="restart()">Hacer otro diagnóstico</button>
