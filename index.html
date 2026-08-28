@@ -35,8 +35,9 @@
 
   main { max-width: 760px; margin: -30px auto 40px; padding: 0 16px; }
 
-  .opciones { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 18px; }
-  @media (max-width: 640px) { .opciones { grid-template-columns: 1fr; } }
+  .opciones { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 18px; }
+  @media (max-width: 860px) { .opciones { grid-template-columns: 1fr 1fr; } }
+  @media (max-width: 560px) { .opciones { grid-template-columns: 1fr; } }
 
   a.opcion {
     display: block; text-decoration: none; color: inherit;
@@ -84,8 +85,14 @@
     <a class="opcion" href="muestra_imes.html">
       <span class="etiqueta">Personas</span>
       <h2>Quiero probar el IMES</h2>
-      <p>¿Buscas trabajo o quieres conocer tus habilidades para el empleo? Responde una muestra breve y gratuita del IMES y ve tu resultado en minutos.</p>
+      <p>¿Quieres conocer tus habilidades para el empleo? Responde una muestra breve y gratuita del IMES y ve tu resultado en minutos.</p>
       <span class="cta">Probar la muestra →</span>
+    </a>
+    <a class="opcion" href="muestra_candidato.html">
+      <span class="etiqueta">Personas</span>
+      <h2>Estoy buscando empleo</h2>
+      <p>15 preguntas para saber qué tan lista está tu búsqueda de empleo — y autorizar que te avisemos de vacantes que se ajusten a tu perfil.</p>
+      <span class="cta">Ver mi diagnóstico →</span>
     </a>
   </div>
   <p class="nota">¿No estás seguro? Escríbenos a <a href="mailto:comunicacion@sintropiasocial.com">comunicacion@sintropiasocial.com</a> y te orientamos.</p>

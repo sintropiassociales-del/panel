@@ -1,0 +1,554 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="¿Qué tan lista está tu búsqueda de empleo? 15 preguntas gratuitas de Sintropía Social — recibe vacantes que se ajusten a tu perfil.">
+<title>Diagnóstico de búsqueda de empleo — Sintropía Social</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<style>
+  :root {
+    --purple: #631EEB;
+    --purple-dark: #4E17B8;
+    --orange: #FF7929;
+    --bg: #F5F3FC;
+    --card: #FFFFFF;
+    --text: #2C2C2C;
+    --subtle: #6B6B78;
+    --border: #E6E2F5;
+    --error: #C0392B;
+    --error-bg: #FDECEA;
+    --verde: #1E8449; --verde-bg: #EAF7EE;
+    --amarillo: #9A7B0A; --amarillo-bg: #FDF6E3;
+    --rojo: #C0392B; --rojo-bg: #FDECEA;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; font-family: 'Open Sans', -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+    background: var(--bg); color: var(--text); line-height: 1.55;
+  }
+  header.top {
+    background: var(--purple); color: #fff; padding: 26px 18px 44px; text-align: center;
+    border-radius: 0 0 22px 22px;
+  }
+  header.top .marca { font-size: 20px; font-weight: 800; letter-spacing: .3px; }
+  header.top .marca span { color: var(--orange); }
+  header.top .subt { font-size: 13.5px; opacity: .92; margin-top: 6px; max-width: 440px; margin-left: auto; margin-right: auto; }
+  main { max-width: 660px; margin: -26px auto 40px; padding: 0 16px; }
+  .card {
+    background: var(--card); border-radius: 14px; padding: 26px 24px; margin-bottom: 16px;
+    box-shadow: 0 6px 20px rgba(99,30,235,.08); border: 1px solid var(--border);
+  }
+  h1 { font-size: 21px; margin: 0 0 8px; }
+  h2 { font-size: 18px; margin: 0 0 4px; color: var(--purple-dark); }
+  h3 { font-size: 15px; margin: 22px 0 2px; color: var(--purple-dark); }
+  p.subtle, .subtle { color: var(--subtle); font-size: 13.5px; }
+  .progreso { display: flex; gap: 6px; margin: 18px 0 22px; }
+  .progreso .paso { flex: 1; height: 6px; border-radius: 4px; background: var(--border); }
+  .progreso .paso.hecho { background: var(--orange); }
+  .progreso .paso.actual { background: var(--purple); }
+  label { display: block; font-size: 13.5px; font-weight: 600; margin: 14px 0 5px; }
+  label .req { color: var(--orange); }
+  input[type=text], input[type=email], input[type=tel], select {
+    width: 100%; padding: 11px 12px; border: 1.5px solid var(--border); border-radius: 9px;
+    font-size: 15px; font-family: inherit; background: #fff; color: var(--text);
+  }
+  input:focus, select:focus { outline: none; border-color: var(--purple); }
+  .fila-botones { display: flex; gap: 10px; margin-top: 24px; flex-wrap: wrap; }
+  button {
+    font-family: inherit; font-size: 14.5px; font-weight: 700; border-radius: 999px;
+    padding: 12px 24px; border: none; cursor: pointer;
+  }
+  button.primary { background: var(--purple); color: #fff; }
+  button.primary:hover { background: var(--purple-dark); }
+  button.secondary { background: #fff; color: var(--purple); border: 1.5px solid var(--purple); }
+  button:disabled { opacity: .5; cursor: default; }
+  .msg { padding: 10px 13px; border-radius: 9px; font-size: 13.5px; margin: 12px 0; }
+  .msg.error { background: var(--error-bg); color: var(--error); }
+  .msg.ok { background: var(--verde-bg); color: var(--verde); }
+
+  /* Consentimiento + honeypot */
+  .consentimiento { display: flex; gap: 10px; align-items: flex-start; margin-top: 18px; background: #FAF8FF;
+    border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; }
+  .consentimiento input { margin-top: 3px; }
+  .consentimiento label { margin: 0; font-weight: 400; font-size: 13px; }
+  .campo-trampa { position: absolute; left: -9999px; top: -9999px; opacity: 0; height: 0; overflow: hidden; }
+
+  /* Preguntas por categoría */
+  .bloque-categoria { margin-bottom: 26px; }
+  .bloque-categoria .num-bloque { display: inline-block; font-size: 11.5px; font-weight: 700; letter-spacing: .5px;
+    color: var(--purple); text-transform: uppercase; margin-bottom: 2px; }
+  .bloque-categoria .nombre-categoria { font-size: 16px; font-weight: 700; margin: 0 0 14px; }
+  .pregunta-riesgo { border-top: 1px solid var(--border); padding: 16px 0; }
+  .pregunta-riesgo:first-of-type { border-top: none; padding-top: 4px; }
+  .pregunta-texto { font-size: 14.5px; font-weight: 600; margin-bottom: 10px; }
+  .opciones-riesgo { display: flex; gap: 8px; flex-wrap: wrap; }
+  .op-choice {
+    flex: 1; min-width: 96px; border: 1.5px solid var(--border); border-radius: 9px; background: #fff;
+    color: var(--subtle); font-weight: 600; font-size: 13px; padding: 10px 8px; cursor: pointer; text-align: center;
+    transition: background .12s, border-color .12s, color .12s;
+  }
+  .op-choice.marcada { background: var(--purple); border-color: var(--purple); color: #fff; }
+
+  /* Resultado / nivel de preparación */
+  .semaforo-box { text-align: center; padding: 8px 4px 4px; }
+  .semaforo-luz {
+    display: inline-block; width: 22px; height: 22px; border-radius: 50%; margin-right: 8px; vertical-align: middle;
+  }
+  .semaforo-luz.verde { background: var(--verde); }
+  .semaforo-luz.amarillo { background: var(--amarillo); }
+  .semaforo-luz.rojo { background: var(--rojo); }
+  .semaforo-etiqueta {
+    display: inline-block; font-size: 15px; font-weight: 800; letter-spacing: .3px; text-transform: uppercase;
+    vertical-align: middle;
+  }
+  .semaforo-etiqueta.verde { color: var(--verde); }
+  .semaforo-etiqueta.amarillo { color: var(--amarillo); }
+  .semaforo-etiqueta.rojo { color: var(--rojo); }
+  .semaforo-puntaje { font-size: 13px; color: var(--subtle); margin: 6px 0 0; }
+
+  .categoria-resultado { border: 1.5px solid var(--border); border-radius: 12px; padding: 16px 18px; margin-bottom: 12px; }
+  .categoria-resultado .nombre { font-weight: 700; font-size: 14px; margin-bottom: 6px; }
+  .barra-riesgo { height: 8px; border-radius: 5px; background: var(--border); overflow: hidden; margin-bottom: 4px; }
+  .barra-riesgo .relleno { height: 100%; border-radius: 5px; }
+  .barra-riesgo .relleno.baja { background: var(--rojo); }
+  .barra-riesgo .relleno.media { background: var(--amarillo); }
+  .barra-riesgo .relleno.alta { background: var(--verde); }
+
+  .cta { background: linear-gradient(135deg, var(--purple), var(--purple-dark)); color: #fff; border-radius: 14px;
+    padding: 22px 24px; margin-top: 8px; }
+  .cta h2 { color: #fff; }
+  .cta p { font-size: 13.5px; opacity: .95; }
+  .cta a { color: #fff; font-weight: 700; }
+  .cta .consentimiento { background: rgba(255,255,255,.08); border-color: rgba(255,255,255,.25); }
+  .cta .consentimiento label { color: #fff; }
+  .cta .fila-botones a.boton-cta {
+    display: inline-block; text-decoration: none; border-radius: 999px; padding: 12px 22px; font-weight: 700; font-size: 14px;
+  }
+  .cta .boton-cta.solido { background: #fff; color: var(--purple-dark); }
+  .cta .boton-cta.contorno { border: 1.5px solid rgba(255,255,255,.7); color: #fff; }
+  .cta button.solido { background: #fff; color: var(--purple-dark); }
+
+  footer.pie { text-align: center; font-size: 12px; color: var(--subtle); padding: 10px 16px 34px; }
+  footer.pie .wordmark { font-size: 14px; font-weight: 700; margin-bottom: 6px; }
+  footer.pie a { color: var(--purple); text-decoration: none; }
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="marca">Sintropía <span>Social</span></div>
+  <div class="subt">¿Qué tan lista está tu búsqueda de empleo? 15 preguntas para saberlo y recibir vacantes a tu medida.</div>
+</header>
+
+<main>
+  <div id="app" class="card">
+    <p class="subtle">Cargando...</p>
+  </div>
+</main>
+
+<footer class="pie">
+  <div class="wordmark"><span style="color:var(--purple)">Sintropía</span> <span style="color:var(--orange)">Social</span></div>
+  <a href="https://sintropiassociales-del.github.io/">Sintropía Social</a> · <a href="mailto:comunicacion@sintropiasocial.com">comunicacion@sintropiasocial.com</a>
+</footer>
+
+<script>
+var WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbxZbLiOP7QXvrgUIDhhVciVGY-Yval3YBvqBHOpQfK8El2wHXNNBtZvsnkbwMaJUss/exec';
+
+function escapeHtml(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+  });
+}
+
+function jsonp(action, params) {
+  return new Promise(function (resolve) {
+    var cbName = 'cb_' + Date.now() + '_' + Math.floor(Math.random() * 100000);
+    var url = WEB_APP_URL + '?action=' + encodeURIComponent(action) + '&callback=' + cbName;
+    params = params || {};
+    for (var k in params) {
+      if (params[k] !== undefined && params[k] !== null) url += '&' + encodeURIComponent(k) + '=' + encodeURIComponent(params[k]);
+    }
+    var script = document.createElement('script');
+    var cleaned = false;
+    function cleanup() { if (cleaned) return; cleaned = true; delete window[cbName]; if (script.parentNode) script.parentNode.removeChild(script); }
+    window[cbName] = function (data) { cleanup(); resolve(data); };
+    script.onerror = function () { cleanup(); resolve({ ok: false, error: 'No se pudo conectar. Revisa tu conexión a internet e intenta de nuevo.' }); };
+    setTimeout(function () { if (!cleaned) { cleanup(); resolve({ ok: false, error: 'La plataforma tardó demasiado en responder. Intenta de nuevo.' }); } }, 25000);
+    script.src = url;
+    document.body.appendChild(script);
+  });
+}
+
+/* ============================================================
+ * Catálogo de preparación — 5 categorías × 3 preguntas = 15.
+ * Una sola escala: "Sí / ya lo tengo" = 2 puntos, "A veces / en
+ * proceso" = 1, "No / aún no" = 0. Máximo 30 puntos (15 × 2).
+ * ============================================================ */
+var OPCIONES_PREPARACION = [
+  { etiqueta: 'Sí, ya lo tengo', puntos: 2 },
+  { etiqueta: 'A veces / en proceso', puntos: 1 },
+  { etiqueta: 'No, aún no', puntos: 0 }
+];
+
+var CATEGORIAS_PREPARACION = [
+  {
+    clave: 'objetivo', nombre: 'Claridad del objetivo profesional',
+    items: [
+      '¿Qué tan clara tienes la posición o el tipo de puesto que buscas?',
+      '¿Sabes en qué sector o tipo de empresa te gustaría trabajar?',
+      '¿Tienes claro el rango salarial que necesitas o esperas?'
+    ]
+  },
+  {
+    clave: 'materiales', nombre: 'Materiales y presencia profesional',
+    items: [
+      '¿Tu CV está actualizado y adaptado al tipo de vacante que buscas?',
+      '¿Tu perfil de LinkedIn (u otra red profesional) está actualizado y completo?',
+      '¿Tienes referencias laborales o contactos que puedan recomendarte?'
+    ]
+  },
+  {
+    clave: 'preparacion', nombre: 'Preparación para el proceso de selección',
+    items: [
+      '¿Qué tan preparado te sientes para una entrevista de trabajo?',
+      '¿Cuentas con las habilidades o certificaciones que piden las vacantes que te interesan?',
+      '¿Has practicado tus respuestas a las preguntas más frecuentes de entrevista?'
+    ]
+  },
+  {
+    clave: 'estrategia', nombre: 'Estrategia de búsqueda activa',
+    items: [
+      '¿Con qué frecuencia aplicas a vacantes o contactas empresas?',
+      '¿Usas tu red de contactos (networking) para encontrar oportunidades?',
+      '¿Buscas en más de una fuente (bolsas de trabajo, redes sociales, contactos directos)?'
+    ]
+  },
+  {
+    clave: 'disponibilidad', nombre: 'Disponibilidad y condiciones',
+    items: [
+      '¿Qué tan disponible estás para iniciar un nuevo empleo?',
+      '¿Tienes flexibilidad de horario o ubicación (remoto, híbrido, movilidad)?',
+      '¿Cuánto tiempo a la semana dedicas de forma activa a tu búsqueda de empleo?'
+    ]
+  }
+];
+
+function _nivelPreparacion(puntaje) {
+  if (puntaje <= 13) return { clave: 'rojo', etiqueta: 'Perfil por fortalecer', claseCss: 'rojo' };
+  if (puntaje <= 22) return { clave: 'amarillo', etiqueta: 'Perfil en desarrollo', claseCss: 'amarillo' };
+  return { clave: 'verde', etiqueta: 'Perfil listo para postularse', claseCss: 'verde' };
+}
+
+function _nivelBarra(sub, max) {
+  var pct = sub / max;
+  if (pct <= 0.33) return 'baja';
+  if (pct <= 0.66) return 'media';
+  return 'alta';
+}
+
+var ESTADOS_MX = ['Aguascalientes','Baja California','Baja California Sur','Campeche','Chiapas','Chihuahua',
+  'Ciudad de México','Coahuila','Colima','Durango','Estado de México','Guanajuato','Guerrero','Hidalgo',
+  'Jalisco','Michoacán','Morelos','Nayarit','Nuevo León','Oaxaca','Puebla','Querétaro','Quintana Roo',
+  'San Luis Potosí','Sinaloa','Sonora','Tabasco','Tamaulipas','Tlaxcala','Veracruz','Yucatán','Zacatecas','Otro / fuera de México'];
+
+var state = { paso: 0, datos: null, respuestas: {}, resultado: null, enviado: false };
+var app = document.getElementById('app');
+var TOTAL_PASOS = 3; // 0 datos de contacto · 1 preguntas de preparación · 2 resultado
+
+function progresoHtml() {
+  var html = '<div class="progreso">';
+  for (var i = 0; i < TOTAL_PASOS; i++) {
+    var cls = i < state.paso ? 'hecho' : (i === state.paso ? 'actual' : '');
+    html += '<div class="paso ' + cls + '"></div>';
+  }
+  return html + '</div>';
+}
+
+function render() {
+  if (state.paso === 0) return renderDatos();
+  if (state.paso === 1) return renderPreguntas();
+  return renderResultado();
+}
+
+/* ---- PASO 0: datos de contacto (antes de la prueba) ---- */
+function renderDatos() {
+  var d = state.datos || {};
+  app.innerHTML =
+    progresoHtml() +
+    '<h1>¿Qué tan lista está tu búsqueda de empleo?</h1>' +
+    '<p class="subtle">15 preguntas breves sobre tu proceso actual — menos de 4 minutos. Primero cuéntanos un poco de ti para poder mostrarte tu resultado.</p>' +
+    '<div id="secMsg"></div>' +
+    '<form id="datosForm">' +
+      '<label>Nombre <span class="req">*</span></label><input type="text" id="dNombre" value="' + escapeHtml(d.nombre || '') + '">' +
+      '<label>Apellido</label><input type="text" id="dApellido" value="' + escapeHtml(d.apellido || '') + '">' +
+      '<label>Correo electrónico <span class="req">*</span></label><input type="email" id="dEmail" placeholder="tucorreo@ejemplo.com" value="' + escapeHtml(d.email || '') + '">' +
+      '<label>Teléfono (opcional)</label><input type="tel" id="dTelefono" value="' + escapeHtml(d.telefono || '') + '">' +
+      '<label>Estado</label>' +
+      '<select id="dEstado">' +
+        '<option value="">Selecciona una opción</option>' +
+        ESTADOS_MX.map(function (e) {
+          return '<option' + (d.estado === e ? ' selected' : '') + '>' + escapeHtml(e) + '</option>';
+        }).join('') +
+      '</select>' +
+      '<label>Municipio / ciudad (opcional)</label><input type="text" id="dMunicipio" value="' + escapeHtml(d.municipio || '') + '">' +
+      '<label>Edad (opcional)</label><input type="text" id="dEdad" placeholder="Ej: 28" value="' + escapeHtml(d.edad || '') + '">' +
+      '<input type="text" id="dTrampa" class="campo-trampa" tabindex="-1" autocomplete="off">' +
+    '</form>' +
+    '<div class="fila-botones"><button class="primary" id="btnSiguiente">Continuar al cuestionario →</button></div>';
+
+  document.getElementById('btnSiguiente').onclick = function () {
+    var msgBox = document.getElementById('secMsg');
+    var nombre = document.getElementById('dNombre').value.trim();
+    var email = document.getElementById('dEmail').value.trim();
+    if (!nombre) { msgBox.innerHTML = '<div class="msg error">Escribe tu nombre.</div>'; return; }
+    if (!email || email.indexOf('@') === -1) { msgBox.innerHTML = '<div class="msg error">Escribe un correo electrónico válido.</div>'; return; }
+
+    state.datos = {
+      nombre: nombre,
+      apellido: document.getElementById('dApellido').value.trim(),
+      email: email,
+      telefono: document.getElementById('dTelefono').value.trim(),
+      estado: document.getElementById('dEstado').value,
+      municipio: document.getElementById('dMunicipio').value.trim(),
+      edad: document.getElementById('dEdad').value.trim(),
+      sitioWebTrampa: document.getElementById('dTrampa').value
+    };
+    state.paso = 1;
+    render();
+  };
+}
+
+/* ---- PASO 1: 15 preguntas de preparación, agrupadas en 5 categorías ---- */
+function renderPreguntas() {
+  var bloquesHtml = CATEGORIAS_PREPARACION.map(function (cat, ci) {
+    var itemsHtml = cat.items.map(function (texto, ii) {
+      var name = 'c' + ci + 'i' + ii;
+      var opcionesHtml = OPCIONES_PREPARACION.map(function (op) {
+        var marcada = state.respuestas[name] === op.puntos;
+        return '<button type="button" class="op-choice' + (marcada ? ' marcada' : '') + '" data-name="' + name + '" data-puntos="' + op.puntos + '">' + escapeHtml(op.etiqueta) + '</button>';
+      }).join('');
+      return '<div class="pregunta-riesgo" data-name="' + name + '">' +
+        '<div class="pregunta-texto">' + escapeHtml(texto) + '</div>' +
+        '<div class="opciones-riesgo">' + opcionesHtml + '</div>' +
+      '</div>';
+    }).join('');
+    return '<div class="bloque-categoria">' +
+      '<div class="num-bloque">Categoría ' + (ci + 1) + ' de ' + CATEGORIAS_PREPARACION.length + '</div>' +
+      '<div class="nombre-categoria">' + escapeHtml(cat.nombre) + '</div>' +
+      itemsHtml +
+    '</div>';
+  }).join('');
+
+  app.innerHTML =
+    progresoHtml() +
+    '<h2>15 preguntas sobre tu búsqueda de empleo</h2>' +
+    '<p class="subtle" style="margin-top:0">Responde con honestidad — no hay respuestas correctas, solo un panorama de dónde estás hoy para poder apoyarte mejor.</p>' +
+    '<div id="secMsg"></div>' +
+    bloquesHtml +
+    '<div class="fila-botones">' +
+      '<button class="secondary" id="btnAtras">Atrás</button>' +
+      '<button class="primary" id="btnVerResultado">Ver mi nivel de preparación →</button>' +
+    '</div>';
+
+  Array.prototype.forEach.call(app.querySelectorAll('.op-choice'), function (btn) {
+    btn.onclick = function () {
+      var name = btn.getAttribute('data-name');
+      var puntos = Number(btn.getAttribute('data-puntos'));
+      state.respuestas[name] = puntos;
+      var grupo = app.querySelector('.pregunta-riesgo[data-name="' + name + '"]');
+      Array.prototype.forEach.call(grupo.querySelectorAll('.op-choice'), function (b) { b.classList.remove('marcada'); });
+      btn.classList.add('marcada');
+    };
+  });
+
+  document.getElementById('btnAtras').onclick = function () { state.paso = 0; render(); };
+  document.getElementById('btnVerResultado').onclick = function () {
+    var totalPreguntas = CATEGORIAS_PREPARACION.reduce(function (n, c) { return n + c.items.length; }, 0);
+    var respondidas = Object.keys(state.respuestas).length;
+    if (respondidas < totalPreguntas) {
+      document.getElementById('secMsg').innerHTML = '<div class="msg error">Responde las ' + totalPreguntas + ' preguntas antes de continuar (llevas ' + respondidas + ').</div>';
+      return;
+    }
+
+    var categorias = CATEGORIAS_PREPARACION.map(function (cat, ci) {
+      var maxCat = cat.items.length * 2;
+      var subtotal = cat.items.reduce(function (s, _t, ii) { return s + (state.respuestas['c' + ci + 'i' + ii] || 0); }, 0);
+      return { nombre: cat.nombre, clave: cat.clave, subtotal: subtotal, max: maxCat, nivel: _nivelBarra(subtotal, maxCat) };
+    });
+    var puntajeTotal = categorias.reduce(function (s, c) { return s + c.subtotal; }, 0);
+    var nivelGeneral = _nivelPreparacion(puntajeTotal);
+    var peor = categorias.slice().sort(function (a, b) { return (a.subtotal / a.max) - (b.subtotal / b.max); })[0];
+
+    state.resultado = { categorias: categorias, puntajeTotal: puntajeTotal, nivelGeneral: nivelGeneral, peor: peor };
+    state.paso = 2;
+    render();
+  };
+}
+
+/* ---- PASO 2: resultado — nivel + desglose + recuadro de aceptación ---- */
+var RECOMENDACION_NIVEL = {
+  verde: {
+    titulo: '¡Tu búsqueda va por buen camino!',
+    texto: 'Tienes las bases cubiertas. Para no perder impulso, autoriza que te contactemos y te avisamos en cuanto tengamos vacantes que se ajusten a tu perfil.'
+  },
+  amarillo: {
+    titulo: '¿Quieres reforzar tu búsqueda?',
+    texto: 'Vas bien, pero hay áreas que puedes fortalecer para aumentar tus posibilidades. Autoriza que te contactemos y te acompañamos, además de avisarte de vacantes que se ajusten a tu perfil.'
+  },
+  rojo: {
+    titulo: '¿Buscas apoyo para empezar con el pie derecho?',
+    texto: 'Hay varias áreas por fortalecer antes de seguir aplicando. Autoriza que te contactemos — te orientamos y te avisamos en cuanto tengamos vacantes que se ajusten a tu perfil.'
+  }
+};
+
+function renderResultado() {
+  var r = state.resultado;
+  var rec = RECOMENDACION_NIVEL[r.nivelGeneral.clave];
+
+  var categoriasHtml = r.categorias.map(function (c) {
+    var pct = Math.round((c.subtotal / c.max) * 100);
+    return '<div class="categoria-resultado">' +
+      '<div class="nombre">' + escapeHtml(c.nombre) + '</div>' +
+      '<div class="barra-riesgo"><div class="relleno ' + c.nivel + '" style="width:' + pct + '%"></div></div>' +
+      '<p class="subtle" style="margin:0">' + c.subtotal + ' de ' + c.max + ' puntos</p>' +
+    '</div>';
+  }).join('');
+
+  var ctaHtml;
+  if (state.enviado) {
+    ctaHtml = '<div class="cta">' +
+      '<h2>¡Listo, gracias!</h2>' +
+      '<p>Quedó registrado tu interés. Te contactaremos y avisaremos en cuanto tengamos vacantes que se ajusten a tu perfil.</p>' +
+    '</div>';
+  } else {
+    ctaHtml = '<div class="cta">' +
+      '<h2>' + escapeHtml(rec.titulo) + '</h2>' +
+      '<p>' + escapeHtml(rec.texto) + '</p>' +
+      '<div class="consentimiento">' +
+        '<input type="checkbox" id="cAceptar">' +
+        '<label for="cAceptar">Sí, autorizo a Sintropía Social a contactarme y enviarme vacantes que se ajusten a mi perfil. Puedo pedir que borren mis datos cuando quiera escribiendo a comunicacion@sintropiasocial.com.</label>' +
+      '</div>' +
+      '<div id="ctaMsg"></div>' +
+      '<div class="fila-botones">' +
+        '<button class="solido" id="btnAceptar">Enviarme vacantes a mi medida</button>' +
+        '<a class="boton-cta contorno" href="mailto:comunicacion@sintropiasocial.com">Escríbenos</a>' +
+      '</div>' +
+    '</div>';
+  }
+
+  app.innerHTML =
+    progresoHtml() +
+    '<div class="semaforo-box">' +
+      '<span class="semaforo-luz ' + r.nivelGeneral.claseCss + '"></span>' +
+      '<span class="semaforo-etiqueta ' + r.nivelGeneral.claseCss + '">' + r.nivelGeneral.etiqueta + '</span>' +
+      '<p class="semaforo-puntaje">' + r.puntajeTotal + ' de 30 puntos · tu área para reforzar primero: ' + escapeHtml(r.peor.nombre) + '</p>' +
+    '</div>' +
+    categoriasHtml +
+    '<div class="fila-botones">' +
+      '<button class="secondary" id="btnDescargarPdf">Descargar mi diagnóstico en PDF</button>' +
+    '</div>' +
+    ctaHtml;
+
+  document.getElementById('btnDescargarPdf').onclick = function () { descargarDiagnosticoPdf(); };
+
+  if (!state.enviado) {
+    document.getElementById('btnAceptar').onclick = async function () {
+      var msgBox = document.getElementById('ctaMsg');
+      if (!document.getElementById('cAceptar').checked) {
+        msgBox.innerHTML = '<div class="msg error">Marca la casilla para autorizar el contacto y el envío de vacantes.</div>';
+        return;
+      }
+      var btn = document.getElementById('btnAceptar');
+      btn.disabled = true; btn.textContent = 'Enviando...';
+
+      var d = state.datos || {};
+      var resumenNotas = 'Diagnóstico de búsqueda de empleo: ' + r.nivelGeneral.etiqueta + ' (' + r.puntajeTotal + '/30). ' +
+        'Área para reforzar primero: ' + r.peor.nombre + ' (' + r.peor.subtotal + '/' + r.peor.max + '). ' +
+        r.categorias.map(function (c) { return c.nombre + ': ' + c.subtotal + '/' + c.max; }).join(' — ') +
+        '. Autorizó recibir vacantes que se ajusten a su perfil.';
+
+      var resp = await jsonp('capturarInteresadoMuestra', {
+        nombre: d.nombre,
+        apellido: d.apellido,
+        estado: d.estado,
+        municipio: d.municipio,
+        edad: d.edad,
+        email: d.email,
+        telefono: d.telefono,
+        muestra: 'BusquedaEmpleo',
+        consentimiento: 'Sí',
+        notas: resumenNotas,
+        sitioWebTrampa: d.sitioWebTrampa
+      });
+
+      if (resp && resp.ok) {
+        state.enviado = true;
+        render();
+      } else {
+        btn.disabled = false; btn.textContent = 'Enviarme vacantes a mi medida';
+        msgBox.innerHTML = '<div class="msg error">' + ((resp && resp.error) ? resp.error : 'No se pudo enviar. Escríbenos a comunicacion@sintropiasocial.com') + '</div>';
+      }
+    };
+  }
+}
+
+/* ---- Descargable en PDF ---- */
+function descargarDiagnosticoPdf() {
+  if (!window.jspdf || !window.jspdf.jsPDF) {
+    alert('No se pudo cargar el generador de PDF. Revisa tu conexión e intenta de nuevo.');
+    return;
+  }
+  var r = state.resultado, d = state.datos || {};
+  var doc = new window.jspdf.jsPDF({ unit: 'pt', format: 'letter' });
+  var purple = [99, 30, 235];
+  var coloresNivel = { verde: [30, 132, 73], amarillo: [154, 123, 10], rojo: [192, 57, 43] };
+  var margenIzq = 40, anchoTexto = 532, y;
+
+  doc.setFillColor(purple[0], purple[1], purple[2]);
+  doc.rect(0, 0, 612, 70, 'F');
+  doc.setTextColor(255, 255, 255);
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(16);
+  doc.text('Sintropía Social — Diagnóstico de búsqueda de empleo', margenIzq, 42);
+
+  y = 100;
+  doc.setTextColor(30, 30, 30);
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(14);
+  doc.text((d.nombre || 'Tu') + (d.apellido ? ' ' + d.apellido : ''), margenIzq, y);
+  y += 22;
+
+  var col = coloresNivel[r.nivelGeneral.clave];
+  doc.setFillColor(col[0], col[1], col[2]);
+  doc.circle(margenIzq + 7, y - 5, 6, 'F');
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(12);
+  doc.setTextColor(col[0], col[1], col[2]);
+  doc.text(r.nivelGeneral.etiqueta.toUpperCase() + '   ·   ' + r.puntajeTotal + ' de 30 puntos', margenIzq + 20, y);
+  y += 24;
+
+  r.categorias.forEach(function (c) {
+    doc.setDrawColor(230, 226, 245); doc.setLineWidth(1);
+    doc.line(margenIzq, y, margenIzq + anchoTexto, y);
+    y += 16;
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(11);
+    doc.setTextColor(30, 30, 30);
+    doc.text(c.nombre + '  —  ' + c.subtotal + '/' + c.max, margenIzq, y);
+    y += 18;
+  });
+
+  y += 6;
+  doc.setDrawColor(230, 226, 245); doc.line(margenIzq, y, margenIzq + anchoTexto, y);
+  y += 20;
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(9.5);
+  doc.setTextColor(107, 107, 120);
+  doc.text('¿Quieres que te avisemos de vacantes que se ajusten a tu perfil? Autorízalo en la página o escríbenos a comunicacion@sintropiasocial.com.', margenIzq, y, { maxWidth: anchoTexto });
+
+  doc.save('diagnostico-busqueda-empleo-sintropia.pdf');
+}
+
+render();
+</script>
+</body>
+</html>
