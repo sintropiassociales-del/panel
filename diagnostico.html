@@ -102,6 +102,9 @@ main{max-width:680px;margin:-28px auto 40px;padding:0 16px;}
 .result-body{padding:28px;}
 .result-text{font-size:13.5px;line-height:1.85;color:var(--ink-mid);white-space:pre-wrap;margin-bottom:24px;}
 .result-divider{border:none;border-top:.5px solid var(--border);margin:24px 0;}
+.ia-ampliacion{border:1.5px solid var(--border-s);border-left:3px solid var(--teal);border-radius:10px;padding:16px 18px;margin:0 0 24px;background:var(--teal-light);}
+.ia-ampliacion .ia-tag{font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--teal-dark);margin-bottom:8px;}
+.ia-ampliacion p{font-size:13px;line-height:1.75;color:var(--ink-mid);white-space:pre-wrap;margin:0;}
 .cta-buttons{display:flex;gap:10px;flex-wrap:wrap;}
 .btn-mail{font-size:13px;color:var(--amber);background:none;border:1px solid var(--amber);border-radius:8px;padding:10px 20px;cursor:pointer;transition:all .12s;text-decoration:none;display:inline-block;}
 .btn-mail:hover{background:var(--amber);color:white;}
@@ -297,6 +300,7 @@ footer a{color:var(--teal);text-decoration:none;}
         <button class="btn-pdf" onclick="descargarDiagnosticoPdf()">Descargar diagnóstico en PDF</button>
       </div>
       <hr class="result-divider">
+      <div id="iaAmpliacion"></div>
       <div class="cta-cita">
         <h3>¿Quieres un diagnóstico completo y personalizado?</h3>
         <p>Este es un diagnóstico preliminar automático. Haz tu cita y cuéntanos tu caso — lo revisamos contigo.</p>
@@ -587,6 +591,26 @@ function updNav(){
 }
 function updProg(){document.getElementById('prog').style.width=((est.step+1)/Q[est.rubro].preguntas.length*100)+'%';}
 
+function escapeHtml(s){
+  return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// Extrae del objeto de respuestas (distinto por rubro/herramienta, por eso
+// el ||) los campos comunes que tanto makeDiag() como la ampliación con IA
+// necesitan — un solo lugar para no tener esta lista de alias duplicada.
+function _camposDiagnostico(r){
+  return {
+    org: r.org||r.comunidad||r.contexto||r.institucion||'su organización',
+    prob: r.obstaculo||r.problema||r.desafio||r.dimension||'la problemática identificada',
+    zona: r.zona||'',
+    perfil: r.perfil||r.poblacion||r.afectados||'',
+    resultado: r.resultado||r.cambio||r.transformacion||r.uso||'',
+    cultura: r.cultura||'',
+    actores: r.actores||r.participantes||'',
+    detalle: r.detalle||r.datos||r.info||''
+  };
+}
+
 // RESULTADO
 function buildResult(){
   var h=null;
@@ -596,37 +620,89 @@ function buildResult(){
   document.getElementById('res-title').textContent='Diagnóstico preliminar — '+h.name;
   var textoDiag=makeDiag(est.rubro,est.herr,est.resp,h.name,q.titulo);
   document.getElementById('res-text').textContent=textoDiag;
+  est.textoDiag=textoDiag;
+  est.herNom=h.name; est.rubroNom=q.titulo;
   _enviarRegistroDiagnostico(est.rubro, 'Diagnóstico social — '+q.titulo+' · '+h.name);
-  _enviarResultadoMuestraCorreo(textoDiag);
   show('sec-result');
   document.getElementById('sec-result').scrollIntoView({behavior:'smooth',block:'start'});
+  _cargarAmpliacionIA();
+}
+
+// "Ampliando la mirada" — complemento con IA al diagnóstico de arriba (que
+// NO usa IA, es la función de reglas makeDiag() con el marco propio del
+// equipo). A diferencia de ese diagnóstico fijo, esto sí varía según el
+// caso concreto: 1-2 lecturas teóricas adicionales pertinentes a este caso
+// y propuestas de intervención concretas. El correo automático se manda
+// hasta que esto se resuelve (éxito o falla), para que el PDF/correo
+// incluyan la ampliación cuando esté disponible — igual que en las demás
+// muestras con interpretación con IA.
+function _cargarAmpliacionIA(){
+  var box=document.getElementById('iaAmpliacion');
+  if(!box || !datosOrg){ _enviarResultadoMuestraCorreo(); return; }
+  box.innerHTML='<p class="subtle" id="iaCargando">Ampliando la mirada con IA…</p>';
+  var c=_camposDiagnostico(est.resp);
+  jsonp('generarInterpretacionMuestra', {
+    muestra: 'Diagnostico',
+    nombre: datosOrg.nombre,
+    email: datosOrg.correo,
+    resultados: JSON.stringify([{nombre:'diagnostico'}]),
+    rubro: est.rubroNom,
+    herramienta: est.herNom,
+    organizacion: c.org,
+    problema: c.prob,
+    contexto: c.zona,
+    perfilPoblacion: c.perfil,
+    actores: c.actores,
+    cultura: c.cultura,
+    detalle: c.detalle,
+    diagnosticoPrevio: est.textoDiag,
+    sitioWebTrampa: datosOrg.trampa
+  }).then(function(r){
+    if(r && r.ok && r.interpretacion){
+      est.ampliacionIA = r.interpretacion;
+      _pintarAmpliacionIA(r.interpretacion);
+    } else {
+      box.innerHTML='';
+    }
+    _enviarResultadoMuestraCorreo();
+  });
+}
+
+function _pintarAmpliacionIA(texto){
+  var box=document.getElementById('iaAmpliacion');
+  if(!box) return;
+  box.innerHTML =
+    '<div class="ia-ampliacion">' +
+      '<div class="ia-tag">Ampliando la mirada · generado con IA</div>' +
+      '<p>'+escapeHtml(texto)+'</p>' +
+    '</div>';
 }
 
 // Correo automático con el resultado (PDF adjunto + oferta con IA) — mismo
 // mecanismo genérico que usan las demás muestras (ver apiEnviarResultadoMuestra
-// en WebApp.gs). Se manda una sola vez, junto con el registro en el CRM.
-function _enviarResultadoMuestraCorreo(textoDiag){
+// en WebApp.gs). Se manda una sola vez, junto con el registro en el CRM,
+// después de que se resuelve _cargarAmpliacionIA() (con o sin éxito).
+function _enviarResultadoMuestraCorreo(){
   if(!datosOrg || est.correoResultadoEnviado) return;
   est.correoResultadoEnviado = true;
+  var secciones=[{ titulo: 'Diagnóstico preliminar', parrafos: [est.textoDiag] }];
+  if(est.ampliacionIA) secciones.push({ titulo: 'Ampliando la mirada', parrafos: [est.ampliacionIA] });
   jsonp('enviarResultadoMuestra', {
     tipoMuestra: 'Diagnostico',
     nombre: datosOrg.nombre,
     correo: datosOrg.correo,
     organizacion: datosOrg.organizacion,
     tituloResultado: document.getElementById('res-title').textContent,
-    resumenTexto: textoDiag,
-    secciones: JSON.stringify([{ titulo: 'Diagnóstico preliminar', parrafos: [textoDiag] }]),
+    resumenTexto: est.textoDiag,
+    secciones: JSON.stringify(secciones),
     sitioWebTrampa: datosOrg.trampa
   });
 }
 
 function makeDiag(rubro,herr,r,hNom,rNom){
-  var org=r.org||r.comunidad||r.contexto||r.institucion||'su organización';
-  var prob=r.obstaculo||r.problema||r.desafio||r.dimension||'la problemática identificada';
-  var zona=r.zona||'';var perfil=r.perfil||r.poblacion||r.afectados||'';
-  var resultado=r.resultado||r.cambio||r.transformacion||r.uso||'';
-  var cultura=r.cultura||'';var actores=r.actores||r.participantes||'';
-  var detalle=r.detalle||r.datos||r.info||'';
+  var campos=_camposDiagnostico(r);
+  var org=campos.org, prob=campos.prob, zona=campos.zona, perfil=campos.perfil,
+      resultado=campos.resultado, cultura=campos.cultura, actores=campos.actores, detalle=campos.detalle;
   var t='';
 
   // ── ENCABEZADO ──
@@ -814,6 +890,29 @@ function descargarDiagnosticoPdf(){
     if(y>alturaPagina){ doc.addPage(); y=50; }
     doc.text(lineas[i], margenIzq, y);
     y+=alturaLinea;
+  }
+
+  // "Ampliando la mirada" (generado con IA) — solo si ya cargó para cuando
+  // la persona descarga el PDF; si no, el PDF simplemente no la incluye
+  // (el correo automático sí espera a que esté lista, ver
+  // _enviarResultadoMuestraCorreo).
+  if(est.ampliacionIA){
+    if(y>alturaPagina-30){ doc.addPage(); y=50; }
+    y+=10;
+    doc.setDrawColor(230,226,245);doc.line(margenIzq,y,margenIzq+anchoTexto,y);
+    y+=18;
+    doc.setFont('helvetica','bold');doc.setFontSize(10.5);
+    doc.setTextColor(99,30,235);
+    doc.text('AMPLIANDO LA MIRADA · GENERADO CON IA', margenIzq, y);
+    y+=16;
+    doc.setFont('helvetica','normal');doc.setFontSize(9.5);
+    doc.setTextColor(50,50,50);
+    var lineasAmp=doc.splitTextToSize(est.ampliacionIA, anchoTexto);
+    for(var ia=0; ia<lineasAmp.length; ia++){
+      if(y>alturaPagina){ doc.addPage(); y=50; }
+      doc.text(lineasAmp[ia], margenIzq, y);
+      y+=alturaLinea;
+    }
   }
 
   if(y>alturaPagina-40) { doc.addPage(); y=50; }
