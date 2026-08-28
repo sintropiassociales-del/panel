@@ -820,9 +820,20 @@ function descargarDiagnosticoPdf(){
   y+=10;
   doc.setDrawColor(230,226,245);doc.line(margenIzq,y,margenIzq+anchoTexto,y);
   y+=18;
+  // Enlace de verdad (clickeable dentro del PDF) en vez de la URL como texto
+  // plano — un PDF no vuelve clickeable una URL solo por escribirla.
   doc.setFont('helvetica','normal');doc.setFontSize(9.5);
   doc.setTextColor(107,107,120);
-  doc.text('¿Quieres un diagnóstico completo y personalizado? Haz tu cita en calendly.com/sintropiassociales/30min o escríbenos a dsalgado@sintropiasocial.com.', margenIzq, y, {maxWidth: anchoTexto});
+  doc.text('¿Quieres un diagnóstico completo y personalizado?', margenIzq, y, {maxWidth: anchoTexto});
+  y += 14;
+  doc.setTextColor(99, 30, 235);
+  var etiquetaCitaDiag = 'Haz tu cita aquí';
+  doc.textWithLink(etiquetaCitaDiag, margenIzq, y, { url: 'https://calendly.com/sintropiassociales/30min' });
+  var anchoCitaDiag = doc.getTextWidth(etiquetaCitaDiag);
+  doc.setDrawColor(99, 30, 235); doc.setLineWidth(0.4);
+  doc.line(margenIzq, y + 1.5, margenIzq + anchoCitaDiag, y + 1.5);
+  doc.setTextColor(107,107,120);
+  doc.text(' o escríbenos a dsalgado@sintropiasocial.com.', margenIzq + anchoCitaDiag, y);
 
   doc.save('diagnostico-sintropia-social.pdf');
 }

@@ -522,9 +522,20 @@ function descargarSecuenciaPdf() {
   y += 10;
   doc.setDrawColor(230, 226, 245); doc.line(margenIzq, y, margenIzq + anchoTexto, y);
   y += 18;
+  // Enlace de verdad (clickeable dentro del PDF) en vez de la URL como texto
+  // plano — un PDF no vuelve clickeable una URL solo por escribirla.
   doc.setFont('helvetica', 'normal'); doc.setFontSize(9.5);
   doc.setTextColor(107, 107, 120);
-  doc.text('¿Quieres desarrollar este curso con nosotros? Haz tu cita en calendly.com/sintropiassociales/30min o escríbenos a comunicacion@sintropiasocial.com.', margenIzq, y, { maxWidth: anchoTexto });
+  doc.text('¿Quieres desarrollar este curso con nosotros?', margenIzq, y, { maxWidth: anchoTexto });
+  y += 14;
+  doc.setTextColor(99, 30, 235);
+  var etiquetaCitaDi = 'Haz tu cita aquí';
+  doc.textWithLink(etiquetaCitaDi, margenIzq, y, { url: 'https://calendly.com/sintropiassociales/30min' });
+  var anchoCitaDi = doc.getTextWidth(etiquetaCitaDi);
+  doc.setDrawColor(99, 30, 235); doc.setLineWidth(0.4);
+  doc.line(margenIzq, y + 1.5, margenIzq + anchoCitaDi, y + 1.5);
+  doc.setTextColor(107, 107, 120);
+  doc.text(' o escríbenos a comunicacion@sintropiasocial.com.', margenIzq + anchoCitaDi, y);
 
   doc.save('diseno-instruccional-sintropia.pdf');
 }

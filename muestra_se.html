@@ -628,9 +628,17 @@ function descargarSemaforoPdf() {
   var lineasTextoRec = doc.splitTextToSize(rec.texto, anchoTexto);
   doc.text(lineasTextoRec, margenIzq, y);
   y += lineasTextoRec.length * 13 + 10;
+  // Enlace de verdad (clickeable dentro del PDF) en vez de la URL como texto
+  // plano — un PDF no vuelve clickeable una URL solo por escribirla.
   doc.setFont('helvetica', 'normal'); doc.setFontSize(9.5);
+  doc.setTextColor(99, 30, 235);
+  var etiquetaCitaSe = 'Haz tu cita aquí';
+  doc.textWithLink(etiquetaCitaSe, margenIzq, y, { url: 'https://calendly.com/sintropiassociales/30min' });
+  var anchoCitaSe = doc.getTextWidth(etiquetaCitaSe);
+  doc.setDrawColor(99, 30, 235); doc.setLineWidth(0.4);
+  doc.line(margenIzq, y + 1.5, margenIzq + anchoCitaSe, y + 1.5);
   doc.setTextColor(107, 107, 120);
-  doc.text('Haz tu cita en calendly.com/sintropiassociales/30min o escríbenos a comunicacion@sintropiasocial.com.', margenIzq, y, { maxWidth: anchoTexto });
+  doc.text(' o escríbenos a comunicacion@sintropiasocial.com.', margenIzq + anchoCitaSe, y);
   y += 30;
 
   // Pie de marca, igual en espíritu al pie de los correos (wordmark +
