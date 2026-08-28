@@ -94,6 +94,13 @@
     padding: 12px 14px; margin-top: 18px; font-size: 13px; color: var(--subtle); }
   .secuencia-duracion b { color: var(--purple-dark); }
 
+  /* Pantalla de espera mientras la IA genera la propuesta */
+  .pantalla-centrada { text-align: center; padding: 30px 4px 12px; }
+  .spinner { width: 40px; height: 40px; margin: 0 auto; border-radius: 50%;
+    border: 4px solid var(--border); border-top-color: var(--purple); animation: girar .8s linear infinite; }
+  @media (prefers-reduced-motion: reduce) { .spinner { animation-duration: 2.4s; } }
+  @keyframes girar { to { transform: rotate(360deg); } }
+
   .cta { background: linear-gradient(135deg, var(--purple), var(--purple-dark)); color: #fff; border-radius: 14px;
     padding: 22px 24px; margin-top: 8px; }
   .cta h2 { color: #fff; }
@@ -208,9 +215,21 @@ function progresoHtml() {
 }
 
 function render() {
+  if (state.cargandoResultado) return renderCargando();
   if (state.paso === 0) return renderDatos();
   if (state.paso === 1) return renderPreguntas();
   return renderResultado();
+}
+
+/* ---- Pantalla de espera mientras la IA genera la propuesta ---- */
+function renderCargando() {
+  app.innerHTML =
+    progresoHtml() +
+    '<div class="pantalla-centrada">' +
+      '<div class="spinner"></div>' +
+      '<h2 style="margin-top:18px">Generando tu propuesta con IA…</h2>' +
+      '<p class="subtle">Esto puede tardar unos segundos — no cierres ni recargues esta página.</p>' +
+    '</div>';
 }
 
 /* ---- PASO 0: datos de la organización (antes de la prueba) ---- */
@@ -311,28 +330,27 @@ function renderPreguntas() {
       return;
     }
 
-    var btn = document.getElementById('btnVerResultado');
-    btn.disabled = true; btn.textContent = 'Generando tu propuesta...';
+    // Pantalla de espera de pantalla completa — la generación con IA puede
+    // tardar varios segundos y antes solo se veía el texto del botón
+    // cambiar, fácil de pasar por alto.
+    state.cargandoResultado = true;
+    render();
 
     var d = state.datos || {};
-    var resp = await jsonp('generarSecuenciaDidactica', {
+    var resumenNotas = 'Diseño instruccional — ' + PREGUNTAS_DI.map(function (p) {
+      return p.q + ' ' + (state.respuestas[p.campo] || '(sin responder)');
+    }).join(' | ');
+
+    // Las dos llamadas son independientes entre sí (una genera la propuesta
+    // con IA, la otra guarda el lead) — se mandan en paralelo en vez de una
+    // tras otra, para no duplicar el tiempo de espera.
+    var pSecuencia = jsonp('generarSecuenciaDidactica', {
       nombre: d.nombre,
       correo: d.email,
       respuestas: JSON.stringify(state.respuestas),
       sitioWebTrampa: d.sitioWebTrampa
     });
-
-    if (resp && resp.ok && resp.secuencia && resp.secuencia.apertura) {
-      state.secuencia = resp.secuencia;
-    } else {
-      state.secuencia = null;
-    }
-
-    var resumenNotas = 'Diseño instruccional — ' + PREGUNTAS_DI.map(function (p) {
-      return p.q + ' ' + (state.respuestas[p.campo] || '(sin responder)');
-    }).join(' | ');
-
-    await jsonp('capturarClienteDiagnostico', {
+    var pCaptura = jsonp('capturarClienteDiagnostico', {
       organizacion: d.organizacion,
       categoria: d.categoria,
       ejeInteres: 'Educación',
@@ -346,7 +364,16 @@ function renderPreguntas() {
       sitioWebTrampa: d.sitioWebTrampa
     });
 
-    btn.disabled = false; btn.textContent = 'Ver mi propuesta de secuencia →';
+    var resp = await pSecuencia;
+    await pCaptura;
+
+    if (resp && resp.ok && resp.secuencia && resp.secuencia.apertura) {
+      state.secuencia = resp.secuencia;
+    } else {
+      state.secuencia = null;
+    }
+
+    state.cargandoResultado = false;
     state.paso = 2;
     render();
   };
@@ -394,18 +421,27 @@ function renderResultado() {
 /* ---- Correo automático con el resultado (PDF adjunto + oferta con IA) ----
  * A diferencia de otras muestras, aquí la "secuencia" YA es el contenido
  * generado con IA (no hay una interpretación aparte) — se manda tal cual
- * apenas se muestra, una sola vez. */
+ * apenas se muestra, una sola vez. Se manda de cualquier forma aunque la
+ * propuesta automática haya fallado (con un resumen genérico en su lugar) —
+ * la persona de cualquier forma ya quedó registrada como lead y espera
+ * noticias por correo. */
 function _enviarResultadoMuestraCorreo() {
-  if (state.correoResultadoEnviado || !state.secuencia) return;
+  if (state.correoResultadoEnviado) return;
   state.correoResultadoEnviado = true;
   var d = state.datos || {};
-  var secciones = FASES_SECUENCIA.map(function (f) {
-    return { titulo: f.titulo, parrafos: [state.secuencia[f.clave] || ''] };
-  });
-  if (state.secuencia.duracionSugerida) secciones.push({ titulo: 'Duración sugerida', parrafos: [state.secuencia.duracionSugerida] });
-  var resumenTexto = FASES_SECUENCIA.map(function (f) {
-    return f.titulo + ': ' + (state.secuencia[f.clave] || '');
-  }).join(' ');
+  var secciones, resumenTexto;
+  if (state.secuencia) {
+    secciones = FASES_SECUENCIA.map(function (f) {
+      return { titulo: f.titulo, parrafos: [state.secuencia[f.clave] || ''] };
+    });
+    if (state.secuencia.duracionSugerida) secciones.push({ titulo: 'Duración sugerida', parrafos: [state.secuencia.duracionSugerida] });
+    resumenTexto = FASES_SECUENCIA.map(function (f) {
+      return f.titulo + ': ' + (state.secuencia[f.clave] || '');
+    }).join(' ');
+  } else {
+    secciones = [{ titulo: 'Tu propuesta preliminar', parrafos: ['No pudimos generar automáticamente la propuesta esta vez — el equipo de Sintropía Social la preparará a mano y te la compartirá pronto.'] }];
+    resumenTexto = 'La propuesta automática de secuencia didáctica no se pudo generar; el equipo la preparará a mano.';
+  }
   jsonp('enviarResultadoMuestra', {
     tipoMuestra: 'DisenioInstruccional',
     nombre: d.nombre,
