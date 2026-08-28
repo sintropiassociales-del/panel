@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="description" content="Sintropía Social — elige si vienes como organización (diagnóstico social) o como persona (muestra del IMES).">
+<meta name="description" content="Sintropía Social — elige si vienes como organización o como persona para ver nuestras muestras gratuitas.">
 <title>Sintropía Social — Empieza aquí</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -33,28 +33,33 @@
   header.top h1 { font-size: 22px; margin: 14px auto 6px; max-width: 460px; font-weight: 800; }
   header.top p { font-size: 14px; opacity: .92; max-width: 440px; margin: 0 auto; }
 
-  main { max-width: 760px; margin: -30px auto 40px; padding: 0 16px; }
+  main { max-width: 780px; margin: -30px auto 40px; padding: 0 16px; }
 
-  .opciones { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 18px; }
-  @media (max-width: 860px) { .opciones { grid-template-columns: 1fr 1fr; } }
-  @media (max-width: 560px) { .opciones { grid-template-columns: 1fr; } }
+  .columnas { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 18px; }
+  @media (max-width: 640px) { .columnas { grid-template-columns: 1fr; } }
 
-  a.opcion {
-    display: block; text-decoration: none; color: inherit;
-    background: var(--card); border-radius: 16px; padding: 26px 24px; border: 1.5px solid var(--border);
-    box-shadow: 0 6px 20px rgba(99,30,235,.08); transition: transform .15s, border-color .15s, box-shadow .15s;
+  .columna {
+    background: var(--card); border-radius: 16px; padding: 22px 20px 20px; border: 1.5px solid var(--border);
+    box-shadow: 0 6px 20px rgba(99,30,235,.08);
   }
-  a.opcion:hover { transform: translateY(-3px); border-color: var(--purple); box-shadow: 0 10px 28px rgba(99,30,235,.14); }
-  .opcion .etiqueta {
+  .columna .etiqueta {
     display: inline-block; font-size: 11px; font-weight: 700; letter-spacing: .5px; text-transform: uppercase;
-    color: var(--orange); margin-bottom: 10px;
+    color: var(--orange); margin-bottom: 8px;
   }
-  .opcion h2 { font-size: 19px; margin: 0 0 8px; color: var(--purple-dark); }
-  .opcion p { font-size: 13.5px; color: var(--subtle); margin: 0 0 16px; }
-  .opcion .cta {
-    display: inline-flex; align-items: center; gap: 6px; font-weight: 700; font-size: 14px; color: var(--purple);
+  .columna h2 { font-size: 19px; margin: 0 0 6px; color: var(--purple-dark); }
+  .columna > p { font-size: 13.5px; color: var(--subtle); margin: 0 0 16px; }
+
+  a.suboferta {
+    display: block; text-decoration: none; color: inherit;
+    border: 1.5px solid var(--border); border-radius: 12px; padding: 16px 16px; margin-bottom: 10px;
+    transition: transform .15s, border-color .15s, box-shadow .15s;
   }
-  .opcion:hover .cta { color: var(--purple-dark); }
+  a.suboferta:last-child { margin-bottom: 0; }
+  a.suboferta:hover { transform: translateY(-2px); border-color: var(--purple); box-shadow: 0 8px 20px rgba(99,30,235,.12); }
+  a.suboferta .nombre { display: block; font-size: 15.5px; font-weight: 700; color: var(--purple-dark); margin-bottom: 4px; }
+  a.suboferta .desc { display: block; font-size: 13px; color: var(--subtle); margin-bottom: 10px; }
+  a.suboferta .cta { display: inline-flex; align-items: center; gap: 6px; font-weight: 700; font-size: 13.5px; color: var(--purple); }
+  a.suboferta:hover .cta { color: var(--purple-dark); }
 
   .nota {
     text-align: center; font-size: 13px; color: var(--subtle); margin: 4px 0 0;
@@ -75,25 +80,37 @@
 </header>
 
 <main>
-  <div class="opciones">
-    <a class="opcion" href="diagnostico.html">
+  <div class="columnas">
+    <div class="columna">
       <span class="etiqueta">Organizaciones</span>
-      <h2>Soy una organización</h2>
-      <p>Empresas, OSC, gobierno, universidades. Responde un breve cuestionario y recibe un diagnóstico social preliminar gratuito con perspectiva antropológica.</p>
-      <span class="cta">Empezar diagnóstico →</span>
-    </a>
-    <a class="opcion" href="muestra_imes.html">
+      <h2>Para tu organización</h2>
+      <p>Empresas, OSC, gobierno, universidades.</p>
+      <a class="suboferta" href="diagnostico.html">
+        <span class="nombre">Diagnóstico social</span>
+        <span class="desc">Cuéntanos de tu organización y responde un cuestionario breve — recibe un diagnóstico preliminar gratuito con perspectiva antropológica.</span>
+        <span class="cta">Empezar diagnóstico →</span>
+      </a>
+      <a class="suboferta" href="muestra_disenio_instruccional.html">
+        <span class="nombre">Diseño instruccional de cursos</span>
+        <span class="desc">Cursos presenciales, virtuales o híbridos. Cuéntanos qué necesitas y recibe una propuesta de secuencia didáctica generada con IA.</span>
+        <span class="cta">Ver muestra →</span>
+      </a>
+    </div>
+    <div class="columna">
       <span class="etiqueta">Personas</span>
-      <h2>Quiero probar el IMES</h2>
-      <p>¿Quieres conocer tus habilidades para el empleo? Responde una muestra breve y gratuita del IMES y ve tu resultado en minutos.</p>
-      <span class="cta">Probar la muestra →</span>
-    </a>
-    <a class="opcion" href="muestra_candidato.html">
-      <span class="etiqueta">Personas</span>
-      <h2>Estoy buscando empleo</h2>
-      <p>15 preguntas para saber qué tan lista está tu búsqueda de empleo — y autorizar que te avisemos de vacantes que se ajusten a tu perfil.</p>
-      <span class="cta">Ver mi diagnóstico →</span>
-    </a>
+      <h2>Para ti</h2>
+      <p>¿Buscas trabajo o quieres conocer tus habilidades?</p>
+      <a class="suboferta" href="muestra_imes.html">
+        <span class="nombre">Quiero probar el IMES</span>
+        <span class="desc">¿Quieres conocer tus habilidades para el empleo? Responde una muestra breve y gratuita del IMES y ve tu resultado en minutos.</span>
+        <span class="cta">Probar la muestra →</span>
+      </a>
+      <a class="suboferta" href="muestra_candidato.html">
+        <span class="nombre">Estoy buscando empleo</span>
+        <span class="desc">Responde unas preguntas para saber qué tan lista está tu búsqueda de empleo y autoriza que te avisemos de vacantes a tu medida.</span>
+        <span class="cta">Ver mi diagnóstico →</span>
+      </a>
+    </div>
   </div>
   <p class="nota">¿No estás seguro? Escríbenos a <a href="mailto:comunicacion@sintropiasocial.com">comunicacion@sintropiasocial.com</a> y te orientamos.</p>
 </main>

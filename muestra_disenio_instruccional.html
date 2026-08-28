@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Diseño Instruccional de Cursos Presenciales, Virtuales o Híbridos — muestra gratuita de Sintropía Social con propuesta de secuencia didáctica generada con IA.">
+<title>Muestra: Diseño Instruccional — Sintropía Social</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<style>
+  :root {
+    --purple: #631EEB;
+    --purple-dark: #4E17B8;
+    --orange: #FF7929;
+    --bg: #F5F3FC;
+    --card: #FFFFFF;
+    --text: #2C2C2C;
+    --subtle: #6B6B78;
+    --border: #E6E2F5;
+    --error: #C0392B;
+    --error-bg: #FDECEA;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; font-family: 'Open Sans', -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+    background: var(--bg); color: var(--text); line-height: 1.55;
+  }
+  header.top {
+    background: var(--purple); color: #fff; padding: 26px 18px 44px; text-align: center;
+    border-radius: 0 0 22px 22px;
+  }
+  header.top .marca { font-size: 20px; font-weight: 800; letter-spacing: .3px; }
+  header.top .marca span { color: var(--orange); }
+  header.top .subt { font-size: 13.5px; opacity: .92; margin-top: 6px; max-width: 460px; margin-left: auto; margin-right: auto; }
+  main { max-width: 660px; margin: -26px auto 40px; padding: 0 16px; }
+  .card {
+    background: var(--card); border-radius: 14px; padding: 26px 24px; margin-bottom: 16px;
+    box-shadow: 0 6px 20px rgba(99,30,235,.08); border: 1px solid var(--border);
+  }
+  h1 { font-size: 21px; margin: 0 0 8px; }
+  h2 { font-size: 18px; margin: 0 0 4px; color: var(--purple-dark); }
+  h3 { font-size: 15px; margin: 22px 0 2px; color: var(--purple-dark); }
+  p.subtle, .subtle { color: var(--subtle); font-size: 13.5px; }
+  .progreso { display: flex; gap: 6px; margin: 18px 0 22px; }
+  .progreso .paso { flex: 1; height: 6px; border-radius: 4px; background: var(--border); }
+  .progreso .paso.hecho { background: var(--orange); }
+  .progreso .paso.actual { background: var(--purple); }
+  label { display: block; font-size: 13.5px; font-weight: 600; margin: 14px 0 5px; }
+  label .req { color: var(--orange); }
+  input[type=text], input[type=email], select, textarea {
+    width: 100%; padding: 11px 12px; border: 1.5px solid var(--border); border-radius: 9px;
+    font-size: 15px; font-family: inherit; background: #fff; color: var(--text);
+  }
+  textarea { resize: vertical; min-height: 76px; }
+  input:focus, select:focus, textarea:focus { outline: none; border-color: var(--purple); }
+  .fila-botones { display: flex; gap: 10px; margin-top: 24px; flex-wrap: wrap; }
+  button {
+    font-family: inherit; font-size: 14.5px; font-weight: 700; border-radius: 999px;
+    padding: 12px 24px; border: none; cursor: pointer;
+  }
+  button.primary { background: var(--purple); color: #fff; }
+  button.primary:hover { background: var(--purple-dark); }
+  button.secondary { background: #fff; color: var(--purple); border: 1.5px solid var(--purple); }
+  button:disabled { opacity: .5; cursor: default; }
+  .msg { padding: 10px 13px; border-radius: 9px; font-size: 13.5px; margin: 12px 0; }
+  .msg.error { background: var(--error-bg); color: var(--error); }
+
+  .campo-trampa { position: absolute; left: -9999px; top: -9999px; opacity: 0; height: 0; overflow: hidden; }
+
+  /* Preguntas mixtas (abiertas y cerradas) */
+  .pregunta-di { border-top: 1px solid var(--border); padding: 18px 0; }
+  .pregunta-di:first-of-type { border-top: none; padding-top: 4px; }
+  .pregunta-di .num { display: inline-block; font-size: 11.5px; font-weight: 700; letter-spacing: .5px;
+    color: var(--purple); text-transform: uppercase; margin-bottom: 4px; }
+  .pregunta-texto { font-size: 14.5px; font-weight: 700; margin-bottom: 4px; }
+  .pregunta-hint { font-size: 12.5px; color: var(--subtle); margin-bottom: 10px; }
+  .opciones-di { display: flex; gap: 8px; flex-wrap: wrap; }
+  .op-choice {
+    border: 1.5px solid var(--border); border-radius: 9px; background: #fff;
+    color: var(--subtle); font-weight: 600; font-size: 13px; padding: 10px 14px; cursor: pointer; text-align: center;
+    transition: background .12s, border-color .12s, color .12s;
+  }
+  .op-choice.marcada { background: var(--purple); border-color: var(--purple); color: #fff; }
+
+  /* Resultado — secuencia didáctica */
+  .secuencia-texto { font-size: 13.5px; line-height: 1.85; color: var(--text); white-space: pre-wrap; }
+
+  .cta { background: linear-gradient(135deg, var(--purple), var(--purple-dark)); color: #fff; border-radius: 14px;
+    padding: 22px 24px; margin-top: 8px; }
+  .cta h2 { color: #fff; }
+  .cta p { font-size: 13.5px; opacity: .95; }
+  .cta a { color: #fff; font-weight: 700; }
+  .cta .fila-botones a.boton-cta {
+    display: inline-block; text-decoration: none; border-radius: 999px; padding: 12px 22px; font-weight: 700; font-size: 14px;
+  }
+  .cta .boton-cta.solido { background: #fff; color: var(--purple-dark); }
+  .cta .boton-cta.contorno { border: 1.5px solid rgba(255,255,255,.7); color: #fff; }
+
+  footer.pie { text-align: center; font-size: 12px; color: var(--subtle); padding: 10px 16px 34px; }
+  footer.pie .wordmark { font-size: 14px; font-weight: 700; margin-bottom: 6px; }
+  footer.pie a { color: var(--purple); text-decoration: none; }
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="marca">Sintropía <span>Social</span></div>
+  <div class="subt">Diseño Instruccional de Cursos — cuéntanos qué necesitas y te proponemos una secuencia didáctica con ayuda de IA.</div>
+</header>
+
+<main>
+  <div id="app" class="card">
+    <p class="subtle">Cargando...</p>
+  </div>
+</main>
+
+<footer class="pie">
+  <div class="wordmark"><span style="color:var(--purple)">Sintropía</span> <span style="color:var(--orange)">Social</span></div>
+  <a href="https://sintropiassociales-del.github.io/">Sintropía Social</a> · <a href="mailto:comunicacion@sintropiasocial.com">comunicacion@sintropiasocial.com</a>
+</footer>
+
+<script>
+var WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbxZbLiOP7QXvrgUIDhhVciVGY-Yval3YBvqBHOpQfK8El2wHXNNBtZvsnkbwMaJUss/exec';
+
+function escapeHtml(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+  });
+}
+
+function jsonp(action, params) {
+  return new Promise(function (resolve) {
+    var cbName = 'cb_' + Date.now() + '_' + Math.floor(Math.random() * 100000);
+    var url = WEB_APP_URL + '?action=' + encodeURIComponent(action) + '&callback=' + cbName;
+    params = params || {};
+    for (var k in params) {
+      if (params[k] !== undefined && params[k] !== null) url += '&' + encodeURIComponent(k) + '=' + encodeURIComponent(params[k]);
+    }
+    var script = document.createElement('script');
+    var cleaned = false;
+    function cleanup() { if (cleaned) return; cleaned = true; delete window[cbName]; if (script.parentNode) script.parentNode.removeChild(script); }
+    window[cbName] = function (data) { cleanup(); resolve(data); };
+    script.onerror = function () { cleanup(); resolve({ ok: false, error: 'No se pudo conectar. Revisa tu conexión a internet e intenta de nuevo.' }); };
+    setTimeout(function () { if (!cleaned) { cleanup(); resolve({ ok: false, error: 'La plataforma tardó demasiado en responder. Intenta de nuevo.' }); } }, 40000);
+    script.src = url;
+    document.body.appendChild(script);
+  });
+}
+
+var CATEGORIAS_CRM_OPCIONES = ['Gobierno y Sector Público', 'ONG y Fundaciones', 'Educación', 'Salud y Bienestar',
+  'Universidad', 'Cámara empresarial', 'Empresa privada', 'Retail y Consumo', 'Fintech y Servicios',
+  'Tecnología y Telecom', 'Turismo y Hospitalidad', 'Organismo internacional', 'Otro'];
+
+/* ============================================================
+ * 10 preguntas mixtas (abiertas y cerradas) sobre el curso que
+ * la organización quiere desarrollar.
+ * ============================================================ */
+var PREGUNTAS_DI = [
+  { campo: 'modalidad', tipo: 'select', q: '¿Qué modalidad buscas para tu curso?',
+    opciones: ['Presencial', 'Virtual (asíncrono)', 'Virtual (síncrono / en vivo)', 'Híbrido', 'Aún no lo decido'] },
+  { campo: 'tema', tipo: 'texto', q: '¿Cuál es el tema o contenido principal del curso que quieres desarrollar?',
+    hint: 'Sé tan específico como puedas.' },
+  { campo: 'dirigido', tipo: 'select', q: '¿A quién va dirigido principalmente?',
+    opciones: ['Colaboradores / empleados', 'Estudiantes', 'Público en general', 'Clientes', 'Otro'] },
+  { campo: 'necesidad', tipo: 'texto', q: '¿Qué problema o necesidad concreta buscas resolver con este curso?',
+    hint: 'Ej: falta de una habilidad específica, proceso de inducción, actualización normativa...' },
+  { campo: 'duracion', tipo: 'select', q: '¿Cuánto tiempo aproximado quieres que dure el curso?',
+    opciones: ['Menos de 2 horas (taller breve)', 'Medio día', '1-2 días', 'Varias semanas (curso extendido)', 'Programa completo (varios meses)'] },
+  { campo: 'nivel', tipo: 'select', q: '¿Qué tan familiarizados están los participantes con el tema?',
+    opciones: ['Principiantes', 'Nivel intermedio', 'Avanzados', 'Nivel mixto'] },
+  { campo: 'objetivo', tipo: 'texto', q: '¿Qué te gustaría que los participantes sean capaces de hacer al terminar el curso?',
+    hint: 'El objetivo de aprendizaje, en tus propias palabras.' },
+  { campo: 'recursos', tipo: 'select', q: '¿Qué recursos tecnológicos tienes disponibles?',
+    opciones: ['Plataforma LMS propia', 'Videoconferencia (Zoom / Meet / Teams)', 'Salón físico con proyector', 'Ninguno todavía', 'Otro'] },
+  { campo: 'evaluacion', tipo: 'texto', q: '¿Cómo te gustaría evaluar que el aprendizaje realmente ocurrió?',
+    hint: 'Examen, proyecto práctico, observación en el puesto... o dinos si aún no lo has pensado.' },
+  { campo: 'notas', tipo: 'texto', q: '¿Algo más que debamos saber para diseñar tu secuencia didáctica?',
+    hint: 'Opcional.', opcional: true }
+];
+
+var state = { paso: 0, datos: null, respuestas: {}, secuencia: null, enviado: false };
+var app = document.getElementById('app');
+var TOTAL_PASOS = 3; // 0 datos de la organización · 1 preguntas · 2 resultado (secuencia didáctica)
+
+function progresoHtml() {
+  var html = '<div class="progreso">';
+  for (var i = 0; i < TOTAL_PASOS; i++) {
+    var cls = i < state.paso ? 'hecho' : (i === state.paso ? 'actual' : '');
+    html += '<div class="paso ' + cls + '"></div>';
+  }
+  return html + '</div>';
+}
+
+function render() {
+  if (state.paso === 0) return renderDatos();
+  if (state.paso === 1) return renderPreguntas();
+  return renderResultado();
+}
+
+/* ---- PASO 0: datos de la organización (antes de la prueba) ---- */
+function renderDatos() {
+  var d = state.datos || {};
+  app.innerHTML =
+    progresoHtml() +
+    '<h1>Diseño Instruccional de Cursos</h1>' +
+    '<p class="subtle">10 preguntas breves sobre el curso que quieres desarrollar — menos de 5 minutos. Primero necesitamos algunos datos de tu organización para poder enviarte la propuesta.</p>' +
+    '<div id="secMsg"></div>' +
+    '<form id="datosForm">' +
+      '<label>Nombre completo <span class="req">*</span></label><input type="text" id="dNombre" value="' + escapeHtml(d.nombre || '') + '">' +
+      '<label>Organización <span class="req">*</span></label><input type="text" id="dOrganizacion" value="' + escapeHtml(d.organizacion || '') + '">' +
+      '<label>Categoría <span class="req">*</span></label>' +
+      '<select id="dCategoria">' +
+        '<option value="">Selecciona una opción</option>' +
+        CATEGORIAS_CRM_OPCIONES.map(function (c) {
+          return '<option' + (d.categoria === c ? ' selected' : '') + '>' + escapeHtml(c) + '</option>';
+        }).join('') +
+      '</select>' +
+      '<label>Correo electrónico <span class="req">*</span></label><input type="email" id="dEmail" placeholder="nombre@tuorganizacion.com" value="' + escapeHtml(d.email || '') + '">' +
+      '<label>Teléfono (opcional)</label><input type="text" id="dTelefono" value="' + escapeHtml(d.telefono || '') + '">' +
+      '<label>Cargo (opcional)</label><input type="text" id="dCargo" value="' + escapeHtml(d.cargo || '') + '">' +
+      '<input type="text" id="dTrampa" class="campo-trampa" tabindex="-1" autocomplete="off">' +
+    '</form>' +
+    '<div class="fila-botones"><button class="primary" id="btnSiguiente">Continuar al cuestionario →</button></div>';
+
+  document.getElementById('btnSiguiente').onclick = function () {
+    var msgBox = document.getElementById('secMsg');
+    var nombre = document.getElementById('dNombre').value.trim();
+    var organizacion = document.getElementById('dOrganizacion').value.trim();
+    var categoria = document.getElementById('dCategoria').value;
+    var email = document.getElementById('dEmail').value.trim();
+    if (!nombre || !organizacion) { msgBox.innerHTML = '<div class="msg error">Escribe tu nombre y el de tu organización.</div>'; return; }
+    if (!categoria) { msgBox.innerHTML = '<div class="msg error">Selecciona una categoría.</div>'; return; }
+    if (!email || email.indexOf('@') === -1) { msgBox.innerHTML = '<div class="msg error">Escribe un correo electrónico válido.</div>'; return; }
+
+    state.datos = {
+      nombre: nombre, organizacion: organizacion, categoria: categoria, email: email,
+      telefono: document.getElementById('dTelefono').value.trim(),
+      cargo: document.getElementById('dCargo').value.trim(),
+      sitioWebTrampa: document.getElementById('dTrampa').value
+    };
+    state.paso = 1;
+    render();
+  };
+}
+
+/* ---- PASO 1: 10 preguntas mixtas sobre el curso ---- */
+function renderPreguntas() {
+  var preguntasHtml = PREGUNTAS_DI.map(function (p, i) {
+    var bloque = '<div class="pregunta-di" data-campo="' + p.campo + '">' +
+      '<div class="num">Pregunta ' + (i + 1) + ' de ' + PREGUNTAS_DI.length + (p.opcional ? ' · opcional' : '') + '</div>' +
+      '<div class="pregunta-texto">' + escapeHtml(p.q) + '</div>' +
+      (p.hint ? '<div class="pregunta-hint">' + escapeHtml(p.hint) + '</div>' : '');
+    if (p.tipo === 'select') {
+      var opcionesHtml = p.opciones.map(function (op) {
+        var marcada = state.respuestas[p.campo] === op;
+        return '<button type="button" class="op-choice' + (marcada ? ' marcada' : '') + '" data-campo="' + p.campo + '" data-valor="' + escapeHtml(op) + '">' + escapeHtml(op) + '</button>';
+      }).join('');
+      bloque += '<div class="opciones-di">' + opcionesHtml + '</div>';
+    } else {
+      bloque += '<textarea data-campo-texto="' + p.campo + '" placeholder="Escribe tu respuesta aquí...">' + escapeHtml(state.respuestas[p.campo] || '') + '</textarea>';
+    }
+    return bloque + '</div>';
+  }).join('');
+
+  app.innerHTML =
+    progresoHtml() +
+    '<h2>10 preguntas sobre tu curso</h2>' +
+    '<p class="subtle" style="margin-top:0">Entre más detalle nos des, más útil será la propuesta que te generemos.</p>' +
+    '<div id="secMsg"></div>' +
+    preguntasHtml +
+    '<div class="fila-botones">' +
+      '<button class="secondary" id="btnAtras">Atrás</button>' +
+      '<button class="primary" id="btnVerResultado">Ver mi propuesta de secuencia →</button>' +
+    '</div>';
+
+  Array.prototype.forEach.call(app.querySelectorAll('.op-choice'), function (btn) {
+    btn.onclick = function () {
+      var campo = btn.getAttribute('data-campo');
+      var valor = btn.getAttribute('data-valor');
+      state.respuestas[campo] = valor;
+      var grupo = app.querySelector('.pregunta-di[data-campo="' + campo + '"]');
+      Array.prototype.forEach.call(grupo.querySelectorAll('.op-choice'), function (b) { b.classList.remove('marcada'); });
+      btn.classList.add('marcada');
+    };
+  });
+  Array.prototype.forEach.call(app.querySelectorAll('textarea[data-campo-texto]'), function (ta) {
+    ta.oninput = function () { state.respuestas[ta.getAttribute('data-campo-texto')] = ta.value; };
+  });
+
+  document.getElementById('btnAtras').onclick = function () { state.paso = 0; render(); };
+  document.getElementById('btnVerResultado').onclick = async function () {
+    var faltantes = PREGUNTAS_DI.filter(function (p) { return !p.opcional && !String(state.respuestas[p.campo] || '').trim(); });
+    if (faltantes.length) {
+      document.getElementById('secMsg').innerHTML = '<div class="msg error">Responde las preguntas obligatorias antes de continuar (falta' + (faltantes.length > 1 ? 'n' : '') + ' ' + faltantes.length + ').</div>';
+      return;
+    }
+
+    var btn = document.getElementById('btnVerResultado');
+    btn.disabled = true; btn.textContent = 'Generando tu propuesta...';
+
+    var d = state.datos || {};
+    var resp = await jsonp('generarSecuenciaDidactica', {
+      nombre: d.nombre,
+      correo: d.email,
+      respuestas: JSON.stringify(state.respuestas),
+      sitioWebTrampa: d.sitioWebTrampa
+    });
+
+    if (resp && resp.ok && resp.secuencia) {
+      state.secuencia = resp.secuencia;
+    } else {
+      state.secuencia = null;
+    }
+
+    var resumenNotas = 'Diseño instruccional — ' + PREGUNTAS_DI.map(function (p) {
+      return p.q + ' ' + (state.respuestas[p.campo] || '(sin responder)');
+    }).join(' | ');
+
+    await jsonp('capturarClienteDiagnostico', {
+      organizacion: d.organizacion,
+      categoria: d.categoria,
+      ejeInteres: 'Educación',
+      nombreContacto: d.nombre,
+      cargo: d.cargo,
+      correo: d.email,
+      telefono: d.telefono,
+      leadMagnet: 'Diseño Instruccional de Cursos',
+      consentimiento: 'Sí',
+      notas: resumenNotas.slice(0, 1500),
+      sitioWebTrampa: d.sitioWebTrampa
+    });
+
+    btn.disabled = false; btn.textContent = 'Ver mi propuesta de secuencia →';
+    state.paso = 2;
+    render();
+  };
+}
+
+/* ---- PASO 2: resultado — propuesta de secuencia didáctica ---- */
+function renderResultado() {
+  var d = state.datos || {};
+  var secuenciaHtml = state.secuencia
+    ? '<div class="secuencia-texto">' + escapeHtml(state.secuencia) + '</div>'
+    : '<p class="subtle">No pudimos generar la propuesta automática en este momento — de cualquier forma, ya recibimos tus respuestas y alguien del equipo te escribirá con una propuesta hecha a mano.</p>';
+
+  app.innerHTML =
+    progresoHtml() +
+    '<h2>Propuesta de secuencia didáctica</h2>' +
+    '<p class="subtle" style="margin-top:0">Para ' + escapeHtml(d.organizacion || 'tu organización') + ' — generada con ayuda de IA a partir de tus respuestas. Este es un borrador preliminar; el diseño final se afina contigo.</p>' +
+    secuenciaHtml +
+    '<div class="fila-botones">' +
+      '<button class="secondary" id="btnDescargarPdf">Descargar propuesta en PDF</button>' +
+    '</div>' +
+    '<div class="cta">' +
+      '<h2>¿Quieres desarrollar este curso con nosotros?</h2>' +
+      '<p>Esta es una propuesta preliminar automática. Haz tu cita y afinamos juntos el diseño instruccional completo.</p>' +
+      '<div class="fila-botones">' +
+        '<a class="boton-cta solido" href="https://calendly.com/sintropiassociales/30min" target="_blank" rel="noopener">Haz tu cita</a>' +
+        '<a class="boton-cta contorno" href="mailto:comunicacion@sintropiasocial.com">Escríbenos</a>' +
+      '</div>' +
+    '</div>';
+
+  document.getElementById('btnDescargarPdf').onclick = function () { descargarSecuenciaPdf(); };
+}
+
+/* ---- Descargable en PDF ---- */
+function descargarSecuenciaPdf() {
+  if (!window.jspdf || !window.jspdf.jsPDF) {
+    alert('No se pudo cargar el generador de PDF. Revisa tu conexión e intenta de nuevo.');
+    return;
+  }
+  var d = state.datos || {};
+  var doc = new window.jspdf.jsPDF({ unit: 'pt', format: 'letter' });
+  var purple = [99, 30, 235];
+  var margenIzq = 44, anchoTexto = 524, y;
+
+  doc.setFillColor(purple[0], purple[1], purple[2]);
+  doc.rect(0, 0, 612, 64, 'F');
+  doc.setTextColor(255, 255, 255);
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(15);
+  doc.text('Sintropía Social — Diseño Instruccional de Cursos', margenIzq, 40);
+
+  y = 94;
+  doc.setTextColor(30, 30, 30);
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(13);
+  doc.text('Propuesta de secuencia didáctica — ' + (d.organizacion || ''), margenIzq, y);
+  y += 24;
+
+  doc.setDrawColor(230, 226, 245); doc.setLineWidth(1);
+  doc.line(margenIzq, y, margenIzq + anchoTexto, y);
+  y += 18;
+
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(9.5);
+  doc.setTextColor(50, 50, 50);
+  var texto = state.secuencia || 'No se generó una propuesta automática. El equipo de Sintropía Social te contactará con una propuesta hecha a mano.';
+  var lineas = doc.splitTextToSize(texto, anchoTexto);
+  var alturaLinea = 12.5, alturaPagina = 730;
+  for (var i = 0; i < lineas.length; i++) {
+    if (y > alturaPagina) { doc.addPage(); y = 50; }
+    doc.text(lineas[i], margenIzq, y);
+    y += alturaLinea;
+  }
+
+  if (y > alturaPagina - 40) { doc.addPage(); y = 50; }
+  y += 10;
+  doc.setDrawColor(230, 226, 245); doc.line(margenIzq, y, margenIzq + anchoTexto, y);
+  y += 18;
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(9.5);
+  doc.setTextColor(107, 107, 120);
+  doc.text('¿Quieres desarrollar este curso con nosotros? Haz tu cita en calendly.com/sintropiassociales/30min o escríbenos a comunicacion@sintropiasocial.com.', margenIzq, y, { maxWidth: anchoTexto });
+
+  doc.save('diseno-instruccional-sintropia.pdf');
+}
+
+render();
+</script>
+</body>
+</html>
