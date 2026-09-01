@@ -362,6 +362,40 @@ function jsonp(action, params, timeoutMs) {
     document.body.appendChild(script);
   });
 }
+// Variante de jsonp() que manda los parámetros por POST (cuerpo de la
+// solicitud) en vez de la URL — jsonp()/GET tiene un límite práctico de
+// unos cuantos KB en la URL (ver _MAPA_FOTOS_INSTRUMENTO en WebApp.gs, que
+// documenta el mismo problema para fotos), y "secciones"/"resumenTexto"
+// del correo de resultado pueden superarlo fácilmente. Content-Type
+// text/plain evita que el navegador dispare una verificación (preflight)
+// que Apps Script no sabe responder — mismo patrón que ya usa el panel de
+// administración para subir fotos/adjuntos (ver _subirFotoInstrumento en
+// index.html).
+function jsonpPost(action, params, timeoutMs) {
+  return new Promise(function (resolve) {
+    var timedOut = false;
+    var timer = setTimeout(function () {
+      timedOut = true;
+      resolve({ ok: false, error: 'La plataforma tardó demasiado en responder. Intenta de nuevo.' });
+    }, timeoutMs || 25000);
+    var body = { action: action };
+    params = params || {};
+    for (var k in params) { if (params[k] !== undefined && params[k] !== null) body[k] = params[k]; }
+    fetch(WEB_APP_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify(body)
+    }).then(function (resp) { return resp.json(); }).then(function (data) {
+      if (timedOut) return;
+      clearTimeout(timer);
+      resolve(data);
+    }).catch(function () {
+      if (timedOut) return;
+      clearTimeout(timer);
+      resolve({ ok: false, error: 'No se pudo conectar. Revisa tu conexión a internet e intenta de nuevo.' });
+    });
+  });
+}
 var TIMEOUT_CORREO_IA_MS = 240000; // 4 min — ampliación con IA + PDF + correo, ya no bloquea pantalla (el diagnóstico de reglas ya se ve arriba)
 
 // Mapa rubro (paso 1 de este cuestionario) → "Eje de interés" del CRM de
@@ -690,7 +724,7 @@ function _enviarResultadoMuestraCorreo(){
   est.correoResultadoEnviado = true;
   var secciones=[{ titulo: 'Diagnóstico preliminar', parrafos: [est.textoDiag] }];
   if(est.ampliacionIA) secciones.push({ titulo: 'Ampliando la mirada', parrafos: [est.ampliacionIA] });
-  jsonp('enviarResultadoMuestra', {
+  jsonpPost('enviarResultadoMuestra', {
     tipoMuestra: 'Diagnostico',
     nombre: datosOrg.nombre,
     correo: datosOrg.correo,

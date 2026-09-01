@@ -162,6 +162,38 @@ function jsonp(action, params) {
     document.body.appendChild(script);
   });
 }
+// Variante de jsonp() que manda los parámetros por POST (cuerpo de la
+// solicitud) en vez de la URL — jsonp()/GET tiene un límite práctico de
+// unos cuantos KB en la URL, y "secciones"/"resumenTexto" del correo de
+// resultado pueden superarlo fácilmente. Content-Type text/plain evita que
+// el navegador dispare una verificación (preflight) que Apps Script no
+// sabe responder — mismo patrón que ya usa el panel de administración
+// para subir fotos/adjuntos (ver _subirFotoInstrumento en index.html).
+function jsonpPost(action, params, timeoutMs) {
+  return new Promise(function (resolve) {
+    var timedOut = false;
+    var timer = setTimeout(function () {
+      timedOut = true;
+      resolve({ ok: false, error: 'La plataforma tardó demasiado en responder. Intenta de nuevo.' });
+    }, timeoutMs || 40000);
+    var body = { action: action };
+    params = params || {};
+    for (var k in params) { if (params[k] !== undefined && params[k] !== null) body[k] = params[k]; }
+    fetch(WEB_APP_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify(body)
+    }).then(function (resp) { return resp.json(); }).then(function (data) {
+      if (timedOut) return;
+      clearTimeout(timer);
+      resolve(data);
+    }).catch(function () {
+      if (timedOut) return;
+      clearTimeout(timer);
+      resolve({ ok: false, error: 'No se pudo conectar. Revisa tu conexión a internet e intenta de nuevo.' });
+    });
+  });
+}
 
 var CATEGORIAS_CRM_OPCIONES = ['Gobierno y Sector Público', 'ONG y Fundaciones', 'Educación', 'Salud y Bienestar',
   'Universidad', 'Cámara empresarial', 'Empresa privada', 'Retail y Consumo', 'Fintech y Servicios',
@@ -444,7 +476,7 @@ function _enviarResultadoMuestraCorreo() {
     secciones = [{ titulo: 'Tu propuesta preliminar', parrafos: ['No pudimos generar automáticamente la propuesta esta vez — el equipo de Sintropía Social la preparará a mano y te la compartirá pronto.'] }];
     resumenTexto = 'La propuesta automática de secuencia didáctica no se pudo generar; el equipo la preparará a mano.';
   }
-  jsonp('enviarResultadoMuestra', {
+  jsonpPost('enviarResultadoMuestra', {
     tipoMuestra: 'DisenioInstruccional',
     nombre: d.nombre,
     correo: d.email,
