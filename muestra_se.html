@@ -565,19 +565,20 @@ function renderResultado() {
     '</div>';
 
   document.getElementById('btnDescargarPdf').onclick = function () { descargarSemaforoPdf(); };
+  // El correo se encola de inmediato (no espera a _iniciarCadenaIACorreo) —
+  // ver el porqué en el comentario de _enviarResultadoMuestraCorreo.
+  _enviarResultadoMuestraCorreo();
   _iniciarCadenaIACorreo();
 }
 
-/* ---- Interpretación ampliada con IA (Gemini, del lado del servidor) + envío
- * de correo — ya NO bloquea nada en pantalla: el resultado que ve la persona
- * (arriba) es 100% instantáneo, basado en reglas (interpretacionReglasSE).
- * Esta cadena corre de fondo con un margen largo (TIMEOUT_CORREO_IA_MS) y,
- * cuando termina, arma el correo con: interpretación de reglas + IA + oferta.
- * No hay urgencia: la persona ya vio su resultado, así que aquí prima la
- * calidad del correo sobre la velocidad. */
-function _iniciarCadenaIACorreo() {
+// Arma los parámetros para generarInterpretacionMuestra — se usan en DOS
+// lugares: en _iniciarCadenaIACorreo (para el PDF descargable del lado del
+// cliente, si la IA alcanza a responder antes de que la persona lo pida) y
+// dentro de _enviarResultadoMuestraCorreo (para que el procesador en
+// segundo plano genere su propia ampliación con IA del lado del servidor).
+function _paramsInterpretacionIA() {
   var d = state.datos || {}, r = state.resultado;
-  jsonp('generarInterpretacionMuestra', {
+  return {
     muestra: 'SemaforoSE',
     nombre: d.nombre,
     email: d.email,
@@ -588,17 +589,28 @@ function _iniciarCadenaIACorreo() {
     puntajeTotal: r.puntajeTotal,
     peorCategoria: r.peor.nombre,
     sitioWebTrampa: d.sitioWebTrampa
-  }, TIMEOUT_CORREO_IA_MS).then(function (resp) {
+  };
+}
+
+/* ---- Interpretación ampliada con IA — SOLO para el PDF descargable del
+ * lado del cliente (ver descargarSemaforoPdf, más abajo, que usa
+ * state.interpretacionIA si ya llegó). Ya NO dispara el correo — ver
+ * _enviarResultadoMuestraCorreo, que se manda de inmediato al ver el
+ * resultado, sin esperar esta respuesta. ---- */
+function _iniciarCadenaIACorreo() {
+  jsonp('generarInterpretacionMuestra', _paramsInterpretacionIA(), TIMEOUT_CORREO_IA_MS).then(function (resp) {
     if (resp && resp.ok && resp.interpretacion) state.interpretacionIA = resp.interpretacion;
-    _enviarResultadoMuestraCorreo();
   });
 }
 
 /* ---- Correo automático con el resultado (PDF adjunto + oferta con IA) ----
- * Se manda una sola vez, de fondo, después de que la interpretación con IA
- * ya se resolvió (con éxito o sin él) — el correo combina la interpretación
- * de reglas (ya vista en pantalla) + la interpretación con IA (si llegó) +
- * la oferta personalizada, en un solo documento. */
+ * Se dispara de inmediato al ver el resultado — antes esperaba a la IA de
+ * _iniciarCadenaIACorreo, pero eso significaba que si la persona cerraba
+ * la ventana antes de esa respuesta, el correo nunca se llegaba a encolar.
+ * Se manda paramsInterpretacionIA (no un texto ya generado) para que el
+ * procesador en segundo plano genere su propia interpretación con IA en
+ * el servidor — el correo sale completo sin importar qué haga la persona
+ * después de ver su resultado. */
 function _enviarResultadoMuestraCorreo() {
   if (state.correoResultadoEnviado) return;
   state.correoResultadoEnviado = true;
@@ -617,8 +629,8 @@ function _enviarResultadoMuestraCorreo() {
     organizacion: d.organizacion,
     tituloResultado: 'Semáforo de riesgo de tu proceso de contratación',
     resumenTexto: resumenTexto,
-    interpretacionIA: state.interpretacionIA || '',
     secciones: JSON.stringify(secciones),
+    paramsInterpretacionIA: JSON.stringify(_paramsInterpretacionIA()),
     sitioWebTrampa: d.sitioWebTrampa
   }, TIMEOUT_CORREO_IA_MS).then(function (resp) {
     var aviso = document.getElementById('correoAviso');
