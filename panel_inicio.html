@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Sintropía Social — elige si vienes como organización o como persona para ver nuestras muestras gratuitas.">
+<title>Sintropía Social — Empieza aquí</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --purple: #631EEB;
+    --purple-dark: #4E17B8;
+    --orange: #FF7929;
+    --bg: #F5F3FC;
+    --card: #FFFFFF;
+    --text: #2C2C2C;
+    --subtle: #6B6B78;
+    --border: #E6E2F5;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; font-family: 'Open Sans', -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+    background: var(--bg); color: var(--text); line-height: 1.55;
+  }
+  header.top {
+    background: var(--purple); color: #fff; padding: 30px 18px 52px; text-align: center;
+    border-radius: 0 0 22px 22px;
+  }
+  header.top .marca { font-size: 21px; font-weight: 800; letter-spacing: .3px; }
+  header.top .marca span { color: var(--orange); }
+  header.top h1 { font-size: 22px; margin: 14px auto 6px; max-width: 460px; font-weight: 800; }
+  header.top p { font-size: 14px; opacity: .92; max-width: 440px; margin: 0 auto; }
+
+  main { max-width: 780px; margin: -30px auto 40px; padding: 0 16px; }
+
+  .columnas { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 18px; }
+  @media (max-width: 900px) { .columnas { grid-template-columns: 1fr 1fr; } }
+  @media (max-width: 640px) { .columnas { grid-template-columns: 1fr; } }
+
+  .columna {
+    background: var(--card); border-radius: 16px; padding: 22px 20px 20px; border: 1.5px solid var(--border);
+    box-shadow: 0 6px 20px rgba(99,30,235,.08);
+  }
+  .columna .etiqueta {
+    display: inline-block; font-size: 11px; font-weight: 700; letter-spacing: .5px; text-transform: uppercase;
+    color: var(--orange); margin-bottom: 8px;
+  }
+  .columna h2 { font-size: 19px; margin: 0 0 6px; color: var(--purple-dark); }
+  .columna > p { font-size: 13.5px; color: var(--subtle); margin: 0 0 16px; }
+
+  a.suboferta {
+    display: block; text-decoration: none; color: inherit;
+    border: 1.5px solid var(--border); border-radius: 12px; padding: 16px 16px; margin-bottom: 10px;
+    transition: transform .15s, border-color .15s, box-shadow .15s;
+  }
+  a.suboferta:last-child { margin-bottom: 0; }
+  a.suboferta:hover { transform: translateY(-2px); border-color: var(--purple); box-shadow: 0 8px 20px rgba(99,30,235,.12); }
+  a.suboferta .nombre { display: block; font-size: 15.5px; font-weight: 700; color: var(--purple-dark); margin-bottom: 4px; }
+  a.suboferta .desc { display: block; font-size: 13px; color: var(--subtle); margin-bottom: 10px; }
+  a.suboferta .cta { display: inline-flex; align-items: center; gap: 6px; font-weight: 700; font-size: 13.5px; color: var(--purple); }
+  a.suboferta:hover .cta { color: var(--purple-dark); }
+  .nombre-fila { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+  .nombre-fila .nombre { margin-bottom: 0; }
+  .tag-candidatos {
+    display: inline-block; font-size: 10px; font-weight: 800; letter-spacing: .4px; text-transform: uppercase;
+    color: #fff; background: var(--orange); padding: 2px 9px; border-radius: 20px; white-space: nowrap;
+  }
+
+  .nota {
+    text-align: center; font-size: 13px; color: var(--subtle); margin: 4px 0 0;
+  }
+  .nota a { color: var(--purple); }
+
+  footer.pie { text-align: center; font-size: 12px; color: var(--subtle); padding: 30px 16px 34px; }
+  footer.pie .wordmark { font-size: 14px; font-weight: 700; margin-bottom: 6px; }
+  footer.pie a { color: var(--purple); text-decoration: none; }
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="marca">Sintropía <span>Social</span></div>
+  <h1>¿Vienes como empresa, organización o persona?</h1>
+  <p>Elige una opción y te llevamos directo a lo que te interesa — toma menos de un minuto empezar.</p>
+</header>
+
+<main>
+  <div class="columnas">
+    <div class="columna">
+      <span class="etiqueta">Empresas</span>
+      <h2>Para tu empresa</h2>
+      <p>Contratación, riesgos y talento.</p>
+      <a class="suboferta" href="muestra_se.html">
+        <span class="nombre">Estudio socioeconómico y gestión de riesgos</span>
+        <span class="desc">Responde 20 preguntas breves sobre tu proceso de contratación actual y recibe un semáforo de riesgo gratuito.</span>
+        <span class="cta">Ver muestra →</span>
+      </a>
+      <a class="suboferta" href="muestra_candidato.html">
+        <span class="nombre-fila"><span class="nombre">Estoy buscando empleo</span><span class="tag-candidatos">Candidatos</span></span>
+        <span class="desc">Responde unas preguntas para saber qué tan lista está tu búsqueda de empleo y autoriza que te avisemos de vacantes a tu medida.</span>
+        <span class="cta">Ver mi diagnóstico →</span>
+      </a>
+    </div>
+    <div class="columna">
+      <span class="etiqueta">Organizaciones</span>
+      <h2>Para tu organización</h2>
+      <p>Empresas, OSC, gobierno, universidades.</p>
+      <a class="suboferta" href="diagnostico.html">
+        <span class="nombre">Diagnóstico social</span>
+        <span class="desc">Cuéntanos de tu organización y responde un cuestionario breve — recibe un diagnóstico preliminar gratuito con perspectiva antropológica.</span>
+        <span class="cta">Empezar diagnóstico →</span>
+      </a>
+      <a class="suboferta" href="muestra_disenio_instruccional.html">
+        <span class="nombre">Diseño instruccional de cursos</span>
+        <span class="desc">Cursos presenciales, virtuales o híbridos. Cuéntanos qué necesitas y recibe una propuesta de secuencia didáctica generada con IA.</span>
+        <span class="cta">Ver muestra →</span>
+      </a>
+    </div>
+    <div class="columna">
+      <span class="etiqueta">Personas</span>
+      <h2>Para ti</h2>
+      <p>¿Quieres conocer tus habilidades?</p>
+      <a class="suboferta" href="muestra_imes.html">
+        <span class="nombre">Quiero probar el IMES</span>
+        <span class="desc">¿Quieres conocer tus habilidades para el empleo? Responde una muestra breve y gratuita del IMES y ve tu resultado en minutos.</span>
+        <span class="cta">Probar la muestra →</span>
+      </a>
+    </div>
+  </div>
+  <p class="nota">¿No estás seguro? Escríbenos a <a href="mailto:comunicacion@sintropiasocial.com">comunicacion@sintropiasocial.com</a> y te orientamos.</p>
+</main>
+
+<footer class="pie">
+  <div class="wordmark"><span style="color:var(--purple)">Sintropía</span> <span style="color:var(--orange)">Social</span></div>
+  <a href="https://sintropiassociales-del.github.io/">Sintropía Social</a> · <a href="mailto:comunicacion@sintropiasocial.com">comunicacion@sintropiasocial.com</a>
+</footer>
+
+</body>
+</html>

@@ -1048,6 +1048,14 @@ function _enviarResultadoMuestraCorreo() {
   var resumenTexto = 'Mapa territorial: ' + r.banda.etiqueta + ' (' + r.puntajeTotal + '/30). ' +
     'Mayor oportunidad: ' + r.peor.nombre + ' (' + r.peor.subtotal + '/' + r.peor.max + '). ' +
     'Territorio: ' + d.municipio + ', ' + d.estado + '.';
+  // Coordenadas del proyecto y de cada actor — para que el procesador en
+  // segundo plano genere del lado del servidor el mismo mapa real (ver
+  // _cargarMapaTerritorioPng arriba, que hace lo mismo para el PDF
+  // descargable) e incluirlo también en el PDF que se adjunta al correo.
+  var actoresConGeoCorreo = r.actores.filter(function (a) { return a.lat != null && a.lng != null; })
+    .map(function (a) { return { lat: a.lat, lng: a.lng }; });
+  var ubicacionMapaCorreo = state.ubicacion ?
+    JSON.stringify({ lat: state.ubicacion.lat, lng: state.ubicacion.lng, actores: actoresConGeoCorreo }) : '';
   jsonpPost('enviarResultadoMuestra', {
     tipoMuestra: 'Territorio',
     nombre: d.nombre,
@@ -1057,6 +1065,7 @@ function _enviarResultadoMuestraCorreo() {
     resumenTexto: resumenTexto,
     secciones: JSON.stringify(secciones),
     paramsInterpretacionIA: JSON.stringify(_paramsInterpretacionIA()),
+    ubicacionMapa: ubicacionMapaCorreo,
     sitioWebTrampa: d.sitioWebTrampa
   }, TIMEOUT_CORREO_IA_MS).then(function (resp) {
     var aviso = document.getElementById('correoAviso');
