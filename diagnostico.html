@@ -344,7 +344,7 @@ function continuarADiagnostico(){
 // diagnóstico está dirigido a organizaciones, no a personas individuales.
 var WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbxZbLiOP7QXvrgUIDhhVciVGY-Yval3YBvqBHOpQfK8El2wHXNNBtZvsnkbwMaJUss/exec';
 
-function jsonp(action, params) {
+function jsonp(action, params, timeoutMs) {
   return new Promise(function (resolve) {
     var cbName = 'cb_' + Date.now() + '_' + Math.floor(Math.random() * 100000);
     var url = WEB_APP_URL + '?action=' + encodeURIComponent(action) + '&callback=' + cbName;
@@ -357,11 +357,12 @@ function jsonp(action, params) {
     function cleanup() { if (cleaned) return; cleaned = true; delete window[cbName]; if (script.parentNode) script.parentNode.removeChild(script); }
     window[cbName] = function (data) { cleanup(); resolve(data); };
     script.onerror = function () { cleanup(); resolve({ ok: false, error: 'No se pudo conectar. Revisa tu conexión a internet e intenta de nuevo.' }); };
-    setTimeout(function () { if (!cleaned) { cleanup(); resolve({ ok: false, error: 'La plataforma tardó demasiado en responder. Intenta de nuevo.' }); } }, 25000);
+    setTimeout(function () { if (!cleaned) { cleanup(); resolve({ ok: false, error: 'La plataforma tardó demasiado en responder. Intenta de nuevo.' }); } }, timeoutMs || 25000);
     script.src = url;
     document.body.appendChild(script);
   });
 }
+var TIMEOUT_CORREO_IA_MS = 240000; // 4 min — ampliación con IA + PDF + correo, ya no bloquea pantalla (el diagnóstico de reglas ya se ve arriba)
 
 // Mapa rubro (paso 1 de este cuestionario) → "Eje de interés" del CRM de
 // Clientes, para que el lead quede clasificado con el mismo vocabulario que
@@ -659,7 +660,7 @@ function _cargarAmpliacionIA(){
     detalle: c.detalle,
     diagnosticoPrevio: est.textoDiag,
     sitioWebTrampa: datosOrg.trampa
-  }).then(function(r){
+  }, TIMEOUT_CORREO_IA_MS).then(function(r){
     if(r && r.ok && r.interpretacion){
       est.ampliacionIA = r.interpretacion;
       _pintarAmpliacionIA(r.interpretacion);
@@ -698,7 +699,7 @@ function _enviarResultadoMuestraCorreo(){
     resumenTexto: est.textoDiag,
     secciones: JSON.stringify(secciones),
     sitioWebTrampa: datosOrg.trampa
-  }).then(function(resp){
+  }, TIMEOUT_CORREO_IA_MS).then(function(resp){
     var aviso=document.getElementById('correoAviso');
     if(!aviso) return;
     if(resp && resp.ok){
@@ -711,11 +712,42 @@ function _enviarResultadoMuestraCorreo(){
   });
 }
 
+// Banco de referencias (APA 7) para makeDiag() — cada llamada solo cita un
+// subconjunto (ver _pick() y citasUsadas abajo), así el diagnóstico varía de
+// una prueba a otra en vez de citar siempre a los mismos autores, y la
+// bibliografía final solo lista lo que realmente se citó en el texto.
+var CITAS_BIB={
+  geertz:'Geertz, C. (1987). La interpretación de las culturas. Gedisa.',
+  berger:'Berger, P. y Luckmann, T. (1968). La construcción social de la realidad. Amorrortu.',
+  morin:'Morin, E. (1994). Introducción al pensamiento complejo. Gedisa.',
+  giddens:'Giddens, A. (1984). La constitución de la sociedad. Amorrortu.',
+  zemelman:'Zemelman, H. (1992). Los horizontes de la razón. Anthropos.',
+  bauman:'Bauman, Z. (2003). Modernidad líquida. Fondo de Cultura Económica.',
+  decerteau:'De Certeau, M. (2000). La invención de lo cotidiano I: artes de hacer. Universidad Iberoamericana.',
+  sen:'Sen, A. (1999). Desarrollo y libertad. Editorial Planeta.',
+  delagarza:'De la Garza Toledo, E. (2003). Tratado latinoamericano de sociología del trabajo. Fondo de Cultura Económica.',
+  oit:'OIT. (2020). Tendencias mundiales del empleo juvenil 2020. Organización Internacional del Trabajo.',
+  standing:'Standing, G. (2013). El precariado: una nueva clase social. Pasado y Presente.',
+  falsborda:'Fals Borda, O. (1987). Ciencia propia y colonialismo intelectual. Carlos Valencia Editores.',
+  montero:'Montero, M. (2006). Hacer para transformar: el método en la psicología comunitaria. Paidós.',
+  senge:'Senge, P. (1992). La quinta disciplina. Granica.',
+  schein:'Schein, E. (2010). Cultura organizacional y liderazgo. Jossey-Bass.',
+  freire:'Freire, P. (2005). Pedagogía del oprimido. Siglo XXI Editores.',
+  hooks:'hooks, b. (2021). Enseñar a transgredir: la educación como práctica de la libertad. Capitán Swing.',
+  bourdieu:'Bourdieu, P. (2015). El sentido práctico. Siglo XXI Editores.',
+  elias:'Elias, N. (2016). El proceso de la civilización. Fondo de Cultura Económica.',
+  milanese:'Milanese, E. (2013). Tratado de metodología de las redes sociales. CAFAC.',
+  cepal:'CEPAL. (2015). Metodología del marco lógico para la planificación, el seguimiento y la evaluación de proyectos y programas. Naciones Unidas.'
+};
+function _pick(arr){ return arr[Math.floor(Math.random()*arr.length)]; }
+
 function makeDiag(rubro,herr,r,hNom,rNom){
   var campos=_camposDiagnostico(r);
   var org=campos.org, prob=campos.prob, zona=campos.zona, perfil=campos.perfil,
       resultado=campos.resultado, cultura=campos.cultura, actores=campos.actores, detalle=campos.detalle;
   var t='';
+  var citasUsadas={};
+  function usar(clave){ citasUsadas[clave]=true; return clave; }
 
   // ── ENCABEZADO ──
   t+='DIAGNÓSTICO SOCIAL PRELIMINAR\n';
@@ -723,18 +755,31 @@ function makeDiag(rubro,herr,r,hNom,rNom){
   t+=rNom.toUpperCase()+' — '+hNom.toUpperCase()+'\n';
   t+='-'.repeat(52)+'\n\n';
 
-  // ── SECCIÓN 1: CONTEXTO ──
+  // ── SECCIÓN 1: CONTEXTO ── (posicionamiento teórico variable: se elige al
+  // azar entre varias tradiciones igual de legítimas para que dos personas
+  // que hacen la misma prueba no reciban siempre la misma apertura ni citen
+  // siempre a los mismos autores).
   t+='1. LECTURA CONTEXTUAL Y POSICIONAMIENTO TEÓRICO\n\n';
   t+='El análisis de cualquier problemática social exige situarse epistemológicamente antes de proponer soluciones. ';
-  t+='Partimos de la premisa de que "el hombre es un animal inserto en tramas de significación que él mismo ha tejido" ';
-  t+='(Geertz, C., 1987. La interpretación de las culturas. Gedisa, p. 20), ';
-  t+='lo que implica que los problemas que enfrenta '+org+' no pueden leerse únicamente desde sus síntomas visibles, ';
-  t+='sino desde los sistemas de sentido que los producen y reproducen.\n\n';
+  var aperturas=[
+    {clave:'geertz', texto:'Partimos de la premisa de que "el hombre es un animal inserto en tramas de significación que él mismo ha tejido" (Geertz, 1987, p. 20), lo que implica que los problemas que enfrenta '+org+' no pueden leerse únicamente desde sus síntomas visibles, sino desde los sistemas de sentido que los producen y reproducen.'},
+    {clave:'berger', texto:'Partimos de que la realidad organizacional y comunitaria no es un dato fijo, sino una construcción social sostenida por hábitos, roles e instituciones que las personas reproducen sin necesariamente cuestionarlas (Berger y Luckmann, 1968). Los problemas que enfrenta '+org+' están, en ese sentido, tan sostenidos por acuerdos tácitos como por condiciones objetivas.'},
+    {clave:'morin', texto:'Partimos de que separar un problema de su contexto —lo que Morin (1994) llama pensamiento disyuntivo— produce diagnósticos incompletos. Los problemas que enfrenta '+org+' no pueden aislarse de la red de relaciones económicas, culturales y humanas en la que están inscritos: exigen un pensamiento capaz de religar las partes con el todo.'},
+    {clave:'giddens', texto:'Partimos de que las prácticas cotidianas de las personas y las estructuras que las condicionan se producen mutuamente —lo que Giddens (1984) llama la dualidad de la estructura—. Los problemas que enfrenta '+org+' no son solo el resultado de decisiones individuales ni solo de fuerzas estructurales impersonales: son ambas cosas a la vez, actuando una sobre la otra.'}
+  ];
+  var apertura=_pick(aperturas); usar(apertura.clave);
+  t+=apertura.texto+'\n\n';
   if(zona)t+='En un contexto '+zona.toLowerCase()+', las dinámicas que rodean '+prob.toLowerCase()+' tienen raíces culturales, históricas y estructurales que los diagnósticos cuantitativos raramente capturan en su totalidad. ';
-  if(perfil)t+='La población en el centro de este análisis —'+perfil.toLowerCase()+'— carga con condiciones estructurales que moldean sus posibilidades reales de acción y agencia (Sen, A., 1999. Desarrollo y libertad. Planeta, p. 19).\n\n';
+  if(perfil){ usar('sen'); t+='La población en el centro de este análisis —'+perfil.toLowerCase()+'— carga con condiciones estructurales que moldean sus posibilidades reales de acción y agencia (Sen, 1999, p. 19).\n\n'; }
   else t+='\n';
 
-  t+='Desde la perspectiva de Sintropía Social, todo diagnóstico debe comenzar por hacer visible lo que Zemelman (1992) denomina la "conciencia del presente": la capacidad de reconocer las tensiones activas de una realidad antes de categorizarla. ';
+  var cierres=[
+    {clave:'zemelman', texto:'Desde la perspectiva de Sintropía Social, todo diagnóstico debe comenzar por hacer visible lo que Zemelman (1992) denomina la "conciencia del presente": la capacidad de reconocer las tensiones activas de una realidad antes de categorizarla.'},
+    {clave:'bauman', texto:'Desde la perspectiva de Sintropía Social, conviene recordar la advertencia de Bauman (2003) sobre la fragilidad de los vínculos y las certezas en la vida contemporánea: un diagnóstico que asume que las condiciones actuales de '+org+' son estables corre el riesgo de proponer soluciones para un problema que ya cambió de forma.'},
+    {clave:'decerteau', texto:'Desde la perspectiva de Sintropía Social, conviene atender lo que De Certeau (2000) llama las "tácticas" cotidianas: las maneras concretas, muchas veces informales, en que las personas dentro de '+org+' ya están respondiendo a la problemática identificada, aun sin una estrategia formal que las reconozca.'}
+  ];
+  var cierre=_pick(cierres); usar(cierre.clave);
+  t+=cierre.texto+' ';
   t+='Ello supone resistir la tentación de aplicar soluciones prediseñadas a problemas que aún no han sido suficientemente comprendidos en su especificidad.\n\n';
 
   // ── SECCIÓN 2: PROBLEMA CENTRAL ──
@@ -745,37 +790,65 @@ function makeDiag(rubro,herr,r,hNom,rNom){
   t+='cada problemática organizacional o comunitaria tiene un origen histórico que explica cómo llegó a naturalizarse. ';
   t+='Preguntarse por ese origen —quién lo nombró así, en qué momento, con qué intereses— es el primer paso para intervenir con pertinencia y sin reproducir los mismos esquemas que generaron el problema.\n\n';
 
-  // ── SECCIÓN 3: DIMENSIÓN ESTRUCTURAL ──
+  // ── SECCIÓN 3: DIMENSIÓN ESTRUCTURAL ── (dos lecturas teóricas posibles
+  // por rubro, elegidas al azar, para no repetir siempre el mismo autor).
   t+='3. DIMENSIONES ESTRUCTURALES Y CULTURALES\n\n';
   if(rubro==='empleabilidad'||rubro==='empleo'){
-    t+='Los modelos de producción dominantes han dejado una huella cultural profunda en cómo se entiende el trabajo y quién "merece" emplearse. ';
-    t+='Taylor, Ford y Toyota no solo transformaron la producción: transformaron los cuerpos, los tiempos y las subjetividades de quienes trabajan ';
-    t+='(De la Garza Toledo, E., 2003. Tratado latinoamericano de sociología del trabajo. FCE). ';
-    t+='Esta cultura del trabajo no es neutra: reproduce jerarquías de clase, género y origen que afectan las posibilidades reales de inserción laboral. ';
-    t+='La empleabilidad, entendida como atributo individual, desplaza la responsabilidad de lo estructural hacia lo personal, ';
-    t+='ocultando que "el desempleo juvenil es tres veces mayor que el de adultos" (OIT, 2020. Tendencias Mundiales del Empleo Juvenil, p. 1).\n\n';
+    var op3=_pick(['delagarza','standing']);
+    if(op3==='delagarza'){ usar('delagarza'); usar('oit');
+      t+='Los modelos de producción dominantes han dejado una huella cultural profunda en cómo se entiende el trabajo y quién "merece" emplearse. ';
+      t+='Taylor, Ford y Toyota no solo transformaron la producción: transformaron los cuerpos, los tiempos y las subjetividades de quienes trabajan ';
+      t+='(De la Garza Toledo, 2003). ';
+      t+='Esta cultura del trabajo no es neutra: reproduce jerarquías de clase, género y origen que afectan las posibilidades reales de inserción laboral. ';
+      t+='La empleabilidad, entendida como atributo individual, desplaza la responsabilidad de lo estructural hacia lo personal, ';
+      t+='ocultando que "el desempleo juvenil es tres veces mayor que el de adultos" (OIT, 2020, p. 1).\n\n';
+    } else { usar('standing');
+      t+='Buena parte del mercado laboral actual empuja a las personas hacia condiciones de inestabilidad crónica —contratos cortos, ingresos variables, ausencia de identidad ocupacional estable— lo que Standing (2013) describe como la condición del "precariado": una posición sin las certezas del trabajo asalariado tradicional ni las protecciones que antes lo acompañaban. ';
+      t+='Leer '+prob.toLowerCase()+' solo como un problema de habilidades individuales, sin nombrar esta precariedad estructural, deja fuera buena parte de lo que realmente limita la inserción laboral.\n\n';
+    }
   } else if(rubro==='intervencion'){
-    t+='En toda comunidad conviven sistemas culturales que organizan la vida cotidiana: relaciones de poder, mitos fundadores, normas no escritas. ';
-    t+='Una intervención que no lea esas capas corre el riesgo de imponer lógicas externas que generan resistencia o dependencia ';
-    t+='(Fals Borda, O., 1987. Ciencia propia y colonialismo intelectual. Carlos Valencia Editores). ';
+    var op3b=_pick(['falsborda','montero']);
+    if(op3b==='falsborda'){ usar('falsborda');
+      t+='En toda comunidad conviven sistemas culturales que organizan la vida cotidiana: relaciones de poder, mitos fundadores, normas no escritas. ';
+      t+='Una intervención que no lea esas capas corre el riesgo de imponer lógicas externas que generan resistencia o dependencia ';
+      t+='(Fals Borda, 1987). ';
+    } else { usar('montero');
+      t+='Toda intervención comunitaria parte de un desequilibrio de saberes: quien interviene suele llegar con un marco técnico que la comunidad no eligió. Montero (2006) plantea que el papel de quien facilita no es "aplicar" un método sobre la comunidad, sino construirlo junto con ella, para que la transformación resultante sea reconocida como propia y no como algo impuesto desde afuera. ';
+    }
     if(actores)t+='Los actores mencionados —'+actores+'— forman parte de esa estructura y deben comprenderse desde su lugar dentro del sistema, no como destinatarios pasivos. ';
     t+='La participación genuina no es un método: es un principio ético que reconoce el saber de las comunidades como fuente legítima de conocimiento.\n\n';
   } else if(rubro==='rrhh'){
-    t+='La cultura organizacional determina cómo se toman las decisiones, cómo se distribuye el poder y cómo se vive el trabajo cotidiano. ';
-    t+='Senge (1992. La quinta disciplina. Granica) plantea que las organizaciones que aprenden son aquellas capaces de ver los patrones sistémicos ';
-    t+='que subyacen a sus problemas recurrentes, en lugar de reaccionar solo a los eventos visibles. ';
+    var op3c=_pick(['senge','schein']);
+    if(op3c==='senge'){ usar('senge');
+      t+='La cultura organizacional determina cómo se toman las decisiones, cómo se distribuye el poder y cómo se vive el trabajo cotidiano. ';
+      t+='Senge (1992) plantea que las organizaciones que aprenden son aquellas capaces de ver los patrones sistémicos ';
+      t+='que subyacen a sus problemas recurrentes, en lugar de reaccionar solo a los eventos visibles. ';
+    } else { usar('schein');
+      t+='La cultura organizacional no se reduce a lo que una organización dice valorar: Schein (2010) distingue entre los artefactos visibles (espacios, símbolos, formas de hablar), los valores declarados (lo que la organización dice que hace) y los supuestos básicos —muchas veces inconscientes— que realmente guían las decisiones cuando nadie está mirando. Un diagnóstico honesto tiene que buscar en ese tercer nivel. ';
+    }
     if(cultura)t+='"'+cultura+'" es una lectura honesta del clima organizacional: esa honestidad es el punto de partida para un cambio real. ';
     t+='Sin diagnóstico cultural, cualquier intervención en recursos humanos resulta superficial.\n\n';
   } else if(rubro==='educacion'){
-    t+='La práctica educativa está atravesada por modelos de producción que han convertido la educación en un sistema de certificación más que de formación crítica. ';
-    t+='"Nadie educa a nadie, nadie se educa a sí mismo, los hombres se educan entre sí con la mediación del mundo" ';
-    t+='(Freire, P., 2005. Pedagogía del oprimido. Siglo XXI, p. 69). ';
+    var op3d=_pick(['freire','hooks']);
+    if(op3d==='freire'){ usar('freire');
+      t+='La práctica educativa está atravesada por modelos de producción que han convertido la educación en un sistema de certificación más que de formación crítica. ';
+      t+='"Nadie educa a nadie, nadie se educa a sí mismo, los hombres se educan entre sí con la mediación del mundo" ';
+      t+='(Freire, 2005, p. 69). ';
+    } else { usar('hooks');
+      t+='hooks (2021) describe la educación genuina como una "práctica de la libertad": un proceso donde quien enseña también se transforma junto con quien aprende, en lugar de depositar contenidos en una mente pasiva. Un diseño instruccional que solo busca transferir información, sin espacio para que las personas participantes cuestionen y aporten desde su propia experiencia, difícilmente produce aprendizajes que se sostengan más allá del taller o el curso. ';
+    }
     t+='Comprender esa tensión —entre educación como emancipación y educación como mercancía— es central para cualquier intervención pedagógica genuina. ';
     t+='Los paradigmas constructivista, sociocultural e histórico-cultural ofrecen marcos complementarios para diseñar experiencias de aprendizaje pertinentes.\n\n';
   } else {
-    t+='La problemática identificada no puede analizarse de manera aislada: forma parte de un sistema de relaciones, ';
-    t+='tensiones y condicionantes estructurales que Bourdieu (2015. El sentido práctico. Siglo XXI, p. 148) denomina "campo". ';
-    t+='Comprender el campo en el que opera '+org+' es condición para diseñar intervenciones que no reproduzcan las mismas lógicas que generaron el problema.\n\n';
+    var op3e=_pick(['bourdieu','elias']);
+    if(op3e==='bourdieu'){ usar('bourdieu');
+      t+='La problemática identificada no puede analizarse de manera aislada: forma parte de un sistema de relaciones, ';
+      t+='tensiones y condicionantes estructurales que Bourdieu (2015, p. 148) denomina "campo". ';
+      t+='Comprender el campo en el que opera '+org+' es condición para diseñar intervenciones que no reproduzcan las mismas lógicas que generaron el problema.\n\n';
+    } else { usar('elias');
+      t+='La problemática identificada no depende únicamente de las decisiones de personas individuales dentro de '+org+': Elias (2016) propone pensar estos fenómenos como "configuraciones", redes de personas interdependientes cuyas acciones se condicionan mutuamente, de modo que el resultado colectivo termina siendo distinto de lo que cualquiera de ellas, por separado, se propuso. ';
+      t+='Comprender esa red de interdependencias es condición para diseñar intervenciones que no reproduzcan las mismas lógicas que generaron el problema.\n\n';
+    }
   }
 
   // ── SECCIÓN 4: PROPUESTA METODOLÓGICA ──
@@ -824,6 +897,13 @@ function makeDiag(rubro,herr,r,hNom,rNom){
       'REFLEXIÓN DESDE SINTROPÍA SOCIAL: Una propuesta bien escrita que no surge del diálogo con los actores es literatura, no intervención. La legitimidad no se gana en el escritorio: se construye en el territorio, en conversaciones difíciles, en la disposición a ser cuestionados y a ajustar el rumbo cuando la realidad no coincide con el plan.'
   };
   t+=herMap[herr]||('Herramienta metodológica: '+hNom+'. Se recomienda construirla de manera participativa con los actores del contexto.');
+  // Las citas de la sección 4 son fijas por herramienta (no al azar, porque
+  // la herramienta la elige la persona) pero igual deben aparecer en la
+  // bibliografía dinámica de abajo.
+  if(herr==='arbol')usar('cepal');
+  if(herr==='marco')usar('senge');
+  if(herr==='linea')usar('geertz');
+  if(herr==='talleres')usar('freire');
 
   // ── SECCIÓN 5: PREGUNTAS QUE ABRE EL DIAGNÓSTICO ──
   t+='\n\n5. PREGUNTAS QUE ESTE DIAGNÓSTICO DEJA ABIERTAS\n\n';
@@ -835,18 +915,12 @@ function makeDiag(rubro,herr,r,hNom,rNom){
   t+='— ¿Cómo se medirá el éxito más allá de los indicadores formales y los informes de avance?\n';
   t+='— ¿Qué voces están ausentes en este diagnóstico y qué perspectivas importantes podrían estar siendo invisibilizadas?\n';
 
-  // ── SECCIÓN 6: REFERENCIAS ──
+  // ── SECCIÓN 6: REFERENCIAS ── (solo lo que realmente se citó arriba —
+  // por eso varía de una prueba a otra, junto con las lecturas elegidas).
   t+='\n6. REFERENCIAS BIBLIOGRÁFICAS (APA 7ª edición)\n\n';
-  t+='Bourdieu, P. (2015). El sentido práctico. Siglo XXI Editores.\n';
-  t+='De la Garza Toledo, E. (2003). Tratado latinoamericano de sociología del trabajo. Fondo de Cultura Económica.\n';
-  t+='Fals Borda, O. (1987). Ciencia propia y colonialismo intelectual. Carlos Valencia Editores.\n';
-  t+='Freire, P. (2005). Pedagogía del oprimido. Siglo XXI Editores.\n';
-  t+='Geertz, C. (1987). La interpretación de las culturas. Gedisa.\n';
-  t+='Milanese, E. (2013). Tratado de metodología de las redes sociales. CAFAC.\n';
-  t+='OIT. (2020). Tendencias mundiales del empleo juvenil 2020. Organización Internacional del Trabajo.\n';
-  t+='Sen, A. (1999). Desarrollo y libertad. Editorial Planeta.\n';
-  t+='Senge, P. (1992). La quinta disciplina. Granica.\n';
-  t+='Zemelman, H. (1992). Los horizontes de la razón. Anthropos.\n';
+  Object.keys(citasUsadas).sort().forEach(function(clave){
+    if(CITAS_BIB[clave]) t+=CITAS_BIB[clave]+'\n';
+  });
 
   // ── CIERRE ──
   t+='\n'+'-'.repeat(52)+'\n';

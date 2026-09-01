@@ -228,7 +228,7 @@ function escapeHtml(s) {
   });
 }
 
-function jsonp(action, params) {
+function jsonp(action, params, timeoutMs) {
   return new Promise(function (resolve) {
     var cbName = 'cb_' + Date.now() + '_' + Math.floor(Math.random() * 100000);
     var url = WEB_APP_URL + '?action=' + encodeURIComponent(action) + '&callback=' + cbName;
@@ -241,11 +241,12 @@ function jsonp(action, params) {
     function cleanup() { if (cleaned) return; cleaned = true; delete window[cbName]; if (script.parentNode) script.parentNode.removeChild(script); }
     window[cbName] = function (data) { cleanup(); resolve(data); };
     script.onerror = function () { cleanup(); resolve({ ok: false, error: 'No se pudo conectar. Revisa tu conexión a internet e intenta de nuevo.' }); };
-    setTimeout(function () { if (!cleaned) { cleanup(); resolve({ ok: false, error: 'La plataforma tardó demasiado en responder. Intenta de nuevo.' }); } }, 25000);
+    setTimeout(function () { if (!cleaned) { cleanup(); resolve({ ok: false, error: 'La plataforma tardó demasiado en responder. Intenta de nuevo.' }); } }, timeoutMs || 25000);
     script.src = url;
     document.body.appendChild(script);
   });
 }
+var TIMEOUT_CORREO_IA_MS = 240000; // 4 min — interpretación IA + PDF + correo, ya no bloquea pantalla
 
 var app = document.getElementById('app');
 var TOTAL_PASOS = 5; // 0 intro · 1 datos · 2 preguntas · 3 confirmación · 4 resultado
@@ -457,7 +458,45 @@ function renderConfirmacion() {
   };
 }
 
+// Interpretación instantánea basada en reglas (sin IA) — mismo patrón que
+// diagnostico.html, muestra_se.html y muestra_imes.html. Los textos por
+// dimensión (r.texto) ya son fijos por banda; esto añade una síntesis
+// general con fundamento académico, mostrada de inmediato. La interpretación
+// con IA llega después, solo por correo.
+function _pick(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
+var CITAS_IMES_U = {
+  yorke: 'Yorke, M. y Knight, P. (2006). Embedding employability into the curriculum. Higher Education Academy.',
+  poblete: 'Villa, A. y Poblete, M. (2007). Aprendizaje basado en competencias: una propuesta para la evaluación de las competencias genéricas. Universidad de Deusto.',
+  goleman: 'Goleman, D. (1995). Inteligencia emocional. Kairós.',
+  fugate: 'Fugate, M., Kinicki, A. J. y Ashforth, B. E. (2004). Employability: a psycho-social construct, its dimensions, and applications. Journal of Vocational Behavior, 65(1), 14–38.',
+  vanlaar: 'Van Laar, E., van Deursen, A. J. A. M., van Dijk, J. A. G. M. y de Haan, J. (2017). The relation between 21st-century skills and digital skills: a systematic literature review. Computers in Human Behavior, 72, 577–588.'
+};
+var LECTURA_DIMENSION_IMES_U = {
+  'Habilidades sociales (socioemocionales)': { clave: 'goleman', texto: 'Goleman (1995) documentó que reconocer las propias emociones y manejarlas en momentos de presión —lo que llamó inteligencia emocional— predice el desempeño en equipos de trabajo tanto o más que el conocimiento técnico. Practicar conversaciones difíciles y pedir retroalimentación de forma deliberada suele fortalecer esta habilidad más rápido que solo "tener más experiencia".' },
+  'Habilidades de empleabilidad': { clave: 'fugate', texto: 'Fugate, Kinicki y Ashforth (2004) plantean que la empleabilidad no es un rasgo fijo, sino una combinación entrenable de identidad profesional clara, adaptabilidad y capital social (red de contactos). Trabajar estos tres elementos por separado —y no solo "aplicar a más vacantes"— suele acelerar los resultados de una búsqueda de empleo.' },
+  'Habilidades técnicas': { clave: 'vanlaar', texto: 'Van Laar et al. (2017), en su revisión sistemática sobre habilidades digitales del siglo XXI, encontraron que la capacidad de aprender nuevas herramientas por cuenta propia —más que dominar una lista fija de programas— es lo que mejor predice el desempeño técnico a largo plazo en cualquier disciplina.' }
+};
+function interpretacionReglasIMESUniversidad(d, resultado) {
+  var citas = {}; function usar(c) { citas[c] = true; }
+  var t = '';
+  var aperturas = [
+    { clave: 'yorke', texto: 'Yorke y Knight (2006) plantean que la empleabilidad de una persona egresada no depende solo de sus conocimientos de carrera, sino de un conjunto de habilidades transversales —comunicación, autogestión, manejo de herramientas— que rara vez se enseñan de forma explícita en el aula. Este resultado busca precisamente eso: una fotografía de dónde estás hoy en tres de esas habilidades, no un juicio sobre tu capacidad profesional.' },
+    { clave: 'poblete', texto: 'Villa y Poblete (2007), en su propuesta de evaluación de competencias genéricas para la educación superior, distinguen entre competencias instrumentales, interpersonales y sistémicas — las tres se entrenan de forma distinta y ninguna sustituye a las otras. Este resultado toma una muestra breve de esas tres familias de competencias para darte un primer diagnóstico.' }
+  ];
+  var apertura = _pick(aperturas); usar(apertura.clave);
+  t += apertura.texto + '\n\n';
+  var peor = resultado.slice().sort(function (a, b) { return a.puntaje - b.puntaje; })[0];
+  t += 'De las tres habilidades evaluadas en esta muestra, ' + peor.nombre + ' es la que te conviene fortalecer primero (' + peor.puntaje + ' de 25 puntos — ' + peor.banda.etiqueta.toLowerCase() + ').\n\n';
+  var lectura = LECTURA_DIMENSION_IMES_U[peor.nombre];
+  if (lectura) { usar(lectura.clave); t += lectura.texto + '\n\n'; }
+  t += 'Esta muestra evalúa solo 3 dimensiones del IMES Universidad con 5 reactivos cada una; la aplicación completa, acompañada por el equipo de Sintropía Social, da un panorama mucho más completo de tus habilidades sociales, de empleabilidad y técnicas.\n\n';
+  t += 'Referencias (APA 7ª edición):\n';
+  Object.keys(citas).sort().forEach(function (c) { if (CITAS_IMES_U[c]) t += CITAS_IMES_U[c] + '\n'; });
+  return t;
+}
+
 function renderResultado() {
+  if (!state.interpretacionReglas) state.interpretacionReglas = interpretacionReglasIMESUniversidad(state.datos || {}, state.resultado);
   var bloquesHtml = state.resultado.map(function (r) {
     return '<div class="resultado-dimension">' +
       '<span class="banda ' + r.banda.claseCss + '">' + r.banda.etiqueta + '</span>' +
@@ -467,12 +506,19 @@ function renderResultado() {
     '</div>';
   }).join('');
 
+  var interpretacionHtml = (state.interpretacionReglas || '').split('\n\n').filter(function (p) { return p.trim(); })
+    .map(function (p) { return '<p style="margin:0 0 10px">' + escapeHtml(p).replace(/\n/g, '<br>') + '</p>'; }).join('');
+
   app.innerHTML =
     progresoHtml() +
     '<div class="pantalla-centrada"><h1>Tu resultado</h1>' +
     '<p class="subtle">Esto es solo una muestra breve — la versión completa del IMES Universidad, todavía en desarrollo, dará un panorama mucho más completo, acompañado por el equipo de Sintropía Social.</p></div>' +
     bloquesHtml +
-    '<div id="iaInterpretacion"></div>' +
+    '<div class="resultado-dimension" style="border-color:var(--purple)">' +
+      '<span class="banda" style="background:#EFE7FD;color:var(--purple-dark)">Interpretación de tu resultado</span>' +
+      '<div style="margin-top:8px">' + interpretacionHtml + '</div>' +
+    '</div>' +
+    '<p class="subtle" style="margin:4px 0 0">A la brevedad te llegará a tu correo una interpretación más completa (una cuartilla, con referencias académicas) y recomendaciones concretas. Si quieres que te ayudemos desde Sintropía a fortalecer estas habilidades, escríbenos.</p>' +
     '<div id="correoAviso"></div>' +
     '<div class="fila-botones">' +
       '<button class="secondary" id="btnDescargarPdf">Descargar mi resultado en PDF</button>' +
@@ -484,15 +530,12 @@ function renderResultado() {
     '</div>';
 
   document.getElementById('btnDescargarPdf').onclick = function () { descargarResultadoPdf(); };
-  _cargarInterpretacionIA();
+  _iniciarCadenaIACorreo();
 }
 
-/* ---- Interpretación breve generada con IA (Gemini, del lado del servidor) ---- */
-function _cargarInterpretacionIA() {
-  var box = document.getElementById('iaInterpretacion');
-  if (!box) return;
-  if (state.interpretacionIA) { _pintarInterpretacionIA(state.interpretacionIA); return; }
-  box.innerHTML = '<p class="subtle" id="iaCargando">Generando una breve interpretación personalizada…</p>';
+/* ---- Interpretación ampliada con IA + envío de correo — de fondo, con un
+ * margen largo (TIMEOUT_CORREO_IA_MS), sin bloquear nada en pantalla. ---- */
+function _iniciarCadenaIACorreo() {
   var d = state.datos || {};
   jsonp('generarInterpretacionMuestra', {
     muestra: 'IMESUniversidad',
@@ -505,29 +548,24 @@ function _cargarInterpretacionIA() {
       return { nombre: r.nombre, puntaje: r.puntaje, banda: r.banda.etiqueta };
     })),
     sitioWebTrampa: d.sitioWebTrampa
-  }).then(function (r) {
-    if (r && r.ok && r.interpretacion) {
-      state.interpretacionIA = r.interpretacion;
-      _pintarInterpretacionIA(r.interpretacion);
-    } else {
-      // Si la IA no está disponible (p.ej. no hay clave configurada) el
-      // resultado ya mostrado no se ve afectado — solo se retira el aviso
-      // de "generando..." sin mostrar un error a la persona.
-      var elCargando = document.getElementById('iaCargando');
-      if (elCargando && elCargando.parentNode) elCargando.parentNode.removeChild(elCargando);
-    }
+  }, TIMEOUT_CORREO_IA_MS).then(function (r) {
+    if (r && r.ok && r.interpretacion) state.interpretacionIA = r.interpretacion;
     _enviarResultadoMuestraCorreo();
   });
 }
 
-/* ---- Correo automático con el resultado (PDF adjunto + oferta con IA) ---- */
+/* ---- Correo automático con el resultado (PDF adjunto + oferta con IA) ----
+ * Combina: interpretación de reglas (ya vista en pantalla) + interpretación
+ * con IA (si llegó) + oferta personalizada. */
 function _enviarResultadoMuestraCorreo() {
   if (state.correoResultadoEnviado) return;
   state.correoResultadoEnviado = true;
   var d = state.datos || {};
-  var secciones = state.resultado.map(function (r) {
+  var secciones = [
+    { titulo: 'Interpretación de tu resultado', parrafos: (state.interpretacionReglas || '').split('\n\n').filter(function (p) { return p.trim(); }) }
+  ].concat(state.resultado.map(function (r) {
     return { titulo: r.nombre, parrafos: [r.puntaje + ' de 25 puntos (' + r.banda.etiqueta + '). ' + r.texto] };
-  });
+  }));
   var resumenTexto = state.resultado.map(function (r) { return r.nombre + ': ' + r.puntaje + '/25 (' + r.banda.etiqueta + ')'; }).join(' — ');
   jsonp('enviarResultadoMuestra', {
     tipoMuestra: 'IMESUniversidad',
@@ -538,27 +576,17 @@ function _enviarResultadoMuestraCorreo() {
     interpretacionIA: state.interpretacionIA || '',
     secciones: JSON.stringify(secciones),
     sitioWebTrampa: d.sitioWebTrampa
-  }).then(function (resp) {
+  }, TIMEOUT_CORREO_IA_MS).then(function (resp) {
     var aviso = document.getElementById('correoAviso');
     if (!aviso) return;
     if (resp && resp.ok) {
-      aviso.innerHTML = '<div class="msg ok">Te enviamos este resultado a <b>' + escapeHtml(d.email) + '</b>.</div>';
+      aviso.innerHTML = '<div class="msg ok">Te enviamos una interpretación más completa de este resultado a <b>' + escapeHtml(d.email) + '</b>.</div>';
     } else {
       aviso.innerHTML = '<div class="msg error">No pudimos enviarte el correo con tu resultado' +
         (resp && resp.error ? (': ' + escapeHtml(resp.error)) : ' — intenta de nuevo más tarde') +
         '. Mientras tanto puedes descargarlo en PDF aquí abajo.</div>';
     }
   });
-}
-
-function _pintarInterpretacionIA(texto) {
-  var box = document.getElementById('iaInterpretacion');
-  if (!box) return;
-  box.innerHTML =
-    '<div class="resultado-dimension" style="border-color:var(--purple)">' +
-      '<span class="banda" style="background:#EFE7FD;color:var(--purple-dark)">Interpretación generada con IA</span>' +
-      '<p style="margin-top:8px">' + escapeHtml(texto) + '</p>' +
-    '</div>';
 }
 
 /* ---- Descargable en PDF del resultado ---- */

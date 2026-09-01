@@ -160,7 +160,11 @@ function escapeHtml(s) {
   });
 }
 
-function jsonp(action, params) {
+// timeoutMs es opcional (default 25s) — la cadena de IA + correo que se
+// dispara en segundo plano después de mostrar el resultado usa un margen
+// mucho más largo (ver TIMEOUT_CORREO_IA_MS abajo), porque ya no bloquea
+// nada en pantalla: no importa si tarda varios minutos en resolverse.
+function jsonp(action, params, timeoutMs) {
   return new Promise(function (resolve) {
     var cbName = 'cb_' + Date.now() + '_' + Math.floor(Math.random() * 100000);
     var url = WEB_APP_URL + '?action=' + encodeURIComponent(action) + '&callback=' + cbName;
@@ -173,11 +177,12 @@ function jsonp(action, params) {
     function cleanup() { if (cleaned) return; cleaned = true; delete window[cbName]; if (script.parentNode) script.parentNode.removeChild(script); }
     window[cbName] = function (data) { cleanup(); resolve(data); };
     script.onerror = function () { cleanup(); resolve({ ok: false, error: 'No se pudo conectar. Revisa tu conexión a internet e intenta de nuevo.' }); };
-    setTimeout(function () { if (!cleaned) { cleanup(); resolve({ ok: false, error: 'La plataforma tardó demasiado en responder. Intenta de nuevo.' }); } }, 25000);
+    setTimeout(function () { if (!cleaned) { cleanup(); resolve({ ok: false, error: 'La plataforma tardó demasiado en responder. Intenta de nuevo.' }); } }, timeoutMs || 25000);
     script.src = url;
     document.body.appendChild(script);
   });
 }
+var TIMEOUT_CORREO_IA_MS = 240000; // 4 min — la cadena interpretación IA + PDF + correo va en segundo plano
 
 /* ============================================================
  * Catálogo de riesgo — 5 categorías × 4 preguntas = 20. Dos tipos:
@@ -447,9 +452,47 @@ var RECOMENDACION_SEMAFORO = {
   }
 };
 
+function _pick(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
+
+// Interpretación instantánea basada en reglas (sin IA) — ver misma lógica en
+// diagnostico.html. Se muestra de inmediato al terminar el cuestionario; la
+// interpretación adicional generada con IA llega después, solo por correo.
+var CITAS_SE = {
+  akerlof: 'Akerlof, G. (1970). The market for lemons: quality uncertainty and the market mechanism. Quarterly Journal of Economics, 84(3), 488-500.',
+  beck: 'Beck, U. (1998). La sociedad del riesgo: hacia una nueva modernidad. Paidós.',
+  coleman: 'Coleman, J. (1988). Social capital in the creation of human capital. American Journal of Sociology, 94, S95-S120.'
+};
+var RECOMENDACION_CATEGORIA_SE = {
+  verificacion: 'Fortalecer la verificación de identidad y trayectoria es, según la evidencia, la intervención de mayor retorno: reduce directamente la asimetría de información entre la organización y la persona candidata. Un protocolo simple —llamar a los tres últimos empleos, confirmar identificación oficial, documentar por escrito los motivos de salida— ya cierra buena parte de esa brecha.',
+  vivienda: 'La estabilidad habitacional es, en la práctica, uno de los mejores indicadores indirectos de estabilidad general: no como criterio de exclusión, sino como información que ayuda a anticipar apoyos que la persona pueda necesitar. Confirmar domicilio real y tiempo de residencia, sin convertirlo en un filtro discriminatorio, es la recomendación mínima.',
+  financiera: 'Cuando el puesto maneja dinero, valores o inventario, indagar compromisos financieros relevantes no es fiscalizar la vida privada de quien se contrata: es proporcionalidad de riesgo frente a la exposición real del puesto. Tener un protocolo distinto para puestos con y sin manejo de efectivo evita tanto el sub-control como el exceso de intrusión.',
+  redes: 'Las redes de apoyo de una persona —dependientes a su cargo, un contacto de referencia personal, la forma en que se traslada al trabajo— predicen la permanencia y el desempeño sostenido mejor de lo que suele reconocerse: son, en el sentido de Coleman (1988), una forma de capital social que reduce el riesgo tanto para la persona como para quien la contrata.',
+  exposicion: 'Antes de profundizar en verificación, conviene mapear con precisión qué tan expuesto está realmente cada puesto —manejo de dinero, acceso a información confidencial, trabajo sin supervisión directa, rotación reciente—: el nivel de verificación debe ser proporcional a esa exposición, no uniforme para todos los puestos por igual.'
+};
+function interpretacionReglasSE(d, r) {
+  var citas = {};
+  function usar(c) { citas[c] = true; return c; }
+  var t = '';
+  var aperturas = [
+    { clave: 'akerlof', texto: 'En 1970, el economista George Akerlof describió cómo los mercados donde quien compra no puede verificar la calidad real de lo que adquiere —la "asimetría de información"— tienden a favorecer las peores opciones sobre las mejores, porque quien vende sabe más que quien compra (Akerlof, 1970). Un proceso de contratación enfrenta exactamente esa asimetría: la organización sabe mucho menos sobre la persona candidata de lo que ella sabe sobre sí misma. Verificar activamente reduce esa brecha; no verificar la deja intacta y traslada el riesgo a la organización.' },
+    { clave: 'beck', texto: 'El sociólogo Ulrich Beck (1998) describe la modernidad actual como una "sociedad del riesgo", donde la vida organizacional ya no puede darse por sentado que los riesgos no van a ocurrir: hay que gestionarlos activamente. Un proceso de contratación que no gestiona sus riesgos de forma explícita no los elimina — simplemente los deja sin nombrar hasta que se materializan.' }
+  ];
+  var apertura = _pick(aperturas); usar(apertura.clave);
+  t += apertura.texto + '\n\n';
+  t += 'Tu semáforo de riesgo en el proceso de contratación salió en ' + r.semaforo.etiqueta.toUpperCase() + ' (' + r.puntajeTotal + ' de 40 puntos de riesgo). ';
+  t += 'La categoría con mayor oportunidad de mejora es ' + r.peor.nombre + ' (' + r.peor.subtotal + ' de ' + r.peor.max + ' puntos).\n\n';
+  t += (RECOMENDACION_CATEGORIA_SE[r.peor.clave] || '') + '\n\n';
+  if (r.peor.clave === 'redes') usar('coleman');
+  t += 'Este semáforo es un primer acercamiento automatizado; una auditoría completa de tu proceso de contratación —entrevistas, verificación documental y visitas de campo cuando el puesto lo amerita— permite convertir estas cinco categorías en un protocolo operativo real.\n\n';
+  t += 'Referencias (APA 7ª edición):\n';
+  Object.keys(citas).sort().forEach(function (c) { if (CITAS_SE[c]) t += CITAS_SE[c] + '\n'; });
+  return t;
+}
+
 function renderResultado() {
   var r = state.resultado;
   var rec = RECOMENDACION_SEMAFORO[r.semaforo.clave];
+  if (!state.interpretacionReglas) state.interpretacionReglas = interpretacionReglasSE(state.datos || {}, r);
 
   var categoriasHtml = r.categorias.map(function (c) {
     var pct = Math.round((c.subtotal / c.max) * 100);
@@ -460,6 +503,9 @@ function renderResultado() {
     '</div>';
   }).join('');
 
+  var interpretacionHtml = (state.interpretacionReglas || '').split('\n\n').filter(function (p) { return p.trim(); })
+    .map(function (p) { return '<p style="margin:0 0 10px">' + escapeHtml(p).replace(/\n/g, '<br>') + '</p>'; }).join('');
+
   app.innerHTML =
     progresoHtml() +
     '<div class="semaforo-box">' +
@@ -468,7 +514,11 @@ function renderResultado() {
       '<p class="semaforo-puntaje">' + r.puntajeTotal + ' de 40 puntos de riesgo · tu mayor oportunidad: ' + escapeHtml(r.peor.nombre) + '</p>' +
     '</div>' +
     categoriasHtml +
-    '<div id="iaInterpretacion"></div>' +
+    '<div class="categoria-resultado" style="border-color:var(--purple)">' +
+      '<div class="nombre" style="color:var(--purple-dark)">¿Qué te conviene hacer?</div>' +
+      interpretacionHtml +
+    '</div>' +
+    '<p class="subtle" style="margin:4px 0 0">A la brevedad te llegará a tu correo una interpretación más completa (una cuartilla, con referencias académicas) y recomendaciones concretas para tu organización. Si quieres que te ayudemos desde Sintropía a automatizar este proceso y ampliar tu metodología, escríbenos.</p>' +
     '<div id="correoAviso"></div>' +
     '<div class="fila-botones">' +
       '<button class="secondary" id="btnDescargarPdf">Descargar mi semáforo en PDF</button>' +
@@ -483,18 +533,17 @@ function renderResultado() {
     '</div>';
 
   document.getElementById('btnDescargarPdf').onclick = function () { descargarSemaforoPdf(); };
-  _cargarInterpretacionIA();
+  _iniciarCadenaIACorreo();
 }
 
-/* ---- Interpretación breve generada con IA (Gemini, del lado del servidor) ----
- * Qué le conviene hacer a la organización para reducir sus riesgos —
- * distinto del bloque de recomendación de arriba (que es fijo por nivel de
- * semáforo): esto sí se redacta a la medida del desglose real por categoría. */
-function _cargarInterpretacionIA() {
-  var box = document.getElementById('iaInterpretacion');
-  if (!box) return;
-  if (state.interpretacionIA) { _pintarInterpretacionIA(state.interpretacionIA); return; }
-  box.innerHTML = '<p class="subtle" id="iaCargando">Generando una interpretación personalizada de tu resultado…</p>';
+/* ---- Interpretación ampliada con IA (Gemini, del lado del servidor) + envío
+ * de correo — ya NO bloquea nada en pantalla: el resultado que ve la persona
+ * (arriba) es 100% instantáneo, basado en reglas (interpretacionReglasSE).
+ * Esta cadena corre de fondo con un margen largo (TIMEOUT_CORREO_IA_MS) y,
+ * cuando termina, arma el correo con: interpretación de reglas + IA + oferta.
+ * No hay urgencia: la persona ya vio su resultado, así que aquí prima la
+ * calidad del correo sobre la velocidad. */
+function _iniciarCadenaIACorreo() {
   var d = state.datos || {}, r = state.resultado;
   jsonp('generarInterpretacionMuestra', {
     muestra: 'SemaforoSE',
@@ -507,40 +556,26 @@ function _cargarInterpretacionIA() {
     puntajeTotal: r.puntajeTotal,
     peorCategoria: r.peor.nombre,
     sitioWebTrampa: d.sitioWebTrampa
-  }).then(function (resp) {
-    if (resp && resp.ok && resp.interpretacion) {
-      state.interpretacionIA = resp.interpretacion;
-      _pintarInterpretacionIA(resp.interpretacion);
-    } else {
-      var elCargando = document.getElementById('iaCargando');
-      if (elCargando && elCargando.parentNode) elCargando.parentNode.removeChild(elCargando);
-    }
+  }, TIMEOUT_CORREO_IA_MS).then(function (resp) {
+    if (resp && resp.ok && resp.interpretacion) state.interpretacionIA = resp.interpretacion;
     _enviarResultadoMuestraCorreo();
   });
 }
 
-function _pintarInterpretacionIA(texto) {
-  var box = document.getElementById('iaInterpretacion');
-  if (!box) return;
-  box.innerHTML =
-    '<div class="categoria-resultado" style="border-color:var(--purple)">' +
-      '<div class="nombre" style="color:var(--purple-dark)">¿Qué te conviene hacer? — interpretación generada con IA</div>' +
-      '<p style="margin:0">' + escapeHtml(texto) + '</p>' +
-    '</div>';
-}
-
 /* ---- Correo automático con el resultado (PDF adjunto + oferta con IA) ----
- * Se manda una sola vez, fire-and-forget (no bloquea ni condiciona nada en
- * pantalla) justo después de que la interpretación ya cargó (o falló) —
- * así el correo puede reutilizar ese mismo texto en vez de generarlo dos
- * veces del lado del servidor. */
+ * Se manda una sola vez, de fondo, después de que la interpretación con IA
+ * ya se resolvió (con éxito o sin él) — el correo combina la interpretación
+ * de reglas (ya vista en pantalla) + la interpretación con IA (si llegó) +
+ * la oferta personalizada, en un solo documento. */
 function _enviarResultadoMuestraCorreo() {
   if (state.correoResultadoEnviado) return;
   state.correoResultadoEnviado = true;
   var d = state.datos || {}, r = state.resultado;
-  var secciones = r.categorias.map(function (c) {
+  var secciones = [
+    { titulo: 'Interpretación de tu resultado', parrafos: (state.interpretacionReglas || '').split('\n\n').filter(function (p) { return p.trim(); }) }
+  ].concat(r.categorias.map(function (c) {
     return { titulo: c.nombre, parrafos: [c.subtotal + ' de ' + c.max + ' puntos de riesgo.'] };
-  });
+  }));
   var resumenTexto = 'Semáforo de riesgo SE: ' + r.semaforo.etiqueta + ' (' + r.puntajeTotal + '/40). ' +
     'Mayor oportunidad: ' + r.peor.nombre + ' (' + r.peor.subtotal + '/' + r.peor.max + ').';
   jsonp('enviarResultadoMuestra', {
@@ -553,11 +588,11 @@ function _enviarResultadoMuestraCorreo() {
     interpretacionIA: state.interpretacionIA || '',
     secciones: JSON.stringify(secciones),
     sitioWebTrampa: d.sitioWebTrampa
-  }).then(function (resp) {
+  }, TIMEOUT_CORREO_IA_MS).then(function (resp) {
     var aviso = document.getElementById('correoAviso');
     if (!aviso) return;
     if (resp && resp.ok) {
-      aviso.innerHTML = '<p class="subtle">Te enviamos este resultado a <b>' + escapeHtml(d.email) + '</b>.</p>';
+      aviso.innerHTML = '<p class="subtle">Te enviamos una interpretación más completa de este resultado a <b>' + escapeHtml(d.email) + '</b>.</p>';
     } else {
       aviso.innerHTML = '<div class="msg error">No pudimos enviarte el correo con tu resultado' +
         (resp && resp.error ? (': ' + escapeHtml(resp.error)) : ' — intenta de nuevo más tarde') +

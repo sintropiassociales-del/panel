@@ -164,7 +164,7 @@ function escapeHtml(s) {
   });
 }
 
-function jsonp(action, params) {
+function jsonp(action, params, timeoutMs) {
   return new Promise(function (resolve) {
     var cbName = 'cb_' + Date.now() + '_' + Math.floor(Math.random() * 100000);
     var url = WEB_APP_URL + '?action=' + encodeURIComponent(action) + '&callback=' + cbName;
@@ -177,11 +177,13 @@ function jsonp(action, params) {
     function cleanup() { if (cleaned) return; cleaned = true; delete window[cbName]; if (script.parentNode) script.parentNode.removeChild(script); }
     window[cbName] = function (data) { cleanup(); resolve(data); };
     script.onerror = function () { cleanup(); resolve({ ok: false, error: 'No se pudo conectar. Revisa tu conexión a internet e intenta de nuevo.' }); };
-    setTimeout(function () { if (!cleaned) { cleanup(); resolve({ ok: false, error: 'La plataforma tardó demasiado en responder. Intenta de nuevo.' }); } }, 25000);
+    setTimeout(function () { if (!cleaned) { cleanup(); resolve({ ok: false, error: 'La plataforma tardó demasiado en responder. Intenta de nuevo.' }); } }, timeoutMs || 25000);
     script.src = url;
     document.body.appendChild(script);
   });
 }
+var TIMEOUT_CORREO_IA_MS = 240000; // 4 min — interpretación IA + PDF + correo, ya no bloquea pantalla
+function _pick(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
 
 /* ============================================================
  * Catálogo de preparación — 5 categorías × 3 preguntas = 15.
@@ -458,9 +460,49 @@ var RECOMENDACION_NIVEL = {
   }
 };
 
+// Interpretación instantánea basada en reglas (sin IA) — mismo patrón que
+// diagnostico.html y muestra_se.html. Se muestra de inmediato al terminar el
+// cuestionario; la interpretación con IA llega después, solo por correo, y
+// solo si la persona autoriza que la contactemos (ver btnAceptar).
+var CITAS_CANDIDATO = {
+  becker: 'Becker, G. (1964). El capital humano: un análisis teórico y empírico referido fundamentalmente a la educación. Alianza Editorial.',
+  fugate: 'Fugate, M., Kinicki, A. y Ashforth, B. (2004). Employability: a psycho-social construct, its dimensions, and applications. Journal of Vocational Behavior, 65(1), 14-38.',
+  savickas: 'Savickas, M. (2005). The theory and practice of career construction. En S. Brown y R. Lent (eds.), Career Development and Counseling. Wiley.',
+  spence: 'Spence, M. (1973). Job market signaling. Quarterly Journal of Economics, 87(3), 355-374.',
+  bandura: 'Bandura, A. (1997). Self-efficacy: the exercise of control. W. H. Freeman.',
+  granovetter: 'Granovetter, M. (1973). The strength of weak ties. American Journal of Sociology, 78(6), 1360-1380.',
+  oit: 'OIT. (2020). Tendencias mundiales del empleo juvenil 2020. Organización Internacional del Trabajo.'
+};
+var RECOMENDACION_CATEGORIA_CANDIDATO = {
+  objetivo: { clave: 'savickas', texto: 'Savickas (2005) plantea que la claridad vocacional no es un punto de partida fijo, sino algo que se construye reflexionando activamente sobre la propia trayectoria: qué se ha hecho, qué se disfrutó, hacia dónde tiene sentido dirigirse ahora. Antes de aplicar a más vacantes, vale la pena dedicar tiempo a poder responder con precisión: ¿qué tipo de puesto busco, en qué industria, y por qué?' },
+  materiales: { clave: 'spence', texto: 'Spence (1973) mostró que en un mercado donde quien contrata no puede verificar directamente tus capacidades, las "señales" que envías —tu CV, tu perfil de LinkedIn, cómo te presentas— son las que determinan si te consideran o no, más allá de tus capacidades reales. Un CV desactualizado o un perfil incompleto es, en ese sentido, una señal débil, aunque tu preparación real sea sólida.' },
+  preparacion: { clave: 'bandura', texto: 'Bandura (1997) documentó que la confianza en la propia capacidad de desempeñarse bien en una situación —lo que llamó autoeficacia— predice el desempeño real casi tanto como la habilidad misma, y que esa confianza se construye con práctica deliberada, no espontáneamente. Practicar respuestas a las preguntas más comunes de entrevista, aunque se sienta artificial al principio, tiene un efecto medible en cómo te desempeñas en la entrevista real.' },
+  estrategia: { clave: 'granovetter', texto: 'Granovetter (1973) encontró, en un estudio ya clásico, que la mayoría de las personas consiguen empleo no a través de sus contactos más cercanos, sino de conocidos lejanos —los "lazos débiles"— porque esos conocidos tienen acceso a información e ideas distintas a las de tu círculo inmediato. Una búsqueda que dependa solo de aplicar a convocatorias publicadas deja fuera esa red de contactos más amplia.' },
+  disponibilidad: { clave: 'oit', texto: 'Las condiciones de disponibilidad —horario, modalidad, movilidad— son, según datos de la OIT (2020), una de las razones más comunes por las que un proceso de selección se cae en etapas avanzadas, no por falta de capacidad de la persona candidata. Tener esas condiciones claras y comunicarlas desde el principio evita procesos largos que terminan sin resultado.' }
+};
+function interpretacionReglasCandidato(d, r) {
+  var citas = {}; function usar(c) { citas[c] = true; }
+  var t = '';
+  var aperturas = [
+    { clave: 'becker', texto: 'El economista Gary Becker (1964) plantea que las capacidades, conocimientos y credenciales de una persona —su capital humano— son una inversión que rinde frutos en el mercado laboral, siempre que pueda comunicarse de forma clara y verificable a quien contrata. Buscar empleo no es solo tener ese capital: es lograr que quien contrata pueda reconocerlo.' },
+    { clave: 'fugate', texto: 'Fugate, Kinicki y Ashforth (2004) describen la empleabilidad no como un rasgo fijo de la persona, sino como una combinación activa de identidad profesional clara, adaptabilidad personal, y red de contactos y habilidades que se puede fortalecer de forma deliberada. Este diagnóstico mide precisamente esas dimensiones en tu proceso actual.' }
+  ];
+  var apertura = _pick(aperturas); usar(apertura.clave);
+  t += apertura.texto + '\n\n';
+  t += 'Tu nivel de preparación salió en ' + r.nivelGeneral.etiqueta.toUpperCase() + ' (' + r.puntajeTotal + ' de 30 puntos). ';
+  t += 'El área que más te conviene reforzar primero es ' + r.peor.nombre + ' (' + r.peor.subtotal + ' de ' + r.peor.max + ' puntos).\n\n';
+  var rec = RECOMENDACION_CATEGORIA_CANDIDATO[r.peor.clave];
+  if (rec) { usar(rec.clave); t += rec.texto + '\n\n'; }
+  t += 'Este diagnóstico es un primer acercamiento automatizado; con acompañamiento personalizado se puede convertir cada una de estas cinco áreas en un plan concreto con fechas y metas.\n\n';
+  t += 'Referencias (APA 7ª edición):\n';
+  Object.keys(citas).sort().forEach(function (c) { if (CITAS_CANDIDATO[c]) t += CITAS_CANDIDATO[c] + '\n'; });
+  return t;
+}
+
 function renderResultado() {
   var r = state.resultado;
   var rec = RECOMENDACION_NIVEL[r.nivelGeneral.clave];
+  if (!state.interpretacionReglas) state.interpretacionReglas = interpretacionReglasCandidato(state.datos || {}, r);
 
   var categoriasHtml = r.categorias.map(function (c) {
     var pct = Math.round((c.subtotal / c.max) * 100);
@@ -493,6 +535,9 @@ function renderResultado() {
     '</div>';
   }
 
+  var interpretacionHtml = (state.interpretacionReglas || '').split('\n\n').filter(function (p) { return p.trim(); })
+    .map(function (p) { return '<p style="margin:0 0 10px">' + escapeHtml(p).replace(/\n/g, '<br>') + '</p>'; }).join('');
+
   app.innerHTML =
     progresoHtml() +
     '<div class="semaforo-box">' +
@@ -501,7 +546,11 @@ function renderResultado() {
       '<p class="semaforo-puntaje">' + r.puntajeTotal + ' de 30 puntos · tu área para reforzar primero: ' + escapeHtml(r.peor.nombre) + '</p>' +
     '</div>' +
     categoriasHtml +
-    '<div id="iaInterpretacion"></div>' +
+    '<div class="categoria-resultado" style="border-color:var(--purple)">' +
+      '<div class="nombre" style="color:var(--purple)">Interpretación de tu resultado</div>' +
+      interpretacionHtml +
+    '</div>' +
+    '<p class="subtle" style="margin:4px 0 0">Si autorizas que te contactemos (abajo), te enviaremos a tu correo una interpretación más completa (una cuartilla, con referencias académicas) y recomendaciones concretas para tu búsqueda.</p>' +
     '<div id="correoAviso"></div>' +
     '<div class="fila-botones">' +
       '<button class="secondary" id="btnDescargarPdf">Descargar mi diagnóstico en PDF</button>' +
@@ -509,7 +558,6 @@ function renderResultado() {
     ctaHtml;
 
   document.getElementById('btnDescargarPdf').onclick = function () { descargarDiagnosticoPdf(); };
-  _cargarInterpretacionIA();
 
   if (!state.enviado) {
     document.getElementById('btnAceptar').onclick = async function () {
@@ -545,11 +593,11 @@ function renderResultado() {
       if (resp && resp.ok) {
         state.enviado = true;
         render();
-        // El correo con el resultado (PDF + oferta) solo se manda hasta
-        // aquí — cuando la persona ya autorizó el contacto — no antes,
-        // aunque el resultado y la interpretación ya se hayan mostrado en
-        // pantalla desde antes de este paso.
-        _enviarResultadoMuestraCorreo();
+        // El correo con el resultado (interpretación de reglas + IA + PDF +
+        // oferta) solo se manda hasta aquí — cuando la persona ya autorizó
+        // el contacto — no antes. Esta cadena corre de fondo, sin bloquear
+        // nada en pantalla (el resultado ya se ve desde antes de este paso).
+        _iniciarCadenaIACorreo();
       } else {
         btn.disabled = false; btn.textContent = 'Enviarme vacantes a mi medida';
         msgBox.innerHTML = '<div class="msg error">' + ((resp && resp.error) ? resp.error : 'No se pudo enviar. Escríbenos a comunicacion@sintropiasocial.com') + '</div>';
@@ -558,14 +606,37 @@ function renderResultado() {
   }
 }
 
-/* ---- Correo automático con el resultado (PDF adjunto + oferta con IA) ---- */
+/* ---- Interpretación ampliada con IA + envío de correo — de fondo, con un
+ * margen largo (TIMEOUT_CORREO_IA_MS), sin bloquear nada en pantalla. ---- */
+function _iniciarCadenaIACorreo() {
+  var d = state.datos || {}, r = state.resultado;
+  jsonp('generarInterpretacionMuestra', {
+    muestra: 'BusquedaEmpleo',
+    nombre: d.nombre,
+    email: d.email,
+    resultados: JSON.stringify(r.categorias.map(function (c) {
+      return { nombre: c.nombre, puntaje: c.subtotal, max: c.max };
+    })),
+    interes: _resumenInteres(d),
+    sitioWebTrampa: d.sitioWebTrampa
+  }, TIMEOUT_CORREO_IA_MS).then(function (resp) {
+    if (resp && resp.ok && resp.interpretacion) state.interpretacionIA = resp.interpretacion;
+    _enviarResultadoMuestraCorreo();
+  });
+}
+
+/* ---- Correo automático con el resultado (PDF adjunto + oferta con IA) ----
+ * Combina: interpretación de reglas (ya vista en pantalla) + interpretación
+ * con IA (si llegó) + oferta personalizada. */
 function _enviarResultadoMuestraCorreo() {
   if (state.correoResultadoEnviado) return;
   state.correoResultadoEnviado = true;
   var d = state.datos || {}, r = state.resultado;
-  var secciones = r.categorias.map(function (c) {
+  var secciones = [
+    { titulo: 'Interpretación de tu resultado', parrafos: (state.interpretacionReglas || '').split('\n\n').filter(function (p) { return p.trim(); }) }
+  ].concat(r.categorias.map(function (c) {
     return { titulo: c.nombre, parrafos: [c.subtotal + ' de ' + c.max + ' puntos.'] };
-  });
+  }));
   var resumenTexto = 'Diagnóstico de búsqueda de empleo: ' + r.nivelGeneral.etiqueta + ' (' + r.puntajeTotal + '/30). ' +
     'Área para reforzar primero: ' + r.peor.nombre + '.';
   jsonp('enviarResultadoMuestra', {
@@ -577,11 +648,11 @@ function _enviarResultadoMuestraCorreo() {
     interpretacionIA: state.interpretacionIA || '',
     secciones: JSON.stringify(secciones),
     sitioWebTrampa: d.sitioWebTrampa
-  }).then(function (resp) {
+  }, TIMEOUT_CORREO_IA_MS).then(function (resp) {
     var aviso = document.getElementById('correoAviso');
     if (!aviso) return;
     if (resp && resp.ok) {
-      aviso.innerHTML = '<div class="msg ok">Te enviamos este resultado a <b>' + escapeHtml(d.email) + '</b>.</div>';
+      aviso.innerHTML = '<div class="msg ok">Te enviamos una interpretación más completa de este resultado a <b>' + escapeHtml(d.email) + '</b>.</div>';
     } else {
       aviso.innerHTML = '<div class="msg error">No pudimos enviarte el correo con tu resultado' +
         (resp && resp.error ? (': ' + escapeHtml(resp.error)) : ' — intenta de nuevo más tarde') +
@@ -597,46 +668,6 @@ function _resumenInteres(d) {
   if (d.jerarquia) partes.push('nivel: ' + d.jerarquia);
   if (d.modalidad) partes.push('modalidad: ' + d.modalidad);
   return partes.length ? partes.join(', ') : 'sin especificar';
-}
-
-/* ---- Interpretación breve generada con IA (Gemini, del lado del servidor) ---- */
-function _cargarInterpretacionIA() {
-  var box = document.getElementById('iaInterpretacion');
-  if (!box) return;
-  if (state.interpretacionIA) { _pintarInterpretacionIA(state.interpretacionIA); return; }
-  box.innerHTML = '<p class="subtle" id="iaCargando">Generando una breve interpretación personalizada…</p>';
-  var d = state.datos || {}, r = state.resultado;
-  jsonp('generarInterpretacionMuestra', {
-    muestra: 'BusquedaEmpleo',
-    nombre: d.nombre,
-    email: d.email,
-    resultados: JSON.stringify(r.categorias.map(function (c) {
-      return { nombre: c.nombre, puntaje: c.subtotal, max: c.max };
-    })),
-    interes: _resumenInteres(d),
-    sitioWebTrampa: d.sitioWebTrampa
-  }).then(function (resp) {
-    if (resp && resp.ok && resp.interpretacion) {
-      state.interpretacionIA = resp.interpretacion;
-      _pintarInterpretacionIA(resp.interpretacion);
-    } else {
-      // Si la IA no está disponible, el resultado ya mostrado no se ve
-      // afectado — solo se retira el aviso de "generando..." sin mostrar
-      // un error a la persona.
-      var elCargando = document.getElementById('iaCargando');
-      if (elCargando && elCargando.parentNode) elCargando.parentNode.removeChild(elCargando);
-    }
-  });
-}
-
-function _pintarInterpretacionIA(texto) {
-  var box = document.getElementById('iaInterpretacion');
-  if (!box) return;
-  box.innerHTML =
-    '<div class="categoria-resultado" style="border-color:var(--purple)">' +
-      '<div class="nombre" style="color:var(--purple)">Interpretación generada con IA</div>' +
-      '<p class="subtle" style="margin:0">' + escapeHtml(texto) + '</p>' +
-    '</div>';
 }
 
 /* ---- Descargable en PDF ---- */
