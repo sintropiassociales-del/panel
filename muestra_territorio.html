@@ -148,6 +148,11 @@
     font-size: 10px; font-weight: 800; display: flex; align-items: center; justify-content: center; }
   .leyenda-item .nombre { font-weight: 700; }
   .leyenda-item .estrategia { color: var(--purple-dark); font-weight: 600; }
+  /* Leyenda compacta número → nombre, justo debajo del mapa de ubicación de
+   * actores — deja clarísimo qué representa cada número del mapa (algunas
+   * personas se confundían con esto al probar la muestra). */
+  .leyenda-mapa-actores { display: flex; flex-wrap: wrap; gap: 8px 16px; margin: 10px 0 4px; }
+  .leyenda-mapa-item { display: flex; align-items: center; gap: 7px; font-size: 12.5px; font-weight: 600; color: var(--text); }
 
   /* Resultado */
   .banda-box { text-align: center; padding: 8px 4px 4px; }
@@ -635,6 +640,22 @@ function renderCuadranteHtml(actores) {
   '</div>';
 }
 
+/* ---- Leyenda compacta número → nombre del actor, justo debajo del mapa de
+ * ubicación (PASO 2) — para que quede clarísimo qué representa cada número
+ * que aparece sobre el mapa. Se agregó porque, al probar la muestra, hubo
+ * personas que no relacionaban los números del mapa con su lista de
+ * actores de arriba (la relación completa, con tipo/influencia/interés, ya
+ * vivía en renderCuadranteHtml, pero solo hasta abajo, junto a la matriz
+ * poder-interés — quedaba lejos de donde realmente hacía falta). ---- */
+function renderLeyendaNumerosActores(actores) {
+  if (!actores.length) return '';
+  return '<div class="leyenda-mapa-actores">' +
+    actores.map(function (a, i) {
+      return '<div class="leyenda-mapa-item"><span class="leyenda-num">' + (i + 1) + '</span>' + escapeHtml(a.nombre) + '</div>';
+    }).join('') +
+  '</div>';
+}
+
 function resumenActoresTexto(actores) {
   if (!actores.length) return '';
   return actores.map(function (a) {
@@ -676,8 +697,11 @@ function renderActores() {
     '<div id="filasActores">' + filasHtml + '</div>' +
     '<button type="button" class="tenue" id="btnAgregarActor" style="width:100%;margin-top:4px">+ Agregar otro actor</button>' +
     '<h3>Ubica a tus actores en el mapa</h3>' +
-    '<p class="subtle" style="margin-top:0">En cuanto un actor tenga nombre, nivel de influencia e interés, aparece numerado en el mapa — arrástralo a su ubicación aproximada. <span style="color:var(--orange);font-weight:700">P</span> es tu proyecto.</p>' +
+    '<div class="mapa-ficha" style="margin-bottom:10px">' +
+      '<b>Cómo funciona:</b> en cuanto un actor tenga nombre, influencia e interés, aparece en el mapa con un número morado — ese número <b>es solo su posición en tu lista de arriba</b> (el 1 es el primer actor que agregaste, el 2 el segundo, y así). <b>Puedes arrastrar cada número</b> con el mouse o el dedo para moverlo a donde esté ese actor realmente — no se queda fijo donde aparece. El marcador naranja con la <span style="color:var(--orange);font-weight:700">P</span> es tu proyecto. Debajo del mapa tienes la lista completa para ubicar cada número.' +
+    '</div>' +
     '<div id="mapaActores"></div>' +
+    '<div id="leyendaMapaActores">' + renderLeyendaNumerosActores(actoresValidos()) + '</div>' +
     '<h3>Vista previa de tu matriz</h3>' +
     '<div id="previaCuadrante">' + renderCuadranteHtml(actoresValidos()) + '</div>' +
     '<div class="fila-botones">' +
@@ -724,6 +748,8 @@ function renderActores() {
     };
     var previa = document.getElementById('previaCuadrante');
     if (previa) previa.innerHTML = renderCuadranteHtml(actoresValidos());
+    var leyendaMapa = document.getElementById('leyendaMapaActores');
+    if (leyendaMapa) leyendaMapa.innerHTML = renderLeyendaNumerosActores(actoresValidos());
     actualizarMarcadoresActores();
   }
 
