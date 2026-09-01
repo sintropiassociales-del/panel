@@ -301,6 +301,7 @@ footer a{color:var(--teal);text-decoration:none;}
       </div>
       <hr class="result-divider">
       <div id="iaAmpliacion"></div>
+      <div id="correoAviso"></div>
       <div class="cta-cita">
         <h3>¿Quieres un diagnóstico completo y personalizado?</h3>
         <p>Este es un diagnóstico preliminar automático. Haz tu cita y cuéntanos tu caso — lo revisamos contigo.</p>
@@ -437,6 +438,7 @@ function _enviarRegistroDiagnostico(rubro, leadMagnet){
     leadMagnet: leadMagnet,
     consentimiento: 'Sí',
     notas: datosOrg.notas,
+    respuestasCompletas: JSON.stringify({ rubro: rubro, herramienta: est.herr, respuestas: est.resp }),
     sitioWebTrampa: datosOrg.trampa
   });
 }
@@ -696,6 +698,16 @@ function _enviarResultadoMuestraCorreo(){
     resumenTexto: est.textoDiag,
     secciones: JSON.stringify(secciones),
     sitioWebTrampa: datosOrg.trampa
+  }).then(function(resp){
+    var aviso=document.getElementById('correoAviso');
+    if(!aviso) return;
+    if(resp && resp.ok){
+      aviso.innerHTML='<div style="background:var(--teal-light);border:1px solid var(--border-s);border-radius:10px;padding:12px 14px;font-size:13px;color:var(--ink-mid);margin:14px 0;">Te enviamos este diagnóstico a <b>'+escapeHtml(datosOrg.correo)+'</b>.</div>';
+    } else {
+      aviso.innerHTML='<div style="background:var(--amber-light);border:1px solid var(--amber);border-radius:10px;padding:12px 14px;font-size:13px;color:var(--ink);margin:14px 0;">No pudimos enviarte el correo con tu diagnóstico'+
+        (resp && resp.error ? (': '+escapeHtml(resp.error)) : ' — intenta de nuevo más tarde')+
+        '. Mientras tanto puedes descargarlo en PDF aquí arriba.</div>';
+    }
   });
 }
 

@@ -446,6 +446,7 @@ function renderConfirmacion() {
       telefono: d.telefono,
       consentimiento: 'Sí',
       notas: resumenNotas,
+      respuestasCompletas: JSON.stringify(state.respuestas),
       sitioWebTrampa: d.sitioWebTrampa
     });
     // El resultado se muestra siempre, incluso si el guardado del lead
@@ -472,6 +473,7 @@ function renderResultado() {
     '<p class="subtle">Esto es solo una muestra breve — la versión completa del IMES Universidad, todavía en desarrollo, dará un panorama mucho más completo, acompañado por el equipo de Sintropía Social.</p></div>' +
     bloquesHtml +
     '<div id="iaInterpretacion"></div>' +
+    '<div id="correoAviso"></div>' +
     '<div class="fila-botones">' +
       '<button class="secondary" id="btnDescargarPdf">Descargar mi resultado en PDF</button>' +
     '</div>' +
@@ -536,6 +538,16 @@ function _enviarResultadoMuestraCorreo() {
     interpretacionIA: state.interpretacionIA || '',
     secciones: JSON.stringify(secciones),
     sitioWebTrampa: d.sitioWebTrampa
+  }).then(function (resp) {
+    var aviso = document.getElementById('correoAviso');
+    if (!aviso) return;
+    if (resp && resp.ok) {
+      aviso.innerHTML = '<div class="msg ok">Te enviamos este resultado a <b>' + escapeHtml(d.email) + '</b>.</div>';
+    } else {
+      aviso.innerHTML = '<div class="msg error">No pudimos enviarte el correo con tu resultado' +
+        (resp && resp.error ? (': ' + escapeHtml(resp.error)) : ' — intenta de nuevo más tarde') +
+        '. Mientras tanto puedes descargarlo en PDF aquí abajo.</div>';
+    }
   });
 }
 

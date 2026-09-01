@@ -361,6 +361,7 @@ function renderPreguntas() {
       leadMagnet: 'Diseño Instruccional de Cursos',
       consentimiento: 'Sí',
       notas: resumenNotas.slice(0, 1500),
+      respuestasCompletas: JSON.stringify(state.respuestas),
       sitioWebTrampa: d.sitioWebTrampa
     });
 
@@ -405,6 +406,7 @@ function renderResultado() {
     '<div class="fila-botones">' +
       '<button class="secondary" id="btnDescargarPdf">Descargar propuesta en PDF</button>' +
     '</div>' +
+    '<div id="correoAviso"></div>' +
     '<div class="cta">' +
       '<h2>¿Quieres desarrollar este curso con nosotros?</h2>' +
       '<p>Esta es una propuesta preliminar automática. Haz tu cita y afinamos juntos el diseño instruccional completo.</p>' +
@@ -451,6 +453,16 @@ function _enviarResultadoMuestraCorreo() {
     resumenTexto: resumenTexto,
     secciones: JSON.stringify(secciones),
     sitioWebTrampa: d.sitioWebTrampa
+  }).then(function (resp) {
+    var aviso = document.getElementById('correoAviso');
+    if (!aviso) return;
+    if (resp && resp.ok) {
+      aviso.innerHTML = '<div style="background:var(--bg);border:1px solid rgba(99,30,235,.18);border-radius:9px;padding:10px 13px;font-size:13.5px;color:var(--text);margin:12px 0;">Te enviamos esta propuesta a <b>' + escapeHtml(d.email) + '</b>.</div>';
+    } else {
+      aviso.innerHTML = '<div class="msg error">No pudimos enviarte el correo con tu propuesta' +
+        (resp && resp.error ? (': ' + escapeHtml(resp.error)) : ' — intenta de nuevo más tarde') +
+        '. Mientras tanto puedes descargarla en PDF aquí arriba.</div>';
+    }
   });
 }
 

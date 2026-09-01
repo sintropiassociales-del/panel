@@ -810,6 +810,7 @@ function renderReactivos() {
       leadMagnet: 'Mapa territorial (Territorio)',
       consentimiento: 'Sí',
       notas: resumenNotas,
+      respuestasCompletas: JSON.stringify({ respuestas: state.respuestas, actores: state.actores, ubicacion: state.ubicacion }),
       sitioWebTrampa: d.sitioWebTrampa
     });
     // El resultado se muestra siempre, incluso si el guardado del lead
