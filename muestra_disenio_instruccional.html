@@ -237,6 +237,130 @@ var FASES_SECUENCIA = [
 var app = document.getElementById('app');
 var TOTAL_PASOS = 3; // 0 datos de la organización · 1 preguntas · 2 resultado (secuencia didáctica)
 
+function _pick(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
+
+var CITAS_DI = {
+  gagne: 'Gagné, R. M. (1985). The Conditions of Learning and Theory of Instruction (4a ed.). Holt, Rinehart and Winston.',
+  bloom: 'Anderson, L. W. y Krathwohl, D. R. (2001). A Taxonomy for Learning, Teaching, and Assessing: A Revision of Bloom’s Taxonomy of Educational Objectives. Longman.',
+  wiggins: 'Wiggins, G. y McTighe, J. (2005). Understanding by Design (2a ed.). ASCD.',
+  knowles: 'Knowles, M. S. (1980). The Modern Practice of Adult Education: Andragogy versus Pedagogy. Cambridge Adult Education.',
+  kolb: 'Kolb, D. A. (1984). Experiential Learning: Experience as the Source of Learning and Development. Prentice-Hall.',
+  merrill: 'Merrill, M. D. (2002). First principles of instruction. Educational Technology Research and Development, 50(3), 43–59.',
+  mager: 'Mager, R. F. (1997). Preparing Instructional Objectives (3a ed.). Center for Effective Performance.'
+};
+
+function _duracionSugerida(duracion) {
+  var mapa = {
+    'Menos de 2 horas (taller breve)': '1 sesión única de 90–120 minutos, sin receso largo (como máximo, una pausa de 5 minutos a la mitad).',
+    'Medio día': '1 sesión de aproximadamente 4 horas, con un receso de 15 minutos.',
+    '1-2 días': '2 sesiones de 4–5 horas cada una (o 1 día completo con receso de comida), dejando la fase de Práctica y aplicación para después de un receso, cuando la atención se renueva.',
+    'Varias semanas (curso extendido)': '6–8 sesiones semanales de 90–120 minutos, con una tarea o práctica breve entre sesión y sesión para sostener la curva de retención.',
+    'Programa completo (varios meses)': 'un programa modular de 3–4 meses, organizado en bloques temáticos de 2–3 semanas cada uno, con un proyecto integrador al cierre de cada bloque y uno final al término del programa.'
+  };
+  return mapa[duracion] || 'una duración a definir junto con tu equipo, según la disponibilidad real de los participantes.';
+}
+
+// Propuesta de secuencia didáctica generada por reglas fijas — igual que
+// makeDiag() en diagnostico.html o interpretacionReglasSE() en
+// muestra_se.html: instantánea, sin depender de que Gemini responda, y
+// fundamentada en marcos reales de diseño instruccional (Gagné, la
+// taxonomía revisada de Bloom, Wiggins & McTighe, Knowles, Kolb y
+// Merrill), sin inventar datos que la persona no dio. La IA (ver
+// _paramsInterpretacionIA) solo aporta una sección adicional de
+// "Recomendaciones", nunca sustituye esta propuesta base.
+function secuenciaReglas(d, r) {
+  var tema = r.tema || 'el tema de tu curso';
+  var objetivo = r.objetivo || 'el objetivo que compartiste';
+  var necesidad = r.necesidad || '';
+  var dirigido = r.dirigido || 'los participantes';
+  var dirigidoMin = dirigido.toLowerCase();
+  var modalidad = r.modalidad || '';
+  var nivel = r.nivel || '';
+  var recursos = r.recursos || '';
+  var evaluacion = r.evaluacion || '';
+  var esGrupoAdulto = (dirigido === 'Colaboradores / empleados' || dirigido === 'Clientes');
+
+  /* -- 1. Apertura y encuadre: captar atención, informar el objetivo,
+   * activar conocimiento previo (primeros eventos de Gagné). -- */
+  var aperturaGancho = _pick([
+    'Abre con una pregunta o un caso breve y real relacionado con ' + tema + ' — algo que ' + dirigidoMin + ' reconozcan de inmediato — antes de presentar el objetivo formal; esto capta la atención desde el primer minuto.',
+    'Abre con una mini-encuesta o lluvia de ideas sobre ' + tema + ' — además de captar la atención, te da información en tiempo real sobre qué tanto sabe realmente el grupo.'
+  ]);
+  var aperturaTexto = aperturaGancho + ' Declara con toda claridad el objetivo de la sesión: al terminar, ' + dirigidoMin + ' podrán ' + objetivo + '. Nombrarlo desde el inicio ayuda a que cada actividad posterior se perciba como un paso hacia ahí y no como contenido suelto (' + CITAS_DI.gagne + ').';
+  if (esGrupoAdulto) {
+    aperturaTexto += ' Como el grupo son ' + dirigidoMin + ', vale la pena abrir también preguntando qué experiencia previa traen sobre ' + tema + ': la andragogía plantea que las personas adultas aprenden mejor cuando el contenido nuevo se ancla en problemas y experiencia que ya reconocen como propios, no en abstracciones (' + CITAS_DI.knowles + ').';
+  } else if (necesidad) {
+    aperturaTexto += ' Conecta explícitamente esta apertura con la necesidad que identificaste — "' + necesidad + '" — para que desde el primer momento quede claro el "para qué" del curso.';
+  }
+
+  /* -- 2. Desarrollo: presentar el contenido y guiar, nivelado con la
+   * taxonomía de Bloom según el punto de partida del grupo. -- */
+  var progresionBloom;
+  if (nivel === 'Principiantes') {
+    progresionBloom = 'empieza en los niveles de "recordar" y "comprender" — define términos, muestra ejemplos trabajados paso a paso — antes de pedirles que apliquen nada por su cuenta';
+  } else if (nivel === 'Avanzados') {
+    progresionBloom = 'puedes saltarte los niveles básicos y avanzar directo a que analicen casos, comparen alternativas y evalúen decisiones ya tomadas sobre ' + tema;
+  } else if (nivel === 'Nivel mixto') {
+    progresionBloom = 'plantea el contenido en dos niveles desde el inicio: una base común de "comprender" para todo el grupo, y retos opcionales de "aplicar/analizar" para quienes ya traigan más experiencia — así nadie se aburre ni se pierde';
+  } else {
+    progresionBloom = 'puedes pasar rápido por "recordar/comprender" y centrar la mayor parte del tiempo en que apliquen ' + tema + ' a un caso o problema concreto';
+  }
+  var entregaModalidad;
+  if (modalidad === 'Virtual (asíncrono)') {
+    entregaModalidad = 'divide el contenido en videos o lecturas cortas (8–12 minutos cada una) con una pregunta de comprobación entre una y otra, en vez de un solo bloque largo — en asíncrono, los cortes frecuentes son lo que sostiene la atención.';
+  } else if (modalidad === 'Virtual (síncrono / en vivo)') {
+    entregaModalidad = 'alterna cada 10–15 minutos entre explicación e interacción breve (encuesta en vivo, chat, pregunta directa a alguien) — en videollamada, el silencio prolongado del facilitador es la principal causa de que la gente se desconecte mentalmente.';
+  } else if (modalidad === 'Presencial') {
+    entregaModalidad = 'apóyate en el pizarrón o rotafolio para construir el contenido en vivo junto con el grupo, en vez de solo proyectar diapositivas — en presencial, ver "pensar" al facilitador en tiempo real ayuda más que un contenido ya terminado.';
+  } else if (modalidad === 'Híbrido') {
+    entregaModalidad = 'diseña esta fase pensando primero en quienes están en línea (que son quienes más fácil se desconectan) y luego adapta para el grupo presencial — no al revés — para que ninguno de los dos grupos se sienta "la sede secundaria".';
+  } else {
+    entregaModalidad = 'define la modalidad antes de avanzar más en el diseño de esta fase, porque cambia por completo cómo conviene entregar el contenido (bloques cortos si es virtual, construcción en vivo si es presencial).';
+  }
+  var desarrolloTexto = 'Con el nivel de partida que describiste, ' + progresionBloom + ' (' + CITAS_DI.bloom + '). En cuanto a la entrega: ' + entregaModalidad;
+  if (recursos === 'Ninguno todavía') {
+    desarrolloTexto += ' Como todavía no tienes definida la plataforma o el espacio, resuelve primero ese punto — condiciona directamente qué tan viable es la progresión que se propone aquí.';
+  }
+
+  /* -- 3. Práctica y aplicación: provocar el desempeño y dar
+   * retroalimentación (Gagné), sobre el ciclo de aprendizaje experiencial
+   * de Kolb y el principio de aplicación de Merrill. -- */
+  var practicaRecurso;
+  if (recursos === 'Plataforma LMS propia') {
+    practicaRecurso = 'usa tu LMS para un ejercicio auto-calificable o una simulación breve que ' + dirigidoMin + ' resuelvan por su cuenta';
+  } else if (recursos === 'Videoconferencia (Zoom / Meet / Teams)') {
+    practicaRecurso = 'usa salas simultáneas (breakout rooms) para que trabajen en equipos pequeños sobre un caso relacionado con ' + tema + ', y regresa a plenaria solo para que 1-2 equipos compartan su solución';
+  } else if (recursos === 'Salón físico con proyector') {
+    practicaRecurso = 'organiza un estudio de caso o role-play en equipos pequeños, con materiales impresos o en rotafolio — el proyector úsalo solo para mostrar instrucciones o resultados, no para que el grupo trabaje "hacia" la pantalla';
+  } else {
+    practicaRecurso = 'define primero qué recurso tendrás disponible para esta fase — la práctica es la parte del curso que más depende de la herramienta concreta con la que cuentes';
+  }
+  var practicaTexto = 'Después de que hayan visto el contenido, dales algo concreto que resolver antes de explicarles "la respuesta correcta": ' + practicaRecurso + '. El aprendizaje se consolida en el ciclo completo de experimentar, reflexionar sobre lo que pasó y volver a intentarlo con el ajuste — no solo con la exposición del contenido (' + CITAS_DI.kolb + '). Cierra esta fase con retroalimentación específica sobre lo que hicieron bien y qué ajustar, nunca solo con la respuesta correcta (' + CITAS_DI.merrill + ').';
+
+  /* -- 4. Cierre y evaluación: evaluar el desempeño y favorecer la
+   * retención/transferencia (Gagné), sobre el diseño hacia atrás de
+   * Wiggins & McTighe y los objetivos medibles de Mager. -- */
+  var cierreEvaluacion;
+  if (evaluacion && /examen|prueba|cuestionario/i.test(evaluacion)) {
+    cierreEvaluacion = 'ya tienes en mente un examen o cuestionario — súmale, si puedes, una pregunta de aplicación (no solo de memoria) que refleje una situación real de trabajo, para no medir solo si recordaron sino si podrían usarlo';
+  } else if (evaluacion && /proyecto|practic/i.test(evaluacion)) {
+    cierreEvaluacion = 'la idea de un proyecto o ejercicio práctico que ya tienes en mente es justo lo recomendable aquí: evalúa con una rúbrica breve y clara, compartida con el grupo desde el inicio del curso, no solo al final';
+  } else if (evaluacion && /observ/i.test(evaluacion)) {
+    cierreEvaluacion = 'la observación en el puesto que tienes en mente funciona bien si defines de antemano 2-3 señales concretas y observables de que el aprendizaje ocurrió — sin eso, la observación tiende a volverse subjetiva';
+  } else {
+    cierreEvaluacion = 'aún no tienes decidido cómo evaluar, así que empieza por ahí: define primero qué evidencia concreta te convencería de que ' + dirigidoMin + ' de verdad pueden ' + objetivo + ', y diseña la evaluación a partir de esa evidencia — no al revés';
+  }
+  var cierreTexto = 'La forma más confiable de diseñar esta fase es partir de la evidencia que buscas, no de la actividad: decide primero qué te convencería de que se logró el objetivo, y desde ahí arma la evaluación (' + CITAS_DI.wiggins + '). En tu caso, ' + cierreEvaluacion + '. Cierra siempre con una síntesis breve hecha por el propio grupo (no por ti) de lo aprendido, y con un compromiso concreto de cómo lo van a usar en los próximos días — es lo que más ayuda a que el aprendizaje se transfiera al trabajo real y no se quede en la sesión (' + CITAS_DI.mager + ').';
+
+  return {
+    apertura: aperturaTexto,
+    desarrollo: desarrolloTexto,
+    practica: practicaTexto,
+    cierre: cierreTexto,
+    duracionSugerida: _duracionSugerida(r.duracion)
+  };
+}
+
 function progresoHtml() {
   var html = '<div class="progreso">';
   for (var i = 0; i < TOTAL_PASOS; i++) {
@@ -247,21 +371,9 @@ function progresoHtml() {
 }
 
 function render() {
-  if (state.cargandoResultado) return renderCargando();
   if (state.paso === 0) return renderDatos();
   if (state.paso === 1) return renderPreguntas();
   return renderResultado();
-}
-
-/* ---- Pantalla de espera mientras la IA genera la propuesta ---- */
-function renderCargando() {
-  app.innerHTML =
-    progresoHtml() +
-    '<div class="pantalla-centrada">' +
-      '<div class="spinner"></div>' +
-      '<h2 style="margin-top:18px">Generando tu propuesta con IA…</h2>' +
-      '<p class="subtle">Esto puede tardar unos segundos — no cierres ni recargues esta página.</p>' +
-    '</div>';
 }
 
 /* ---- PASO 0: datos de la organización (antes de la prueba) ---- */
@@ -355,34 +467,30 @@ function renderPreguntas() {
   });
 
   document.getElementById('btnAtras').onclick = function () { state.paso = 0; render(); };
-  document.getElementById('btnVerResultado').onclick = async function () {
+  document.getElementById('btnVerResultado').onclick = function () {
     var faltantes = PREGUNTAS_DI.filter(function (p) { return !p.opcional && !String(state.respuestas[p.campo] || '').trim(); });
     if (faltantes.length) {
       document.getElementById('secMsg').innerHTML = '<div class="msg error">Responde las preguntas obligatorias antes de continuar (falta' + (faltantes.length > 1 ? 'n' : '') + ' ' + faltantes.length + ').</div>';
       return;
     }
 
-    // Pantalla de espera de pantalla completa — la generación con IA puede
-    // tardar varios segundos y antes solo se veía el texto del botón
-    // cambiar, fácil de pasar por alto.
-    state.cargandoResultado = true;
+    // La propuesta se genera al instante con reglas fijas (secuenciaReglas,
+    // más abajo) — igual que el resto de la plataforma, ya NO depende de
+    // que Gemini responda a tiempo (antes se veía una pantalla de espera
+    // de varios segundos y, si la IA fallaba o tardaba, la persona se
+    // quedaba con un mensaje de disculpa en vez de una propuesta real).
+    state.secuencia = secuenciaReglas(state.datos || {}, state.respuestas);
+    state.paso = 2;
     render();
 
+    // El registro del lead y el correo con el resultado se mandan de
+    // inmediato también, sin bloquear la pantalla — ver el comentario en
+    // _enviarResultadoMuestraCorreo.
     var d = state.datos || {};
     var resumenNotas = 'Diseño instruccional — ' + PREGUNTAS_DI.map(function (p) {
       return p.q + ' ' + (state.respuestas[p.campo] || '(sin responder)');
     }).join(' | ');
-
-    // Las dos llamadas son independientes entre sí (una genera la propuesta
-    // con IA, la otra guarda el lead) — se mandan en paralelo en vez de una
-    // tras otra, para no duplicar el tiempo de espera.
-    var pSecuencia = jsonp('generarSecuenciaDidactica', {
-      nombre: d.nombre,
-      correo: d.email,
-      respuestas: JSON.stringify(state.respuestas),
-      sitioWebTrampa: d.sitioWebTrampa
-    });
-    var pCaptura = jsonp('capturarClienteDiagnostico', {
+    jsonp('capturarClienteDiagnostico', {
       organizacion: d.organizacion,
       categoria: d.categoria,
       ejeInteres: 'Educación',
@@ -396,19 +504,7 @@ function renderPreguntas() {
       respuestasCompletas: JSON.stringify(state.respuestas),
       sitioWebTrampa: d.sitioWebTrampa
     });
-
-    var resp = await pSecuencia;
-    await pCaptura;
-
-    if (resp && resp.ok && resp.secuencia && resp.secuencia.apertura) {
-      state.secuencia = resp.secuencia;
-    } else {
-      state.secuencia = null;
-    }
-
-    state.cargandoResultado = false;
-    state.paso = 2;
-    render();
+    _enviarResultadoMuestraCorreo();
   };
 }
 
@@ -459,6 +555,42 @@ function renderResultado() {
  * propuesta automática haya fallado (con un resumen genérico en su lugar) —
  * la persona de cualquier forma ya quedó registrada como lead y espera
  * noticias por correo. */
+// Arma los parámetros para generarInterpretacionMuestra — el procesador en
+// segundo plano los usa para generar una sección adicional de
+// "Recomendaciones" con IA (ver rama 'DisenioInstruccional' en
+// apiGenerarInterpretacionMuestra, WebApp.gs) que complementa — nunca
+// sustituye — la propuesta de secuenciaReglas().
+function _paramsInterpretacionIA() {
+  var d = state.datos || {}, r = state.respuestas || {};
+  var secuenciaTexto = state.secuencia ? FASES_SECUENCIA.map(function (f) {
+    return f.titulo + ': ' + (state.secuencia[f.clave] || '');
+  }).join(' ') : '';
+  return {
+    muestra: 'DisenioInstruccional',
+    nombre: d.nombre,
+    email: d.email,
+    modalidad: r.modalidad,
+    tema: r.tema,
+    dirigido: r.dirigido,
+    necesidad: r.necesidad,
+    duracion: r.duracion,
+    nivel: r.nivel,
+    objetivo: r.objetivo,
+    recursos: r.recursos,
+    evaluacion: r.evaluacion,
+    notas: r.notas,
+    secuenciaPrevia: secuenciaTexto,
+    sitioWebTrampa: d.sitioWebTrampa
+  };
+}
+
+/* ---- Correo automático con el resultado (PDF adjunto + oferta con IA) ----
+ * Se dispara de inmediato al ver la propuesta — ya no depende de ninguna
+ * respuesta de IA (secuenciaReglas es instantánea). Se manda
+ * paramsInterpretacionIA para que el procesador en segundo plano intente
+ * sumar, del lado del servidor, una sección de "Recomendaciones" con IA —
+ * si eso falla o tarda, el correo sale de todas formas con la propuesta
+ * completa de secuenciaReglas, nunca con un mensaje de disculpa vacío. */
 function _enviarResultadoMuestraCorreo() {
   if (state.correoResultadoEnviado) return;
   state.correoResultadoEnviado = true;
@@ -484,6 +616,7 @@ function _enviarResultadoMuestraCorreo() {
     tituloResultado: 'Propuesta de secuencia didáctica',
     resumenTexto: resumenTexto,
     secciones: JSON.stringify(secciones),
+    paramsInterpretacionIA: JSON.stringify(_paramsInterpretacionIA()),
     sitioWebTrampa: d.sitioWebTrampa
   }).then(function (resp) {
     var aviso = document.getElementById('correoAviso');
