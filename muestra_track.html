@@ -1,0 +1,769 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Sintropía Track — muestra gratuita de Sintropía Social: recibe un plan de seguimiento preliminar (indicadores, metas y cronograma) para tu proyecto.">
+<title>Muestra: Sintropía Track — Sintropía Social</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<style>
+  :root {
+    --purple: #631EEB;
+    --purple-dark: #4E17B8;
+    --orange: #FF7929;
+    --bg: #F5F3FC;
+    --card: #FFFFFF;
+    --text: #2C2C2C;
+    --subtle: #6B6B78;
+    --border: #E6E2F5;
+    --error: #C0392B;
+    --error-bg: #FDECEA;
+    --ok: #1F9D6B;
+    --pending: #B7B2C6;
+    --yellow: #E0982A;
+    --red: #D9483D;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; font-family: 'Open Sans', -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+    background: var(--bg); color: var(--text); line-height: 1.55;
+  }
+  header.top {
+    background: var(--purple); color: #fff; padding: 26px 18px 44px; text-align: center;
+    border-radius: 0 0 22px 22px;
+  }
+  header.top .marca { font-size: 20px; font-weight: 800; letter-spacing: .3px; }
+  header.top .marca span { color: var(--orange); }
+  header.top .subt { font-size: 13.5px; opacity: .92; margin-top: 6px; max-width: 460px; margin-left: auto; margin-right: auto; }
+  main { max-width: 660px; margin: -26px auto 40px; padding: 0 16px; }
+  .card {
+    background: var(--card); border-radius: 14px; padding: 26px 24px; margin-bottom: 16px;
+    box-shadow: 0 6px 20px rgba(99,30,235,.08); border: 1px solid var(--border);
+  }
+  h1 { font-size: 21px; margin: 0 0 8px; }
+  h2 { font-size: 18px; margin: 0 0 4px; color: var(--purple-dark); }
+  h3 { font-size: 15px; margin: 22px 0 2px; color: var(--purple-dark); }
+  p.subtle, .subtle { color: var(--subtle); font-size: 13.5px; }
+  .progreso { display: flex; gap: 6px; margin: 18px 0 22px; }
+  .progreso .paso { flex: 1; height: 6px; border-radius: 4px; background: var(--border); }
+  .progreso .paso.hecho { background: var(--orange); }
+  .progreso .paso.actual { background: var(--purple); }
+  label { display: block; font-size: 13.5px; font-weight: 600; margin: 14px 0 5px; }
+  label .req { color: var(--orange); }
+  input[type=text], input[type=email], select, textarea {
+    width: 100%; padding: 11px 12px; border: 1.5px solid var(--border); border-radius: 9px;
+    font-size: 15px; font-family: inherit; background: #fff; color: var(--text);
+  }
+  textarea { resize: vertical; min-height: 76px; }
+  input:focus, select:focus, textarea:focus { outline: none; border-color: var(--purple); }
+  .fila-botones { display: flex; gap: 10px; margin-top: 24px; flex-wrap: wrap; }
+  button {
+    font-family: inherit; font-size: 14.5px; font-weight: 700; border-radius: 999px;
+    padding: 12px 24px; border: none; cursor: pointer;
+  }
+  button.primary { background: var(--purple); color: #fff; }
+  button.primary:hover { background: var(--purple-dark); }
+  button.secondary { background: #fff; color: var(--purple); border: 1.5px solid var(--purple); }
+  button:disabled { opacity: .5; cursor: default; }
+  .msg { padding: 10px 13px; border-radius: 9px; font-size: 13.5px; margin: 12px 0; }
+  .msg.error { background: var(--error-bg); color: var(--error); }
+
+  .campo-trampa { position: absolute; left: -9999px; top: -9999px; opacity: 0; height: 0; overflow: hidden; }
+
+  /* Preguntas mixtas (abiertas y cerradas) */
+  .pregunta-seg { border-top: 1px solid var(--border); padding: 18px 0; }
+  .pregunta-seg:first-of-type { border-top: none; padding-top: 4px; }
+  .pregunta-seg .num { display: inline-block; font-size: 11.5px; font-weight: 700; letter-spacing: .5px;
+    color: var(--purple); text-transform: uppercase; margin-bottom: 4px; }
+  .pregunta-texto { font-size: 14.5px; font-weight: 700; margin-bottom: 4px; }
+  .pregunta-hint { font-size: 12.5px; color: var(--subtle); margin-bottom: 10px; }
+  .opciones-seg { display: flex; gap: 8px; flex-wrap: wrap; }
+  .op-choice {
+    border: 1.5px solid var(--border); border-radius: 9px; background: #fff;
+    color: var(--subtle); font-weight: 600; font-size: 13px; padding: 10px 14px; cursor: pointer; text-align: center;
+    transition: background .12s, border-color .12s, color .12s;
+  }
+  .op-choice.marcada { background: var(--purple); border-color: var(--purple); color: #fff; }
+
+  /* Resultado — plan de seguimiento */
+  .plan-bloque { border-top: 1px solid var(--border); padding: 16px 0; }
+  .plan-bloque:first-of-type { border-top: none; padding-top: 4px; }
+  .plan-bloque .num-bloque { display: inline-block; font-size: 11.5px; font-weight: 700; letter-spacing: .5px;
+    color: var(--purple); text-transform: uppercase; margin-bottom: 6px; }
+  .plan-bloque p { font-size: 13.5px; line-height: 1.85; color: var(--text); margin: 0; white-space: pre-wrap; }
+
+  /* Vista previa ilustrativa del semáforo de Sintropía Track */
+  .preview-track { background: #FAF8FF; border: 1px solid var(--border); border-radius: 12px; padding: 16px 16px 14px; margin-top: 8px; }
+  .preview-track .etiqueta-preview { font-size: 11px; font-weight: 700; letter-spacing: .5px; text-transform: uppercase; color: var(--subtle); margin-bottom: 10px; }
+  .semaforo-fila { display: flex; gap: 10px; flex-wrap: wrap; }
+  .semaforo-card { flex: 1; min-width: 130px; border-radius: 10px; padding: 10px 12px; background: #fff; border: 1px solid var(--border); }
+  .semaforo-card .luz { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 6px; }
+  .semaforo-card.ok .luz { background: var(--ok); }
+  .semaforo-card.yellow .luz { background: var(--yellow); }
+  .semaforo-card.red .luz { background: var(--red); }
+  .semaforo-card .nombre-hito { font-size: 12.5px; font-weight: 700; }
+  .semaforo-card .estado-hito { font-size: 11.5px; color: var(--subtle); margin-top: 2px; }
+  .preview-nota { font-size: 12px; color: var(--subtle); margin-top: 10px; }
+
+  /* Pantalla de espera mientras la IA genera la propuesta */
+  .pantalla-centrada { text-align: center; padding: 30px 4px 12px; }
+  .spinner { width: 40px; height: 40px; margin: 0 auto; border-radius: 50%;
+    border: 4px solid var(--border); border-top-color: var(--purple); animation: girar .8s linear infinite; }
+  @media (prefers-reduced-motion: reduce) { .spinner { animation-duration: 2.4s; } }
+  @keyframes girar { to { transform: rotate(360deg); } }
+
+  .cta { background: linear-gradient(135deg, var(--purple), var(--purple-dark)); color: #fff; border-radius: 14px;
+    padding: 22px 24px; margin-top: 8px; }
+  .cta h2 { color: #fff; }
+  .cta p { font-size: 13.5px; opacity: .95; }
+  .cta a { color: #fff; font-weight: 700; }
+  .cta .fila-botones a.boton-cta {
+    display: inline-block; text-decoration: none; border-radius: 999px; padding: 12px 22px; font-weight: 700; font-size: 14px;
+  }
+  .cta .boton-cta.solido { background: #fff; color: var(--purple-dark); }
+  .cta .boton-cta.contorno { border: 1.5px solid rgba(255,255,255,.7); color: #fff; }
+
+  footer.pie { text-align: center; font-size: 12px; color: var(--subtle); padding: 10px 16px 34px; }
+  footer.pie .wordmark { font-size: 14px; font-weight: 700; margin-bottom: 6px; }
+  footer.pie a { color: var(--purple); text-decoration: none; }
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="marca">Sintropía <span>Social</span></div>
+  <div class="subt">Sintropía Track — cuéntanos de tu proyecto y te proponemos un primer plan de seguimiento: indicadores, metas y cronograma.</div>
+</header>
+
+<main>
+  <div id="app" class="card">
+    <p class="subtle">Cargando...</p>
+  </div>
+</main>
+
+<footer class="pie">
+  <div class="wordmark"><span style="color:var(--purple)">Sintropía</span> <span style="color:var(--orange)">Social</span></div>
+  <a href="https://sintropiassociales-del.github.io/">Sintropía Social</a> · <a href="mailto:comunicacion@sintropiasocial.com">comunicacion@sintropiasocial.com</a>
+</footer>
+
+<script>
+var WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbxZbLiOP7QXvrgUIDhhVciVGY-Yval3YBvqBHOpQfK8El2wHXNNBtZvsnkbwMaJUss/exec';
+
+function escapeHtml(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+  });
+}
+
+function jsonp(action, params) {
+  return new Promise(function (resolve) {
+    var cbName = 'cb_' + Date.now() + '_' + Math.floor(Math.random() * 100000);
+    var url = WEB_APP_URL + '?action=' + encodeURIComponent(action) + '&callback=' + cbName;
+    params = params || {};
+    for (var k in params) {
+      if (params[k] !== undefined && params[k] !== null) url += '&' + encodeURIComponent(k) + '=' + encodeURIComponent(params[k]);
+    }
+    var script = document.createElement('script');
+    var cleaned = false;
+    function cleanup() { if (cleaned) return; cleaned = true; delete window[cbName]; if (script.parentNode) script.parentNode.removeChild(script); }
+    window[cbName] = function (data) { cleanup(); resolve(data); };
+    script.onerror = function () { cleanup(); resolve({ ok: false, error: 'No se pudo conectar. Revisa tu conexión a internet e intenta de nuevo.' }); };
+    setTimeout(function () { if (!cleaned) { cleanup(); resolve({ ok: false, error: 'La plataforma tardó demasiado en responder. Intenta de nuevo.' }); } }, 40000);
+    script.src = url;
+    document.body.appendChild(script);
+  });
+}
+// Variante de jsonp() que manda los parámetros por POST (cuerpo de la
+// solicitud) en vez de la URL — jsonp()/GET tiene un límite práctico de
+// unos cuantos KB en la URL, y "secciones"/"resumenTexto" del correo de
+// resultado pueden superarlo fácilmente. Content-Type text/plain evita que
+// el navegador dispare una verificación (preflight) que Apps Script no
+// sabe responder — mismo patrón que ya usa el resto de la plataforma.
+function jsonpPost(action, params, timeoutMs) {
+  return new Promise(function (resolve) {
+    var timedOut = false;
+    var timer = setTimeout(function () {
+      timedOut = true;
+      resolve({ ok: false, error: 'La plataforma tardó demasiado en responder. Intenta de nuevo.' });
+    }, timeoutMs || 40000);
+    var body = { action: action };
+    params = params || {};
+    for (var k in params) { if (params[k] !== undefined && params[k] !== null) body[k] = params[k]; }
+    fetch(WEB_APP_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify(body)
+    }).then(function (resp) { return resp.json(); }).then(function (data) {
+      if (timedOut) return;
+      clearTimeout(timer);
+      resolve(data);
+    }).catch(function () {
+      if (timedOut) return;
+      clearTimeout(timer);
+      resolve({ ok: false, error: 'No se pudo conectar. Revisa tu conexión a internet e intenta de nuevo.' });
+    });
+  });
+}
+
+var CATEGORIAS_CRM_OPCIONES = ['Gobierno y Sector Público', 'ONG y Fundaciones', 'Educación', 'Salud y Bienestar',
+  'Universidad', 'Cámara empresarial', 'Empresa privada', 'Retail y Consumo', 'Fintech y Servicios',
+  'Tecnología y Telecom', 'Turismo y Hospitalidad', 'Organismo internacional', 'Otro'];
+
+/* ============================================================
+ * 11 preguntas mixtas (abiertas y cerradas) sobre el proyecto que
+ * la institución quiere dar seguimiento — la base para sugerir,
+ * con reglas fijas, un objetivo SMART, indicadores/metas y un
+ * cronograma preliminares (ver seguimientoReglas más abajo).
+ * ============================================================ */
+var PREGUNTAS_SEG = [
+  { campo: 'nombreProyecto', tipo: 'texto', q: '¿Cómo se llama tu proyecto o iniciativa?',
+    hint: 'El nombre corto que usas para identificarlo internamente.' },
+  { campo: 'tipoOrganizacion', tipo: 'select', q: '¿Qué tipo de organización lo impulsa?',
+    opciones: ['OSC / asociación civil', 'Dependencia de gobierno', 'Universidad o centro educativo', 'Empresa con área social', 'Colectivo o grupo informal', 'Otro'] },
+  { campo: 'areaFoco', tipo: 'select', q: '¿Cuál es el área principal de tu proyecto?',
+    opciones: ['Educación y formación', 'Empleabilidad y generación de ingresos', 'Salud y bienestar comunitario', 'Medio ambiente y sostenibilidad', 'Incidencia pública y derechos', 'Desarrollo comunitario / territorial', 'Otro'] },
+  { campo: 'poblacionObjetivo', tipo: 'texto', q: '¿A quién beneficia directamente tu proyecto?',
+    hint: 'Describe a la población: edad, género, ubicación, condición particular...' },
+  { campo: 'numBeneficiarios', tipo: 'select', q: '¿A cuántas personas esperas llegar en este ciclo del proyecto?',
+    opciones: ['Menos de 50', 'Entre 50 y 200', 'Entre 200 y 1,000', 'Más de 1,000', 'Aún no lo sé'] },
+  { campo: 'horizonteTiempo', tipo: 'select', q: '¿Cuál es el horizonte de tiempo de este proyecto o ciclo?',
+    opciones: ['Menos de 6 meses', '6 a 12 meses', '1 a 2 años', 'Más de 2 años'] },
+  { campo: 'principalDesafio', tipo: 'select', q: '¿Cuál es tu mayor reto hoy para dar seguimiento al proyecto?',
+    opciones: ['No tenemos indicadores claros', 'No sabemos si vamos bien o mal a la mitad del camino', 'Perdemos información entre reporte y reporte', 'Nos cuesta reportar avances a nuestro financiador o institución', 'No tenemos una línea base con la que comparar', 'Otro'] },
+  { campo: 'tieneLineaBase', tipo: 'select', q: '¿Ya cuentan con una línea base (una medición inicial de la situación que quieren cambiar)?',
+    opciones: ['Sí, completa', 'Parcial', 'No, todavía no'] },
+  { campo: 'entregablesClave', tipo: 'texto', q: 'Menciona 2 o 3 entregables o actividades clave de este proyecto',
+    hint: 'Por ejemplo: talleres, informes, capacitaciones, jornadas de atención...' },
+  { campo: 'frecuenciaReporte', tipo: 'select', q: '¿Con qué frecuencia necesitas reportar avances (a tu equipo, a un financiador o a la institución)?',
+    opciones: ['Mensual', 'Trimestral', 'Semestral', 'Anual', 'Solo al cierre del proyecto'] },
+  { campo: 'notas', tipo: 'texto', q: '¿Algo más que debamos saber sobre tu proyecto?',
+    hint: 'Opcional.', opcional: true }
+];
+
+var state = { paso: 0, datos: null, respuestas: {}, plan: null, enviado: false, correoResultadoEnviado: false };
+
+var SECCIONES_SEGUIMIENTO = [
+  { clave: 'objetivoGeneral', numero: '1 de 4', titulo: 'Objetivo general (formato SMART)' },
+  { clave: 'indicadores', numero: '2 de 4', titulo: 'Indicadores y metas sugeridas' },
+  { clave: 'cronograma', numero: '3 de 4', titulo: 'Cronograma sugerido (hitos)' },
+  { clave: 'recomendacion', numero: '4 de 4', titulo: 'Recomendación metodológica' }
+];
+var app = document.getElementById('app');
+var TOTAL_PASOS = 3; // 0 datos de la organización · 1 preguntas · 2 resultado (plan de seguimiento)
+
+function _pick(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
+
+var CITAS_SEG = {
+  smart: 'Doran, G. T. (1981). There’s a S.M.A.R.T. way to write management’s goals and objectives. Management Review, 70(11), 35–36.',
+  margeLogico: 'ILPES-CEPAL. Metodología del marco lógico para la planificación, el seguimiento y la evaluación de proyectos y programas.',
+  toc: 'Weiss, C. H. (1995). Nothing as Practical as Good Theory: Exploring Theory-Based Evaluation. En Connell, Kubisch, Schorr y Weiss (eds.), New Approaches to Evaluating Community Initiatives.',
+  rbm: 'Kusek, J. Z. y Rist, R. C. (2004). Ten Steps to a Results-Based Monitoring and Evaluation System. Banco Mundial.',
+  oecdDac: 'OECD-DAC. Criterios de evaluación y criterios CREAM de calidad de indicadores (Claro, Relevante, Económico, Adecuado, Monitoreable).'
+};
+
+// Sugerencia de meta numérica a partir del rango de beneficiarios que la
+// persona eligió — nunca inventa una cifra exacta que no dio, solo propone
+// un punto de partida razonable dentro de su propio rango para que lo
+// ajuste con su equipo.
+function _metaDesdeBucket(numBeneficiarios) {
+  var mapa = {
+    'Menos de 50': 'las 50 personas de tu población objetivo',
+    'Entre 50 y 200': 'al menos 150 personas de tu población objetivo',
+    'Entre 200 y 1,000': 'al menos 700 personas de tu población objetivo',
+    'Más de 1,000': 'al menos 1,000 personas de tu población objetivo (ajusta la cifra exacta a tu meta real)',
+    'Aún no lo sé': 'un número concreto de personas de tu población objetivo (defínelo antes de arrancar: es tu primer pendiente)'
+  };
+  return mapa[numBeneficiarios] || 'un número concreto de personas de tu población objetivo';
+}
+
+// Matriz de indicador + sub-indicadores sugeridos según el área principal
+// del proyecto — un punto de partida razonable por área, no una medición
+// real; la persona los ajusta a su caso concreto en Sintropía Track.
+var MATRIZ_INDICADORES_POR_AREA = {
+  'Educación y formación': {
+    indicador: 'Porcentaje de participantes que completan el proceso formativo con evaluación aprobatoria',
+    sub: ['Número de sesiones o talleres impartidos vs. planeados', 'Porcentaje de asistencia promedio por sesión', 'Puntaje antes/después (pre-post) en la competencia formada']
+  },
+  'Empleabilidad y generación de ingresos': {
+    indicador: 'Porcentaje de participantes colocados en empleo o con ingreso propio a los 3 meses de finalizado el proyecto',
+    sub: ['Número de personas que reciben acompañamiento de empleabilidad', 'Número de vínculos con empleadores o mercado generados', 'Incremento promedio de ingreso reportado por los participantes']
+  },
+  'Salud y bienestar comunitario': {
+    indicador: 'Porcentaje de la población objetivo que accede al servicio o atención de salud/bienestar ofrecido',
+    sub: ['Número de jornadas o atenciones realizadas', 'Porcentaje de personas que reportan mejora en el indicador de bienestar medido', 'Cobertura territorial alcanzada (colonias, comunidades o sedes atendidas)']
+  },
+  'Medio ambiente y sostenibilidad': {
+    indicador: 'Volumen o superficie de recurso ambiental protegido, restaurado o gestionado de forma sostenible',
+    sub: ['Número de personas o actores capacitados en la práctica sostenible', 'Número de acciones de restauración o gestión implementadas', 'Porcentaje de cumplimiento del plan ambiental']
+  },
+  'Incidencia pública y derechos': {
+    indicador: 'Número de tomadores de decisión o instituciones que adoptan la propuesta impulsada',
+    sub: ['Número de acciones de incidencia realizadas (reuniones, foros, campañas)', 'Número de aliados o firmantes sumados a la causa', 'Cambios normativos o de política pública logrados']
+  },
+  'Desarrollo comunitario / territorial': {
+    indicador: 'Número de actores del territorio activamente involucrados en el proyecto',
+    sub: ['Número de acuerdos o alianzas formalizadas', 'Número de recursos comunitarios o institucionales movilizados', 'Porcentaje de actividades del plan territorial ejecutadas']
+  }
+};
+function _matrizIndicadores(areaFoco) {
+  return MATRIZ_INDICADORES_POR_AREA[areaFoco] || {
+    indicador: 'Porcentaje de avance de las actividades clave planeadas',
+    sub: ['Número de actividades completadas vs. planeadas', 'Porcentaje de beneficiarios alcanzados vs. meta', 'Nivel de satisfacción reportado por la población beneficiaria']
+  };
+}
+
+// Cronograma sugerido según el horizonte de tiempo elegido — hitos
+// genéricos de un ciclo de proyecto (línea base → implementación →
+// evaluación intermedia → cierre y evaluación final), la misma lógica que
+// después se sistematiza en la gráfica de Gantt automática de Sintropía
+// Track a partir de los entregables reales.
+function _cronogramaSugerido(horizonte) {
+  var mapa = {
+    'Menos de 6 meses': 'Mes 1: línea base y ajuste de indicadores.\nMeses 2 a 4: implementación de las actividades clave.\nMes 5: evaluación intermedia rápida (semáforo de avance).\nMes 6: cierre, evaluación final y reporte.',
+    '6 a 12 meses': 'Mes 1: línea base.\nMeses 2 a 4: arranque e implementación inicial.\nMeses 5 y 6: evaluación intermedia (semáforo de avance).\nMeses 7 a 10: implementación principal.\nMes 11: evaluación final.\nMes 12: cierre y reporte a tu financiador o institución.',
+    '1 a 2 años': 'Trimestre 1: línea base y planeación detallada.\nTrimestres 2 y 3: primera fase de implementación, con revisión trimestral del semáforo.\nTrimestre 4: evaluación intermedia formal (medio término).\nAño 2: segunda fase de implementación y ajustes.\nÚltimos 2 meses: evaluación final, sistematización y reporte de cierre.',
+    'Más de 2 años': 'Año 1: línea base, arranque y primer ciclo de implementación, con revisiones trimestrales del semáforo.\nCierre del año 1 (o mitad del proyecto): evaluación de medio término.\nAños siguientes: ciclos anuales de implementación, revisión y ajuste.\nÚltimos 3 meses: evaluación final y sistematización de aprendizajes.'
+  };
+  return mapa[horizonte] || 'Define primero el horizonte de tiempo de tu proyecto — cambia por completo cómo conviene espaciar tus hitos de línea base, evaluación intermedia y cierre.';
+}
+
+// Propuesta de plan de seguimiento generada por reglas fijas — igual que
+// makeDiag() en diagnostico.html o secuenciaReglas() en
+// muestra_disenio_instruccional.html: instantánea, sin depender de que
+// Gemini responda, y fundamentada en marcos reales de planeación y
+// evaluación de proyectos (SMART de Doran, Marco Lógico, Teoría del Cambio
+// de Weiss, seguimiento y evaluación basados en resultados de Kusek & Rist,
+// y los criterios CREAM de calidad de indicadores del CAD de la OCDE), sin
+// inventar cifras que la institución no dio. La IA (ver
+// _paramsInterpretacionIA) solo aporta una sección adicional de
+// "Recomendaciones adicionales", nunca sustituye este plan base.
+function seguimientoReglas(d, r) {
+  var nombreProyecto = r.nombreProyecto || 'tu proyecto';
+  var areaFoco = r.areaFoco || '';
+  var poblacion = r.poblacionObjetivo || 'la población que definiste';
+  var horizonte = r.horizonteTiempo || '';
+  var desafio = r.principalDesafio || '';
+  var lineaBase = r.tieneLineaBase || '';
+  var entregables = r.entregablesClave || '';
+  var frecuencia = r.frecuenciaReporte || '';
+  var metaTexto = _metaDesdeBucket(r.numBeneficiarios);
+
+  /* -- 1. Objetivo general en formato SMART: eSpecífico, Medible,
+   * Alcanzable, Relevante y con Tiempo definido (Doran, 1981). -- */
+  var aperturaObjetivo = _pick([
+    'Un objetivo general útil para dar seguimiento no es una aspiración general, sino una meta que se pueda revisar en cualquier momento del proyecto y saber, sin discusión, si se está cumpliendo.',
+    'Antes de definir indicadores conviene fijar un solo objetivo general medible — todo lo demás (indicadores, metas, cronograma) se desprende de ahí.'
+  ]);
+  var objetivoRedactado = 'Lograr que ' + metaTexto + (areaFoco ? (' se beneficien del componente de ' + areaFoco.toLowerCase()) : ' se beneficien de las actividades') +
+    ' de ' + nombreProyecto + (horizonte ? (', en un plazo de ' + horizonte.toLowerCase()) : '') + '.';
+  var objetivoGeneralTexto = aperturaObjetivo + ' Con tus respuestas, un objetivo general en formato SMART se vería así:\n\n"' + objetivoRedactado + '"\n\nRevisa que cumpla las cinco condiciones: específico (nombra a quién y qué), medible (una cifra o proporción verificable), alcanzable (realista con tu equipo y tiempo actuales), relevante (conectado con la necesidad de "' + poblacion + '" que describiste) y con tiempo definido (' + CITAS_SEG.smart + ').';
+
+  /* -- 2. Indicadores y sub-indicadores según el área de foco, con la
+   * meta expresada sobre el rango de beneficiarios que diste. -- */
+  var matriz = _matrizIndicadores(areaFoco);
+  var indicadoresTexto = 'Indicador principal sugerido:\n"' + matriz.indicador + '"\n\nSub-indicadores para desglosarlo en tu seguimiento mensual o trimestral:\n' +
+    matriz.sub.map(function (s, i) { return '  ' + (i + 1) + '. ' + s; }).join('\n') +
+    '\n\nMeta sugerida para este ciclo: llegar a ' + metaTexto + '.';
+  if (entregables) {
+    indicadoresTexto += ' Conecta cada sub-indicador con tus entregables reales — mencionaste "' + entregables + '" — para que el avance de cada entregable alimente directamente el indicador, en vez de llevarse por separado.';
+  }
+  indicadoresTexto += ' Al definirlos con tu equipo, revisa que cada uno sea Claro, Relevante, Económico de medir, Adecuado a lo que realmente pasa y Monitoreable en la práctica — los criterios CREAM del CAD de la OCDE (' + CITAS_SEG.oecdDac + ').';
+
+  /* -- 3. Cronograma sugerido: hitos de línea base, implementación,
+   * evaluación intermedia y cierre, espaciados según el horizonte. -- */
+  var cronogramaTexto = _cronogramaSugerido(horizonte);
+  if (frecuencia && frecuencia !== 'Solo al cierre del proyecto') {
+    cronogramaTexto += '\n\nComo necesitas reportar de forma ' + frecuencia.toLowerCase() + ', sincroniza cada corte de este cronograma con esa fecha de reporte — así nunca llegas a reportar "a ciegas", sino con el semáforo ya actualizado.';
+  } else if (frecuencia === 'Solo al cierre del proyecto') {
+    cronogramaTexto += '\n\nAunque solo reportes formalmente al cierre, mantén internamente los cortes de evaluación intermedia — es lo único que te permite corregir a tiempo si algo no va como se planeó.';
+  }
+
+  /* -- 4. Recomendación metodológica según el reto principal que
+   * identificaste, citando el marco más pertinente a ese reto. -- */
+  var recomendacionTexto;
+  if (desafio === 'No tenemos indicadores claros') {
+    recomendacionTexto = 'Tu reto principal es de diseño de indicadores. Antes de medir nada, revisa cada indicador que definas contra los criterios CREAM (Claro, Relevante, Económico, Adecuado, Monitoreable): un indicador que no cumple alguno de los cinco casi siempre termina abandonado a la mitad del proyecto (' + CITAS_SEG.oecdDac + ').';
+  } else if (desafio === 'No sabemos si vamos bien o mal a la mitad del camino') {
+    recomendacionTexto = 'Tu reto principal es de seguimiento continuo, no de diseño inicial. Kusek y Rist recomiendan construir desde el inicio un sistema de "semáforo" — verde, amarillo, rojo — sobre cada indicador, revisado en cortes fijos (no solo al final), para poder corregir a tiempo en vez de descubrir el problema en el reporte de cierre (' + CITAS_SEG.rbm + '). Esa es exactamente la lógica del semáforo automático de Sintropía Track.';
+  } else if (desafio === 'Perdemos información entre reporte y reporte') {
+    recomendacionTexto = 'Tu reto principal es de sistematización de la información, no de indicadores en sí. Lleva una sola bitácora centralizada de sesiones y avances (no reportes sueltos en documentos distintos) para que cada corte de seguimiento parta de la misma fuente de información y nada se pierda entre un reporte y el siguiente (' + CITAS_SEG.rbm + ').';
+  } else if (desafio === 'Nos cuesta reportar avances a nuestro financiador o institución') {
+    recomendacionTexto = 'Tu reto principal es de alineación entre lo que mides y lo que te piden reportar. Organiza tus indicadores en una matriz de Marco Lógico (objetivo general, objetivos específicos, indicadores, medios de verificación) para que tu reporte responda punto por punto lo que tu financiador o institución solicita, sin tener que reconstruirlo cada vez desde cero (' + CITAS_SEG.margeLogico + ').';
+  } else if (desafio === 'No tenemos una línea base con la que comparar') {
+    recomendacionTexto = 'Establecer la línea base es, por diseño, el primer paso de cualquier sistema de seguimiento y evaluación basado en resultados — sin ella, ningún avance posterior se puede demostrar, solo describir (' + CITAS_SEG.rbm + '). Antes de avanzar con la implementación, dedica tiempo a medir la situación de partida de tu población objetivo con al menos tu indicador principal.';
+  } else {
+    recomendacionTexto = 'Con la información que compartiste, lo más útil es construir una Teoría del Cambio breve: qué actividades concretas producen qué resultados, y cómo esos resultados se conectan con el cambio de fondo que busca ' + nombreProyecto + '. Eso vuelve más fácil, después, decidir qué indicadores de verdad importan y cuáles solo agregan ruido (' + CITAS_SEG.toc + ').';
+  }
+  if (lineaBase === 'No, todavía no' && desafio !== 'No tenemos una línea base con la que comparar') {
+    recomendacionTexto += ' Además, como todavía no tienes una línea base, considera medirla antes de reportar tu primer avance — sin ese punto de partida, cualquier cifra posterior es difícil de interpretar.';
+  }
+
+  return {
+    objetivoGeneral: objetivoGeneralTexto,
+    indicadores: indicadoresTexto,
+    cronograma: cronogramaTexto,
+    recomendacion: recomendacionTexto
+  };
+}
+
+function progresoHtml() {
+  var html = '<div class="progreso">';
+  for (var i = 0; i < TOTAL_PASOS; i++) {
+    var cls = i < state.paso ? 'hecho' : (i === state.paso ? 'actual' : '');
+    html += '<div class="paso ' + cls + '"></div>';
+  }
+  return html + '</div>';
+}
+
+function render() {
+  if (state.paso === 0) return renderDatos();
+  if (state.paso === 1) return renderPreguntas();
+  return renderResultado();
+}
+
+/* ---- PASO 0: datos de la organización (antes del cuestionario) ---- */
+function renderDatos() {
+  var d = state.datos || {};
+  app.innerHTML =
+    progresoHtml() +
+    '<h1>Sintropía Track</h1>' +
+    '<p class="subtle">11 preguntas breves sobre tu proyecto — menos de 5 minutos. Primero necesitamos algunos datos de tu organización para poder enviarte el plan.</p>' +
+    '<div id="secMsg"></div>' +
+    '<form id="datosForm">' +
+      '<label>Nombre completo <span class="req">*</span></label><input type="text" id="dNombre" value="' + escapeHtml(d.nombre || '') + '">' +
+      '<label>Organización <span class="req">*</span></label><input type="text" id="dOrganizacion" value="' + escapeHtml(d.organizacion || '') + '">' +
+      '<label>Categoría <span class="req">*</span></label>' +
+      '<select id="dCategoria">' +
+        '<option value="">Selecciona una opción</option>' +
+        CATEGORIAS_CRM_OPCIONES.map(function (c) {
+          return '<option' + (d.categoria === c ? ' selected' : '') + '>' + escapeHtml(c) + '</option>';
+        }).join('') +
+      '</select>' +
+      '<label>Correo electrónico <span class="req">*</span></label><input type="email" id="dEmail" placeholder="nombre@tuorganizacion.com" value="' + escapeHtml(d.email || '') + '">' +
+      '<label>Teléfono (opcional)</label><input type="text" id="dTelefono" value="' + escapeHtml(d.telefono || '') + '">' +
+      '<label>Cargo (opcional)</label><input type="text" id="dCargo" value="' + escapeHtml(d.cargo || '') + '">' +
+      '<input type="text" id="dTrampa" class="campo-trampa" tabindex="-1" autocomplete="off">' +
+    '</form>' +
+    '<div class="fila-botones"><button class="primary" id="btnSiguiente">Continuar al cuestionario →</button></div>';
+
+  document.getElementById('btnSiguiente').onclick = function () {
+    var msgBox = document.getElementById('secMsg');
+    var nombre = document.getElementById('dNombre').value.trim();
+    var organizacion = document.getElementById('dOrganizacion').value.trim();
+    var categoria = document.getElementById('dCategoria').value;
+    var email = document.getElementById('dEmail').value.trim();
+    if (!nombre || !organizacion) { msgBox.innerHTML = '<div class="msg error">Escribe tu nombre y el de tu organización.</div>'; return; }
+    if (!categoria) { msgBox.innerHTML = '<div class="msg error">Selecciona una categoría.</div>'; return; }
+    if (!email || email.indexOf('@') === -1) { msgBox.innerHTML = '<div class="msg error">Escribe un correo electrónico válido.</div>'; return; }
+
+    state.datos = {
+      nombre: nombre, organizacion: organizacion, categoria: categoria, email: email,
+      telefono: document.getElementById('dTelefono').value.trim(),
+      cargo: document.getElementById('dCargo').value.trim(),
+      sitioWebTrampa: document.getElementById('dTrampa').value
+    };
+    state.paso = 1;
+    render();
+  };
+}
+
+/* ---- PASO 1: 11 preguntas mixtas sobre el proyecto ---- */
+function renderPreguntas() {
+  var preguntasHtml = PREGUNTAS_SEG.map(function (p, i) {
+    var bloque = '<div class="pregunta-seg" data-campo="' + p.campo + '">' +
+      '<div class="num">Pregunta ' + (i + 1) + ' de ' + PREGUNTAS_SEG.length + (p.opcional ? ' · opcional' : '') + '</div>' +
+      '<div class="pregunta-texto">' + escapeHtml(p.q) + '</div>' +
+      (p.hint ? '<div class="pregunta-hint">' + escapeHtml(p.hint) + '</div>' : '');
+    if (p.tipo === 'select') {
+      var opcionesHtml = p.opciones.map(function (op) {
+        var marcada = state.respuestas[p.campo] === op;
+        return '<button type="button" class="op-choice' + (marcada ? ' marcada' : '') + '" data-campo="' + p.campo + '" data-valor="' + escapeHtml(op) + '">' + escapeHtml(op) + '</button>';
+      }).join('');
+      bloque += '<div class="opciones-seg">' + opcionesHtml + '</div>';
+    } else {
+      bloque += '<textarea data-campo-texto="' + p.campo + '" placeholder="Escribe tu respuesta aquí...">' + escapeHtml(state.respuestas[p.campo] || '') + '</textarea>';
+    }
+    return bloque + '</div>';
+  }).join('');
+
+  app.innerHTML =
+    progresoHtml() +
+    '<h2>11 preguntas sobre tu proyecto</h2>' +
+    '<p class="subtle" style="margin-top:0">Entre más detalle nos des, más útil será el plan de seguimiento que te generemos.</p>' +
+    '<div id="secMsg"></div>' +
+    preguntasHtml +
+    '<div class="fila-botones">' +
+      '<button class="secondary" id="btnAtras">Atrás</button>' +
+      '<button class="primary" id="btnVerResultado">Ver mi plan de seguimiento →</button>' +
+    '</div>';
+
+  Array.prototype.forEach.call(app.querySelectorAll('.op-choice'), function (btn) {
+    btn.onclick = function () {
+      var campo = btn.getAttribute('data-campo');
+      var valor = btn.getAttribute('data-valor');
+      state.respuestas[campo] = valor;
+      var grupo = app.querySelector('.pregunta-seg[data-campo="' + campo + '"]');
+      Array.prototype.forEach.call(grupo.querySelectorAll('.op-choice'), function (b) { b.classList.remove('marcada'); });
+      btn.classList.add('marcada');
+    };
+  });
+  Array.prototype.forEach.call(app.querySelectorAll('textarea[data-campo-texto]'), function (ta) {
+    ta.oninput = function () { state.respuestas[ta.getAttribute('data-campo-texto')] = ta.value; };
+  });
+
+  document.getElementById('btnAtras').onclick = function () { state.paso = 0; render(); };
+  document.getElementById('btnVerResultado').onclick = function () {
+    var faltantes = PREGUNTAS_SEG.filter(function (p) { return !p.opcional && !String(state.respuestas[p.campo] || '').trim(); });
+    if (faltantes.length) {
+      document.getElementById('secMsg').innerHTML = '<div class="msg error">Responde las preguntas obligatorias antes de continuar (falta' + (faltantes.length > 1 ? 'n' : '') + ' ' + faltantes.length + ').</div>';
+      return;
+    }
+
+    // El plan se genera al instante con reglas fijas (seguimientoReglas,
+    // más abajo) — igual que el resto de la plataforma, no depende de que
+    // Gemini responda a tiempo.
+    state.plan = seguimientoReglas(state.datos || {}, state.respuestas);
+    state.paso = 2;
+    render();
+
+    // El registro del lead y el correo con el resultado se mandan de
+    // inmediato también, sin bloquear la pantalla — ver el comentario en
+    // _enviarResultadoMuestraCorreo.
+    var d = state.datos || {};
+    var resumenNotas = 'Sintropía Track — ' + PREGUNTAS_SEG.map(function (p) {
+      return p.q + ' ' + (state.respuestas[p.campo] || '(sin responder)');
+    }).join(' | ');
+    jsonp('capturarClienteDiagnostico', {
+      organizacion: d.organizacion,
+      categoria: d.categoria,
+      ejeInteres: 'Comunidad',
+      nombreContacto: d.nombre,
+      cargo: d.cargo,
+      correo: d.email,
+      telefono: d.telefono,
+      leadMagnet: 'Sintropía Track — Muestra de plan de seguimiento',
+      consentimiento: 'Sí',
+      notas: resumenNotas.slice(0, 1500),
+      respuestasCompletas: JSON.stringify(state.respuestas),
+      sitioWebTrampa: d.sitioWebTrampa
+    });
+    _enviarResultadoMuestraCorreo();
+  };
+}
+
+/* ---- PASO 2: resultado — plan de seguimiento preliminar ---- */
+function renderResultado() {
+  var d = state.datos || {};
+  var r = state.respuestas || {};
+  var planHtml;
+  if (state.plan) {
+    planHtml = SECCIONES_SEGUIMIENTO.map(function (s) {
+      return '<div class="plan-bloque">' +
+        '<div class="num-bloque">Bloque ' + s.numero + ' — ' + s.titulo + '</div>' +
+        '<p>' + escapeHtml(state.plan[s.clave] || '') + '</p>' +
+      '</div>';
+    }).join('');
+  } else {
+    planHtml = '<p class="subtle">No pudimos generar el plan automático en este momento — de cualquier forma, ya recibimos tus respuestas y alguien del equipo te escribirá con un plan hecho a mano.</p>';
+  }
+
+  var previewHtml =
+    '<div class="preview-track">' +
+      '<div class="etiqueta-preview">Así se vería este avance dentro de Sintropía Track (vista ilustrativa)</div>' +
+      '<div class="semaforo-fila">' +
+        '<div class="semaforo-card ok"><span class="luz"></span><span class="nombre-hito">Línea base</span><div class="estado-hito">Completado</div></div>' +
+        '<div class="semaforo-card yellow"><span class="luz"></span><span class="nombre-hito">Implementación</span><div class="estado-hito">En proceso</div></div>' +
+        '<div class="semaforo-card red"><span class="luz"></span><span class="nombre-hito">Evaluación final</span><div class="estado-hito">Pendiente</div></div>' +
+      '</div>' +
+      '<div class="preview-nota">En la plataforma completa, este semáforo se actualiza solo a partir de las fechas y el estatus reales de tus entregables, y se conecta con una gráfica de Gantt automática.</div>' +
+    '</div>';
+
+  app.innerHTML =
+    progresoHtml() +
+    '<h2>Tu plan de seguimiento preliminar</h2>' +
+    '<p class="subtle" style="margin-top:0">Para ' + escapeHtml(r.nombreProyecto || d.organizacion || 'tu proyecto') + ' — generado con ayuda de IA a partir de tus respuestas. Este es un borrador preliminar; el plan completo se afina contigo dentro de Sintropía Track.</p>' +
+    planHtml +
+    previewHtml +
+    '<div class="fila-botones">' +
+      '<button class="secondary" id="btnDescargarPdf">Descargar plan en PDF</button>' +
+    '</div>' +
+    '<div id="correoAviso"></div>' +
+    '<div class="cta">' +
+      '<h2>¿Quieres darle seguimiento real a este proyecto?</h2>' +
+      '<p>Este es un plan preliminar automático. Haz tu cita y te mostramos cómo Sintropía Track conecta tus entregables, tu bitácora y tu gráfica de Gantt con estos mismos indicadores.</p>' +
+      '<div class="fila-botones">' +
+        '<a class="boton-cta solido" href="https://calendly.com/sintropiassociales/30min" target="_blank" rel="noopener">Haz tu cita</a>' +
+        '<a class="boton-cta contorno" href="mailto:comunicacion@sintropiasocial.com">Escríbenos</a>' +
+      '</div>' +
+    '</div>';
+
+  document.getElementById('btnDescargarPdf').onclick = function () { descargarPlanPdf(); };
+  _enviarResultadoMuestraCorreo();
+}
+
+/* ---- Correo automático con el resultado (PDF adjunto + oferta con IA) ----
+ * A diferencia de otras muestras, aquí el "plan" YA es el contenido
+ * generado con reglas fijas (no hay una interpretación aparte) — se manda
+ * tal cual apenas se muestra, una sola vez. Se manda de cualquier forma
+ * aunque el plan automático haya fallado (con un resumen genérico en su
+ * lugar) — la persona de cualquier forma ya quedó registrada como lead y
+ * espera noticias por correo. */
+// Arma los parámetros para generarInterpretacionMuestra — el procesador en
+// segundo plano los usa para generar una sección adicional de
+// "Recomendaciones adicionales" con IA (ver rama 'Seguimiento' en
+// apiGenerarInterpretacionMuestra, WebApp.gs) que complementa — nunca
+// sustituye — el plan de seguimientoReglas().
+function _paramsInterpretacionIA() {
+  var d = state.datos || {}, r = state.respuestas || {};
+  var planTexto = state.plan ? SECCIONES_SEGUIMIENTO.map(function (s) {
+    return s.titulo + ': ' + (state.plan[s.clave] || '');
+  }).join(' ') : '';
+  return {
+    muestra: 'Seguimiento',
+    nombre: d.nombre,
+    email: d.email,
+    nombreProyecto: r.nombreProyecto,
+    tipoOrganizacion: r.tipoOrganizacion,
+    areaFoco: r.areaFoco,
+    poblacionObjetivo: r.poblacionObjetivo,
+    numBeneficiarios: r.numBeneficiarios,
+    horizonteTiempo: r.horizonteTiempo,
+    principalDesafio: r.principalDesafio,
+    tieneLineaBase: r.tieneLineaBase,
+    entregablesClave: r.entregablesClave,
+    frecuenciaReporte: r.frecuenciaReporte,
+    notas: r.notas,
+    planPrevio: planTexto,
+    sitioWebTrampa: d.sitioWebTrampa
+  };
+}
+
+/* ---- Correo automático con el resultado (PDF adjunto + oferta con IA) ----
+ * Se dispara de inmediato al ver el plan — ya no depende de ninguna
+ * respuesta de IA (seguimientoReglas es instantánea). Se manda
+ * paramsInterpretacionIA para que el procesador en segundo plano intente
+ * sumar, del lado del servidor, una sección de "Recomendaciones
+ * adicionales" con IA — si eso falla o tarda, el correo sale de todas
+ * formas con el plan completo de seguimientoReglas, nunca con un mensaje
+ * de disculpa vacío. */
+function _enviarResultadoMuestraCorreo() {
+  if (state.correoResultadoEnviado) return;
+  state.correoResultadoEnviado = true;
+  var d = state.datos || {};
+  var secciones, resumenTexto;
+  if (state.plan) {
+    secciones = SECCIONES_SEGUIMIENTO.map(function (s) {
+      return { titulo: s.titulo, parrafos: [state.plan[s.clave] || ''] };
+    });
+    resumenTexto = SECCIONES_SEGUIMIENTO.map(function (s) {
+      return s.titulo + ': ' + (state.plan[s.clave] || '');
+    }).join(' ');
+  } else {
+    secciones = [{ titulo: 'Tu plan preliminar', parrafos: ['No pudimos generar automáticamente el plan esta vez — el equipo de Sintropía Social lo preparará a mano y te lo compartirá pronto.'] }];
+    resumenTexto = 'El plan automático de seguimiento no se pudo generar; el equipo lo preparará a mano.';
+  }
+  jsonpPost('enviarResultadoMuestra', {
+    tipoMuestra: 'Seguimiento',
+    nombre: d.nombre,
+    correo: d.email,
+    organizacion: d.organizacion,
+    tituloResultado: 'Tu plan de seguimiento (indicadores, metas y cronograma)',
+    resumenTexto: resumenTexto,
+    secciones: JSON.stringify(secciones),
+    paramsInterpretacionIA: JSON.stringify(_paramsInterpretacionIA()),
+    sitioWebTrampa: d.sitioWebTrampa
+  }).then(function (resp) {
+    var aviso = document.getElementById('correoAviso');
+    if (!aviso) return;
+    if (resp && resp.ok) {
+      aviso.innerHTML = '<div style="background:var(--bg);border:1px solid rgba(99,30,235,.18);border-radius:9px;padding:10px 13px;font-size:13.5px;color:var(--text);margin:12px 0;">Te enviamos este plan a <b>' + escapeHtml(d.email) + '</b>.</div>';
+    } else {
+      aviso.innerHTML = '<div class="msg error">No pudimos enviarte el correo con tu plan' +
+        (resp && resp.error ? (': ' + escapeHtml(resp.error)) : ' — intenta de nuevo más tarde') +
+        '. Mientras tanto puedes descargarlo en PDF aquí arriba.</div>';
+    }
+  });
+}
+
+/* ---- Descargable en PDF ---- */
+function descargarPlanPdf() {
+  if (!window.jspdf || !window.jspdf.jsPDF) {
+    alert('No se pudo cargar el generador de PDF. Revisa tu conexión e intenta de nuevo.');
+    return;
+  }
+  var d = state.datos || {};
+  var r = state.respuestas || {};
+  var doc = new window.jspdf.jsPDF({ unit: 'pt', format: 'letter' });
+  var purple = [99, 30, 235];
+  var margenIzq = 44, anchoTexto = 524, y;
+
+  doc.setFillColor(purple[0], purple[1], purple[2]);
+  doc.rect(0, 0, 612, 64, 'F');
+  doc.setTextColor(255, 255, 255);
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(15);
+  doc.text('Sintropía Social — Sintropía Track', margenIzq, 40);
+
+  y = 94;
+  doc.setTextColor(30, 30, 30);
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(13);
+  doc.text('Plan de seguimiento preliminar — ' + (r.nombreProyecto || d.organizacion || ''), margenIzq, y);
+  y += 24;
+
+  doc.setDrawColor(230, 226, 245); doc.setLineWidth(1);
+  doc.line(margenIzq, y, margenIzq + anchoTexto, y);
+  y += 18;
+
+  var alturaLinea = 12.5, alturaPagina = 730;
+  if (state.plan) {
+    SECCIONES_SEGUIMIENTO.forEach(function (s) {
+      if (y > alturaPagina - 30) { doc.addPage(); y = 50; }
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(10.5);
+      doc.setTextColor(purple[0], purple[1], purple[2]);
+      doc.text(s.titulo.toUpperCase(), margenIzq, y);
+      y += 15;
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(9.5);
+      doc.setTextColor(50, 50, 50);
+      var lineas = doc.splitTextToSize(state.plan[s.clave] || '', anchoTexto);
+      for (var i = 0; i < lineas.length; i++) {
+        if (y > alturaPagina) { doc.addPage(); y = 50; }
+        doc.text(lineas[i], margenIzq, y);
+        y += alturaLinea;
+      }
+      y += 8;
+    });
+  } else {
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(9.5);
+    doc.setTextColor(50, 50, 50);
+    doc.text('No se generó un plan automático. El equipo de Sintropía Social te contactará con un plan hecho a mano.', margenIzq, y, { maxWidth: anchoTexto });
+    y += 20;
+  }
+
+  if (y > alturaPagina - 40) { doc.addPage(); y = 50; }
+  y += 10;
+  doc.setDrawColor(230, 226, 245); doc.line(margenIzq, y, margenIzq + anchoTexto, y);
+  y += 18;
+  // Enlace de verdad (clickeable dentro del PDF) en vez de la URL como texto
+  // plano — un PDF no vuelve clickeable una URL solo por escribirla.
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(9.5);
+  doc.setTextColor(107, 107, 120);
+  doc.text('¿Quieres darle seguimiento real a este proyecto?', margenIzq, y, { maxWidth: anchoTexto });
+  y += 14;
+  doc.setTextColor(99, 30, 235);
+  var etiquetaCitaSeg = 'Haz tu cita aquí';
+  doc.textWithLink(etiquetaCitaSeg, margenIzq, y, { url: 'https://calendly.com/sintropiassociales/30min' });
+  var anchoCitaSeg = doc.getTextWidth(etiquetaCitaSeg);
+  doc.setDrawColor(99, 30, 235); doc.setLineWidth(0.4);
+  doc.line(margenIzq, y + 1.5, margenIzq + anchoCitaSeg, y + 1.5);
+  doc.setTextColor(107, 107, 120);
+  doc.text(' o escríbenos a comunicacion@sintropiasocial.com.', margenIzq + anchoCitaSeg, y);
+
+  doc.save('plan-seguimiento-sintropia-track.pdf');
+}
+
+render();
+</script>
+</body>
+</html>
