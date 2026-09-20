@@ -1,0 +1,919 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<meta name="description" content="Buscador de citas en PDF — muestra gratuita de Sintropía Social: sube un PDF, encuentra citas textuales con su página exacta y proponlas al Repositorio Bibliográfico."/>
+<title>Muestra: Buscador de citas en PDF — Sintropía Social</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Open+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300;1,400&family=Open+Sauce+One:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<style>
+:root{
+  --p:#631EEB;--pd:#4a13b8;--pl:#8b5cf6;
+  --a:#FF7929;--al:#f08a4a;--ad:#c45e1e;
+  --bg:#faf9f7;--bg2:#f0efe9;--bgc:#ffffff;
+  --tx:#2c2c2c;--txl:#666666;--brd:#e0ddd5;
+  --font-body:      'Open Sans', sans-serif;
+  --font-display:   'Open Sauce One', 'Open Sans', sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html{scroll-behavior:smooth;}
+body{font-family: var(--font-body);background:var(--bg);color:var(--tx);}
+
+/* Encabezado y pie — mismo patrón que el resto de las muestras públicas
+   (sin navegación ni login interno: esta página no depende de sesión). */
+header.top{
+  background:var(--p);color:#fff;padding:26px 18px 44px;text-align:center;
+  border-radius:0 0 22px 22px;
+}
+header.top .marca{font-size:20px;font-weight:800;letter-spacing:.3px;font-family:var(--font-display);}
+header.top .marca span{color:var(--a);}
+footer.pie{text-align:center;font-size:12px;color:var(--txl);padding:30px 16px 34px;}
+footer.pie .wordmark{font-size:14px;font-weight:700;margin-bottom:6px;font-family:var(--font-display);}
+footer.pie a{color:var(--p);text-decoration:none;}
+
+/* HERO */
+.tool-hero{
+  background:linear-gradient(135deg,var(--bg) 0%,var(--bg2) 100%);
+  border-bottom:1px solid var(--brd);
+  padding:2.5rem 2rem 2rem;
+}
+.tool-hero-inner{max-width:800px;margin:0 auto;}
+.eyebrow{font-size:.72rem;text-transform:uppercase;letter-spacing:.1em;color:var(--a);font-weight:600;margin-bottom:.4rem;}
+.tool-hero h1{font-family: var(--font-display);font-size:1.9rem;color:var(--tx);margin-bottom:.35rem;}
+.tool-hero p{font-size:.875rem;color:var(--txl);max-width:540px;}
+
+/* Paso 0 — datos de contacto (mismo patrón que el resto de las muestras) */
+.contacto-card{max-width:560px;margin:2rem auto;background:var(--bgc);border:1.5px solid var(--brd);border-radius:16px;padding:1.75rem 1.5rem;}
+.progreso-contacto{display:flex;gap:6px;margin:0 0 22px;}
+.progreso-contacto .paso{flex:1;height:6px;border-radius:4px;background:var(--brd);}
+.progreso-contacto .paso.hecho{background:var(--a);}
+.progreso-contacto .paso.actual{background:var(--p);}
+.campo-contacto{margin-bottom:.9rem;}
+.campo-contacto label{display:block;font-size:.78rem;font-weight:600;color:var(--txl);margin-bottom:4px;}
+.campo-contacto input,.campo-contacto select{width:100%;padding:10px 12px;border:1.5px solid var(--brd);border-radius:9px;font-family:var(--font-body);font-size:.9rem;color:var(--tx);background:#fff;outline:none;}
+.campo-contacto input:focus,.campo-contacto select:focus{border-color:var(--p);}
+.msg-contacto{padding:10px 13px;border-radius:9px;font-size:.83rem;margin:0 0 .9rem;background:rgba(220,38,38,.08);color:#b91c1c;}
+.campo-trampa{position:absolute;left:-9999px;top:-9999px;opacity:0;height:0;overflow:hidden;}
+
+/* BODY */
+.pdf-body{max-width:800px;margin:0 auto;padding:2rem 2rem 4rem;}
+
+/* Drop zone */
+.drop-zone{
+  border:2px dashed var(--brd);border-radius:14px;
+  padding:3rem 2rem;text-align:center;cursor:pointer;
+  background:var(--bgc);transition:all .2s;
+  position:relative;margin-bottom:2rem;
+}
+.drop-zone:hover,.drop-zone.drag{border-color:var(--a);background:rgba(232,115,44,.025);}
+.drop-zone input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%;}
+.drop-icon{font-size:2.5rem;margin-bottom:.75rem;}
+.drop-zone h3{font-size:1rem;font-weight:600;color:var(--tx);margin-bottom:.3rem;}
+.drop-zone p{font-size:.8rem;color:var(--txl);}
+.drop-accepted{
+  display:none;margin-top:.875rem;padding:8px 14px;
+  background:rgba(123,104,238,.1);border-radius:7px;
+  font-size:.75rem;color:var(--p);
+}
+.drop-accepted.on{display:block;}
+
+/* Info bar */
+.info-bar{
+  display:none;background:var(--bgc);border:1px solid var(--brd);
+  border-radius:10px;padding:.875rem 1.25rem;
+  align-items:center;justify-content:space-between;
+  flex-wrap:wrap;gap:.5rem;margin-bottom:1.5rem;
+}
+.info-bar.on{display:flex;}
+.info-bar span{font-size:.8rem;color:var(--txl);}
+.info-bar strong{color:var(--a);}
+
+/* Search */
+.search-area{display:none;margin-bottom:1.5rem;}
+.search-area.on{display:block;}
+.search-row{display:flex;gap:.875rem;margin-bottom:.875rem;}
+.search-input{
+  flex:1;padding:13px 16px;border:1px solid var(--brd);
+  border-radius:10px;font-size:.95rem;font-family: var(--font-body);
+  color:var(--tx);background:var(--bgc);transition:all .2s;
+}
+.search-input:focus{outline:none;border-color:var(--a);box-shadow:0 0 0 3px rgba(232,115,44,.1);}
+.search-input::placeholder{color:#aaa;}
+.search-btn{
+  padding:13px 22px;border-radius:10px;background:var(--a);color:#fff;
+  border:none;font-size:.875rem;font-weight:500;cursor:pointer;
+  font-family: var(--font-body);white-space:nowrap;transition:all .2s;
+}
+.search-btn:hover{background:var(--ad);}
+.search-opts{display:flex;gap:1.25rem;flex-wrap:wrap;}
+.cb{display:flex;align-items:center;gap:6px;font-size:.79rem;color:var(--txl);cursor:pointer;}
+.cb input{accent-color:var(--a);}
+
+/* Spinner */
+.spinner-wrap{display:none;text-align:center;padding:2.5rem 1rem;}
+.spinner-wrap.on{display:block;}
+.spinner{
+  width:36px;height:36px;border-radius:50%;
+  border:3px solid var(--brd);border-top-color:var(--p);
+  animation:spin .7s linear infinite;margin:0 auto .875rem;
+}
+@keyframes spin{to{transform:rotate(360deg)}}
+.spinner-wrap p{font-size:.83rem;color:var(--txl);}
+
+/* Results header */
+.results-hd{
+  display:flex;align-items:center;justify-content:space-between;
+  margin-bottom:1rem;padding:.875rem 1.25rem;
+  background:var(--bgc);border:1px solid var(--brd);border-radius:10px;
+}
+.results-hd .cnt{font-size:.88rem;font-weight:500;color:var(--tx);}
+.results-hd .cnt strong{color:var(--a);}
+
+/* Metadatos del documento — este panel existía en el HTML/JS pero nunca
+   tuvo CSS propio (bug heredado): se veía como campos sin estilo, siempre
+   visibles desde el primer render en vez de aparecer solo al cargar un PDF. */
+.book-meta-panel{display:none;background:var(--bgc);border:1.5px solid rgba(99,30,235,.18);border-radius:14px;padding:1.25rem 1.5rem;margin-bottom:1.5rem;}
+.book-meta-panel.show{display:block;}
+.book-meta-panel h4{font-family:var(--font-display);font-size:.95rem;color:var(--p);margin-bottom:.3rem;display:flex;align-items:center;gap:.6rem;flex-wrap:wrap;}
+.book-meta-panel h4 span{font-size:.7rem;font-weight:500;color:var(--txl);}
+.bm-grid{display:grid;grid-template-columns:1fr 1fr;gap:.75rem;margin-bottom:.75rem;}
+.bm-grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:.75rem;margin-bottom:.75rem;}
+.bm-field label{display:block;font-size:.69rem;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:.03em;margin-bottom:4px;}
+.bm-field input,.bm-field select{width:100%;padding:8px 10px;border:1.5px solid var(--brd);border-radius:8px;font-family:var(--font-body);font-size:.85rem;color:var(--tx);outline:none;transition:border-color .18s;}
+.bm-field input:focus,.bm-field select:focus{border-color:var(--p);}
+.bm-apply{background:var(--p);color:#fff;border:none;padding:9px 18px;border-radius:8px;font-size:.83rem;font-weight:600;cursor:pointer;font-family:var(--font-body);}
+.bm-apply:hover{background:var(--pd);}
+.bm-note{font-size:.73rem;color:var(--txl);margin-top:.6rem;}
+@media(max-width:640px){.bm-grid,.bm-grid-3{grid-template-columns:1fr;}}
+
+/* Citation cards */
+.cit{
+  background:var(--bgc);border:1px solid var(--brd);
+  border-radius:12px;margin-bottom:.875rem;overflow:hidden;
+  transition:border-color .18s;
+  animation:fadeUp .3s ease forwards;
+}
+@keyframes fadeUp{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+.cit:hover{border-color:var(--a);}
+.cit-meta{
+  padding:9px 14px;background:var(--bg2);
+  display:flex;align-items:center;gap:.75rem;border-bottom:1px solid var(--brd);
+}
+.pg-badge{
+  background:var(--p);color:#fff;
+  padding:3px 10px;border-radius:12px;font-size:.7rem;font-weight:600;
+  flex-shrink:0;
+}
+.para-info{font-size:.73rem;color:var(--txl);}
+.copy-btn{
+  margin-left:auto;padding:5px 12px;border-radius:7px;
+  background:none;border:1px solid rgba(232,115,44,.3);
+  color:var(--a);font-size:.7rem;cursor:pointer;
+  font-family: var(--font-body);font-weight:500;transition:all .18s;flex-shrink:0;
+}
+.copy-btn:hover{background:rgba(232,115,44,.1);}
+.cit-text{
+  padding:14px 16px;font-size:.86rem;line-height:1.8;
+  color:var(--tx);font-style:italic;
+}
+.cit-text mark{
+  background:rgba(232,115,44,.18);color:var(--a);
+  border-radius:3px;font-style:normal;padding:0 2px;
+}
+
+/* Empty search result */
+.no-results{text-align:center;padding:3rem 1rem;}
+.no-results .ni{font-size:2.5rem;opacity:.25;margin-bottom:.875rem;}
+.no-results p{font-size:.85rem;color:var(--txl);}
+.no-results p strong{color:var(--tx);}
+
+/* Button */
+.ab{
+  display:flex;align-items:center;gap:5px;
+  padding:8px 14px;border-radius:8px;
+  font-size:.79rem;font-weight:500;cursor:pointer;
+  border:none;font-family: var(--font-body);transition:all .2s;
+}
+.ab-out{background:none;border:1px solid var(--brd);color:var(--txl);}
+.ab-out:hover{border-color:var(--p);color:var(--p);}
+.ab-d{background:rgba(220,38,38,.08);color:#dc2626;border:1px solid rgba(220,38,38,.2);}
+.ab-d:hover{background:rgba(220,38,38,.15);}
+
+/* Toast */
+.toast{
+  position:fixed;bottom:1.5rem;right:1.5rem;z-index:9999;
+  background:var(--bgc);border:1px solid var(--brd);border-radius:10px;
+  padding:10px 18px;font-size:.82rem;color:var(--tx);
+  box-shadow:0 4px 20px rgba(0,0,0,.1);
+  transform:translateY(80px);opacity:0;transition:all .3s;pointer-events:none;
+}
+.toast.on{transform:translateY(0);opacity:1;}
+.toast.ok{border-left:3px solid var(--p);}
+.toast.err{border-left:3px solid #dc2626;}
+
+/* Footer */
+footer{background:var(--bg2);border-top:1px solid var(--brd);padding:1.5rem 2rem;text-align:center;font-size:.8rem;color:var(--txl);}
+footer a{color:var(--a);text-decoration:none;}
+footer strong{color:var(--tx);}
+
+@media(max-width:768px){
+  .pdf-body{padding:1.5rem 1rem 3rem;}
+  .search-row{flex-direction:column;}
+}
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="marca">Sintropía <span>Social</span></div>
+</header>
+
+<!-- HERO -->
+<div class="tool-hero">
+  <div class="tool-hero-inner">
+    <p class="eyebrow">Análisis textual</p>
+    <h1>Buscador de citas en PDF</h1>
+    <p>Carga cualquier libro, reporte o tesis en PDF. Busca una palabra clave y el sistema extrae cada párrafo relevante con su número de página exacto, listo para citar.</p>
+  </div>
+</div>
+
+<!-- PASO 0: datos de contacto — mismo patrón que el resto de las muestras -->
+<div class="contacto-card" id="contactStep">
+  <div class="progreso-contacto">
+    <div class="paso hecho"></div><div class="paso actual"></div>
+  </div>
+  <h3 style="font-family:var(--font-display);font-size:1.15rem;margin-bottom:.4rem;">Antes de empezar</h3>
+  <p style="font-size:.85rem;color:var(--txl);margin-bottom:1.1rem;">Cuéntanos quién eres — lo usamos para avisarte si tu cita se publica en el Repositorio Bibliográfico y para mantenerte al tanto de otras herramientas de Sintropía Social.</p>
+  <div id="contactMsg"></div>
+  <form id="contactForm" onsubmit="return false;">
+    <div class="campo-contacto"><label>Nombre completo *</label><input type="text" id="cNombre" required></div>
+    <div class="campo-contacto"><label>Organización *</label><input type="text" id="cOrganizacion" required></div>
+    <div class="campo-contacto"><label>Categoría *</label>
+      <select id="cCategoria" required>
+        <option value="">Selecciona…</option>
+        <option>Gobierno y Sector Público</option><option>ONG y Fundaciones</option><option>Educación</option>
+        <option>Salud y Bienestar</option><option>Universidad</option><option>Cámara empresarial</option>
+        <option>Empresa privada</option><option>Retail y Consumo</option><option>Fintech y Servicios</option>
+        <option>Tecnología y Telecom</option><option>Turismo y Hospitalidad</option><option>Organismo internacional</option>
+        <option>Otro</option>
+      </select>
+    </div>
+    <div class="campo-contacto"><label>Correo electrónico *</label><input type="email" id="cEmail" required></div>
+    <div class="campo-contacto"><label>Teléfono</label><input type="tel" id="cTelefono"></div>
+    <div class="campo-contacto"><label>Cargo</label><input type="text" id="cCargo"></div>
+    <input type="text" id="cTrampa" class="campo-trampa" tabindex="-1" autocomplete="off">
+    <div style="margin-top:.5rem;"><button type="button" class="search-btn" id="btnContinuarContacto" style="width:100%;">Continuar al buscador →</button></div>
+  </form>
+</div>
+
+<!-- BODY -->
+<div class="pdf-body" id="pdfToolWrap" style="display:none">
+
+  <!-- Drop zone -->
+  <div class="drop-zone" id="dropZone">
+    <input type="file" id="pdfFile" accept=".pdf" onchange="handlePDF(this)"/>
+    <div class="drop-icon">📄</div>
+    <h3>Arrastra o selecciona un PDF</h3>
+    <p>Libros, reportes, tesis, documentos de investigación · Cualquier tamaño</p>
+    <div class="drop-accepted" id="dropAccepted">✓ <span id="pdfFName"></span></div>
+  </div>
+
+  <!-- Info bar -->
+  <div class="info-bar" id="infoBar">
+    <span>Documento: <strong id="docName">—</strong></span>
+    <span>Páginas: <strong id="pageCount">—</strong></span>
+    <span>Estado: <strong id="docStatus" style="color:var(--a)">Procesando…</strong></span>
+    <button class="ab ab-d" style="padding:5px 12px;font-size:.74rem;" onclick="clearPDF()"> Cambiar PDF</button>
+  </div>
+
+  <!-- Spinner -->
+  <div class="spinner-wrap" id="spinner">
+    <div class="spinner"></div>
+    <p>Extrayendo texto del PDF… puede tardar unos segundos en documentos extensos.</p>
+  </div>
+
+  <!-- Search -->
+  <div class="search-area" id="searchArea">
+    <div class="search-row">
+      <input type="text" class="search-input" id="query"
+        placeholder="Escribe la palabra o frase a buscar… (ej: trabajo, cultura, identidad)"
+        onkeydown="if(event.key==='Enter')doSearch()"/>
+      <button class="search-btn" onclick="doSearch()"> Buscar</button>
+    </div>
+    <div class="search-opts">
+      <label class="cb"><input type="checkbox" id="cbCase"/> Distinguir mayúsculas</label>
+      <label class="cb"><input type="checkbox" id="cbWhole"/> Solo palabra completa</label>
+      <label class="cb"><input type="checkbox" id="cbCtx" checked/> Incluir contexto del párrafo</label>
+    </div>
+  </div>
+
+  <!-- Results -->
+  
+      <!-- BOOK METADATA PANEL -->
+      <div class="book-meta-panel" id="bookMetaPanel">
+        <h4>📖 Metadatos del documento <span>Aplica a todas las citas</span></h4>
+        <p style="font-size:.81rem;color:#666;margin-bottom:.85rem;line-height:1.55;">
+          Completa los datos del libro/artículo una sola vez. Se aplicarán automáticamente a todas las citas que extraigas de este PDF.
+        </p>
+        <div class="bm-grid">
+          <div class="bm-field" style="grid-column:span 2">
+            <label>Título de la publicación *</label>
+            <input id="bm-titulo" placeholder="Ej: La interpretación de las culturas" oninput="updateBookAPA()"/>
+          </div>
+        </div>
+        <div class="bm-grid">
+          <div class="bm-field">
+            <label>Autor(es) *</label>
+            <input id="bm-autor" placeholder="Apellido, N. (APA 7ª ed.)" oninput="updateBookAPA()"/>
+          </div>
+          <div class="bm-field">
+            <label>Año de publicación *</label>
+            <input id="bm-year" placeholder="2023" type="number" min="1800" max="2099" oninput="updateBookAPA()"/>
+          </div>
+        </div>
+        <div class="bm-grid-3">
+          <div class="bm-field">
+            <label>Editorial</label>
+            <input id="bm-editorial" placeholder="Ej: Gedisa" oninput="updateBookAPA()"/>
+          </div>
+          <div class="bm-field">
+            <label>Ciudad / País</label>
+            <input id="bm-ciudad" placeholder="Ej: Barcelona" oninput="updateBookAPA()"/>
+          </div>
+          <div class="bm-field">
+            <label>Edición</label>
+            <input id="bm-edicion" placeholder="Ej: 3ª ed." oninput="updateBookAPA()"/>
+          </div>
+        </div>
+        <div class="bm-grid">
+          <div class="bm-field">
+            <label>Categoría del repositorio</label>
+            <select id="bm-cat">
+              <option value="">Seleccionar...</option>
+              <option>Sociología</option><option>Antropología</option><option>Psicología</option>
+              <option>Educación</option><option>Virtualidad</option><option>Administración</option>
+              <option>Mercados Laborales</option><option>Historia</option><option>Filosofía</option>
+              <option>Investigación Social</option><option>Lingüística</option><option>Metodología</option>
+              <option>Intervención Comunitaria</option><option>Emprendimiento</option>
+              <option>Flexibilidad laboral</option><option>Evaluación de Impacto</option>
+              <option>Empleabilidad</option><option>Covid</option><option>Otra</option>
+            </select>
+          </div>
+          <div class="bm-field">
+            <label>Indicador</label>
+            <input id="bm-ind" placeholder="Ej: Cultura, Empleo, Educación..."/>
+          </div>
+        </div>
+        <div class="bm-grid">
+          <div class="bm-field">
+            <label>Población estudiada</label>
+            <input id="bm-pop" placeholder="Ej: jóvenes, organizaciones..."/>
+          </div>
+          <div class="bm-field">
+            <label>Link / DOI (opcional)</label>
+            <input id="bm-link" placeholder="https://..."/>
+          </div>
+        </div>
+        <div class="bm-field" style="margin-bottom:.5rem;">
+          <label>Vista previa APA 7ª edición</label>
+          <input id="bm-apa-preview" readonly style="background:#f0ebff;font-style:italic;color:#631EEB;" placeholder="Se genera al completar autor, año y título..."/>
+        </div>
+        <button class="bm-apply" onclick="aplicarMetadatos()"> Aplicar a todas las citas de este PDF</button>
+        <p class="bm-note">Estos datos se pre-llenan automáticamente en cada cita. Podrás editarlos individualmente si alguna cita es de otra fuente.</p>
+      </div>
+
+      <div id="results"></div>
+
+</div>
+
+<div class="toast" id="toast"></div>
+
+<footer class="pie">
+  <div class="wordmark"><span style="color:var(--p)">Sintropía</span> <span style="color:var(--a)">Social</span></div>
+  <a href="https://sintropiassociales-del.github.io/">Sintropía Social</a> · Repositorio Bibliográfico de Ciencias Sociales ·
+  <a href="mailto:contacto@sintropiasocial.com">contacto@sintropiasocial.com</a>
+</footer>
+
+<script>
+pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+// ── BACKEND (mismo patrón que el resto de las muestras) ──
+var WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbxZbLiOP7QXvrgUIDhhVciVGY-Yval3YBvqBHOpQfK8El2wHXNNBtZvsnkbwMaJUss/exec';
+
+function escapeHtml(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+  });
+}
+
+function jsonp(action, params) {
+  return new Promise(function (resolve) {
+    var cbName = 'cb_' + Date.now() + '_' + Math.floor(Math.random() * 100000);
+    var url = WEB_APP_URL + '?action=' + encodeURIComponent(action) + '&callback=' + cbName;
+    params = params || {};
+    for (var k in params) {
+      if (params[k] !== undefined && params[k] !== null) url += '&' + encodeURIComponent(k) + '=' + encodeURIComponent(params[k]);
+    }
+    var script = document.createElement('script');
+    var cleaned = false;
+    function cleanup() { if (cleaned) return; cleaned = true; delete window[cbName]; if (script.parentNode) script.parentNode.removeChild(script); }
+    window[cbName] = function (data) { cleanup(); resolve(data); };
+    script.onerror = function () { cleanup(); resolve({ ok: false, error: 'No se pudo conectar. Revisa tu conexión a internet e intenta de nuevo.' }); };
+    setTimeout(function () { if (!cleaned) { cleanup(); resolve({ ok: false, error: 'La plataforma tardó demasiado en responder. Intenta de nuevo.' }); } }, 40000);
+    script.src = url;
+    document.body.appendChild(script);
+  });
+}
+
+// ── PASO 0: datos de contacto (antes de mostrar el buscador) ──
+var contactData = null;
+
+document.getElementById('btnContinuarContacto').onclick = function () {
+  var msgBox = document.getElementById('contactMsg');
+  var nombre = document.getElementById('cNombre').value.trim();
+  var organizacion = document.getElementById('cOrganizacion').value.trim();
+  var categoria = document.getElementById('cCategoria').value;
+  var email = document.getElementById('cEmail').value.trim();
+  if (!nombre || !organizacion) { msgBox.innerHTML = '<div class="msg-contacto">Escribe tu nombre y el de tu organización.</div>'; return; }
+  if (!categoria) { msgBox.innerHTML = '<div class="msg-contacto">Selecciona una categoría.</div>'; return; }
+  if (!email || email.indexOf('@') === -1) { msgBox.innerHTML = '<div class="msg-contacto">Escribe un correo electrónico válido.</div>'; return; }
+
+  contactData = {
+    nombre: nombre, organizacion: organizacion, categoria: categoria, email: email,
+    telefono: document.getElementById('cTelefono').value.trim(),
+    cargo: document.getElementById('cCargo').value.trim(),
+    sitioWebTrampa: document.getElementById('cTrampa').value
+  };
+  document.getElementById('contactStep').style.display = 'none';
+  document.getElementById('pdfToolWrap').style.display = '';
+
+  jsonp('capturarClienteDiagnostico', {
+    organizacion: contactData.organizacion,
+    categoria: contactData.categoria,
+    ejeInteres: 'Investigación Social',
+    nombreContacto: contactData.nombre,
+    cargo: contactData.cargo,
+    correo: contactData.email,
+    telefono: contactData.telefono,
+    leadMagnet: 'Buscador de citas en PDF — Repositorio Bibliográfico',
+    consentimiento: 'Sí',
+    notas: 'Buscador de citas en PDF.',
+    sitioWebTrampa: contactData.sitioWebTrampa
+  });
+};
+
+// ── RECONOCIMIENTO AUTOMÁTICO DE DATOS BIBLIOGRÁFICOS ──
+// Al cargar el PDF, se intenta leer el título/autor desde los metadatos
+// propios del archivo (pdf.js → getMetadata) y, si el documento no los
+// trae, se busca un año de publicación en el propio texto de la portada.
+// Esto pre-llena el panel de "Metadatos del documento" para no depender
+// de que la persona escriba todo a mano.
+async function extraerMetadatosAutomaticos(pdf, textoPrimerasPaginas){
+  try{
+    var md = await pdf.getMetadata();
+    var info = (md && md.info) || {};
+    var tituloAuto = String(info.Title||'').trim();
+    var autorAuto = String(info.Author||'').trim();
+    // Deliberadamente NO se usa CreationDate/ModDate como año de publicación:
+    // esa fecha es cuando se generó el ARCHIVO PDF (a veces hoy mismo, si es
+    // un escaneo reciente de un libro de los años 80), no cuando se publicó
+    // la obra — usarla habría llenado el año con un dato falso pero con
+    // apariencia de automático. El año se detecta solo por cita (más abajo),
+    // a partir del propio patrón "(Autor, Año)" que aparece en el texto.
+    var detectados = [];
+    if(tituloAuto){ var t=document.getElementById('bm-titulo'); if(t && !t.value){ t.value=tituloAuto; detectados.push('título'); } }
+    if(autorAuto){ var a=document.getElementById('bm-autor'); if(a && !a.value){ a.value=autorAuto; detectados.push('autor'); } }
+    if(detectados.length){
+      updateBookAPA();
+      aplicarMetadatos();
+      showToast('Detectamos ' + detectados.join(' y ') + ' del documento — revísalos antes de continuar.');
+    }
+  }catch(e){ /* el PDF no trae metadatos legibles: se completan a mano en el panel */ }
+}
+
+// Reconocimiento automático de autor y año dentro del propio texto de cada
+// cita (patrones típicos de cita en ciencias sociales: "Apellido (2019)" o
+// "(Apellido, 2019)"). Sirve como respaldo cuando la cita proviene de una
+// fuente distinta a la del documento principal (ej. una cita dentro de otra).
+function _autoDetectCitaMeta(texto){
+  if(!texto) return null;
+  var t = String(texto);
+  var m = t.match(/\(([A-ZÁÉÍÓÚÑ][a-zA-Zà-öø-ÿÁÉÍÓÚÑñ'’.-]+(?:\s+(?:&|y|,)\s+[A-ZÁÉÍÓÚÑ][a-zA-Zà-öø-ÿÁÉÍÓÚÑñ'’.-]+)?),?\s*((?:19|20)\d{2})\)/);
+  if(m) return { autor: m[1].trim(), year: m[2] };
+  m = t.match(/([A-ZÁÉÍÓÚÑ][a-zA-Zà-öø-ÿÁÉÍÓÚÑñ'’.-]+(?:\s+(?:&|y)\s+[A-ZÁÉÍÓÚÑ][a-zA-Zà-öø-ÿÁÉÍÓÚÑñ'’.-]+)?)\s*\(((?:19|20)\d{2})\)/);
+  if(m) return { autor: m[1].trim(), year: m[2] };
+  return null;
+}
+
+let pdfText=[];
+
+// ── LOAD PDF ──
+async function handlePDF(input){
+  const file=input.files[0];if(!file)return;
+  document.getElementById('pdfFName').textContent=file.name;
+  document.getElementById('dropAccepted').classList.add('on');
+  document.getElementById('bookMetaPanel').classList.add('show');
+  document.getElementById('docName').textContent=file.name;
+  document.getElementById('docStatus').textContent='Procesando…';
+  document.getElementById('docStatus').style.color='var(--a)';
+  document.getElementById('infoBar').classList.add('on');
+  document.getElementById('spinner').classList.add('on');
+  document.getElementById('searchArea').classList.remove('on');
+  document.getElementById('results').innerHTML='';
+  document.getElementById('dropZone').style.display='none';
+
+  try{
+    const buf=await file.arrayBuffer();
+    const pdf=await pdfjsLib.getDocument({data:buf}).promise;
+    const np=pdf.numPages;
+    document.getElementById('pageCount').textContent=np;
+    pdfText=[];
+    for(let i=1;i<=np;i++){
+      const pg=await pdf.getPage(i);
+      const ct=await pg.getTextContent();
+      pdfText.push(ct.items.map(it=>it.str).join(' '));
+    }
+    document.getElementById('spinner').classList.remove('on');
+    document.getElementById('docStatus').textContent='✓ Listo para buscar';
+    document.getElementById('docStatus').style.color='var(--p)';
+    document.getElementById('searchArea').classList.add('on');
+    window._pdfName=input.files[0]?input.files[0].name.replace(/\.pdf$/i,''):'PDF';
+    showToast('PDF cargado: '+np+' paginas');
+    extraerMetadatosAutomaticos(pdf, pdfText.slice(0,2).join(' '));
+  }catch(e){
+    document.getElementById('spinner').classList.remove('on');
+    document.getElementById('docStatus').textContent='Error al procesar';
+    document.getElementById('docStatus').style.color='#dc2626';
+    showToast('Error al leer el PDF. Verifica que no esté protegido.','err');
+  }
+}
+
+// ── SEARCH ──
+function doSearch(){
+  const q=document.getElementById('query').value.trim();
+  if(!q){showToast('Escribe una palabra o frase para buscar.','err');return;}
+  if(!pdfText.length){showToast('Primero carga un PDF.','err');return;}
+
+  const cs=document.getElementById('cbCase').checked;
+  const ww=document.getElementById('cbWhole').checked;
+  const ctx=document.getElementById('cbCtx').checked;
+  const st=cs?q:q.toLowerCase();
+
+  const results=[];
+  pdfText.forEach((pt,pi)=>{
+    const sents=pt.split(/(?<=[.!?])\s+|(?:\n{2,})/).filter(s=>s.trim().length>15);
+    sents.forEach((s,si)=>{
+      const ss=cs?s:s.toLowerCase();
+      const hit=ww
+        ?new RegExp(`\\b${escRx(st)}\\b`,cs?'':'i').test(s)
+        :ss.includes(st);
+      if(!hit)return;
+      let txt=s.trim();
+      if(ctx){
+        if(si>0&&sents[si-1]&&sents[si-1].trim().length>10)txt=sents[si-1].trim()+' '+txt;
+        if(si<sents.length-1&&sents[si+1]&&sents[si+1].trim().length>10)txt=txt+' '+sents[si+1].trim();
+      }
+      const hl=txt.replace(new RegExp(`(${escRx(q)})`,cs?'g':'gi'),'<mark>$1</mark>');
+      results.push({page:pi+1,para:si+1,hl,raw:txt});
+    });
+  });
+
+  // Deduplicate
+  const uniq=[];
+  results.forEach(r=>{
+    const dup=uniq.some(u=>u.page===r.page&&sim(u.raw,r.raw)>.82);
+    if(!dup)uniq.push(r);
+  });
+
+  renderResults(uniq,q);
+}
+
+function escRx(s){return s.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');}
+function sim(a,b){
+  const m=Math.max(a.length,b.length);
+  if(!m)return 0;
+  return[...a].filter(c=>b.includes(c)).length/m;
+}
+
+// ── RENDER ──
+function renderResults(res,q){
+  window._cits=res;
+  var cont=document.getElementById('results');
+  if(!res.length){
+    cont.innerHTML='<div class="no-results"><div class="ni">🔍</div><p>No se encontraron coincidencias para <strong>"'+q+'"</strong></p><p style="margin-top:.4rem;font-size:.78rem;">Prueba con otra variante o desactiva "Palabra completa".</p></div>';
+    return;
+  }
+  cont.innerHTML='<div class="results-hd">'+
+    '<div class="cnt"><strong>'+res.length+'</strong> citas encontradas para <em>"'+q+'"</em></div>'+
+    '<div style="display:flex;gap:.5rem;flex-wrap:wrap;">'+
+      '<button class="ab ab-out" style="padding:6px 14px;font-size:.75rem;" onclick="copyAll()"> Copiar todas</button>'+
+      '<button class="ab" style="padding:6px 14px;font-size:.75rem;background:#631EEB;color:white;border-color:#631EEB;" onclick="enviarTodasAlRepo()"> Proponer todas al repositorio</button>'+
+    '</div></div>';
+
+  res.forEach(function(r,i){
+    var card=document.createElement('div');
+    card.className='cit';
+    card.style.animationDelay=(i*.04)+'s';
+    var fid='rf-'+i;
+    card.innerHTML=
+      '<div class="cit-meta">'+
+        '<span class="pg-badge">Pág. '+r.page+'</span>'+
+        '<span class="para-info">Párrafo ~'+r.para+'</span>'+
+        '<button class="copy-btn" onclick="copyCit('+i+')"> Copiar</button>'+
+        '<button class="copy-btn" style="background:#631EEB;color:white;border:none;margin-left:.25rem;" onclick="toggleRepoForm('+i+')"> Proponer al repositorio</button>'+
+      '</div>'+
+      '<div class="cit-text" id="cit-text-'+i+'">'+r.hl+'</div>'+
+
+      // ── METADATA FORM ──
+      '<div id="repo-form-'+i+'" style="display:none;background:#f0ebff;border:1px solid rgba(99,30,235,.15);border-radius:10px;padding:1rem;margin-top:.6rem;">'+
+        '<p style="font-size:.79rem;color:#631EEB;font-weight:700;margin-bottom:.75rem;letter-spacing:.04em;">METADATOS PARA EL REPOSITORIO</p>'+
+
+        // Row 1: ID + Categoría + Indicador
+        '<div style="display:grid;grid-template-columns:80px 1fr 1fr;gap:.5rem;margin-bottom:.5rem;">'+
+          '<div><label style="font-size:.69rem;font-weight:700;color:#888;text-transform:uppercase;display:block;margin-bottom:3px;">No.</label>'+
+          '<input id="'+fid+'-id" placeholder="A001" style="'+"padding:7px 9px;border:1.5px solid rgba(99,30,235,.15);border-radius:7px;font-family:inherit;font-size:.82rem;width:100%;outline:none;"+'"></div>'+
+          '<div><label style="font-size:.69rem;font-weight:700;color:#888;text-transform:uppercase;display:block;margin-bottom:3px;">Categoría *</label>'+
+          '<select id="'+fid+'-cat" style="'+"padding:7px 9px;border:1.5px solid rgba(99,30,235,.15);border-radius:7px;font-family:inherit;font-size:.82rem;width:100%;outline:none;"+'">'+
+            '<option value="">Seleccionar...</option>'+
+            '<option>Sociología</option><option>Antropología</option><option>Psicología</option>'+
+            '<option>Educación</option><option>Virtualidad</option><option>Administración</option>'+
+            '<option>Mercados Laborales</option><option>Historia</option><option>Filosofía</option>'+
+            '<option>Investigación Social</option><option>Lingüística</option><option>Metodología</option>'+
+            '<option>Intervención Comunitaria</option><option>Emprendimiento</option>'+
+            '<option>Flexibilidad laboral</option><option>Evaluación de Impacto</option>'+
+            '<option>Empleabilidad</option><option>Covid</option><option>Otra</option>'+
+          '</select></div>'+
+          '<div><label style="font-size:.69rem;font-weight:700;color:#888;text-transform:uppercase;display:block;margin-bottom:3px;">Indicador</label>'+
+          '<input id="'+fid+'-ind" placeholder="Ej: Cultura, Empleo..." style="'+"padding:7px 9px;border:1.5px solid rgba(99,30,235,.15);border-radius:7px;font-family:inherit;font-size:.82rem;width:100%;outline:none;"+'"></div>'+
+        '</div>'+
+
+        // Row 2: Población + Año + Página
+        '<div style="display:grid;grid-template-columns:1fr 80px 80px;gap:.5rem;margin-bottom:.5rem;">'+
+          '<div><label style="font-size:.69rem;font-weight:700;color:#888;text-transform:uppercase;display:block;margin-bottom:3px;">Población</label>'+
+          '<input id="'+fid+'-pop" placeholder="Ej: jóvenes, organizaciones..." style="'+"padding:7px 9px;border:1.5px solid rgba(99,30,235,.15);border-radius:7px;font-family:inherit;font-size:.82rem;width:100%;outline:none;"+'"></div>'+
+          '<div><label style="font-size:.69rem;font-weight:700;color:#888;text-transform:uppercase;display:block;margin-bottom:3px;">Año</label>'+
+          '<input id="'+fid+'-year" placeholder="2023" style="'+"padding:7px 9px;border:1.5px solid rgba(99,30,235,.15);border-radius:7px;font-family:inherit;font-size:.82rem;width:100%;outline:none;"+'"></div>'+
+          '<div><label style="font-size:.69rem;font-weight:700;color:#888;text-transform:uppercase;display:block;margin-bottom:3px;">Página</label>'+
+          '<input id="'+fid+'-pag" value="'+r.page+'" style="'+"padding:7px 9px;border:1.5px solid rgba(99,30,235,.15);border-radius:7px;font-family:inherit;font-size:.82rem;width:100%;outline:none;"+'"></div>'+
+        '</div>'+
+
+        // Row 3: Autor + Publicación
+        '<div style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem;margin-bottom:.5rem;">'+
+          '<div><label style="font-size:.69rem;font-weight:700;color:#888;text-transform:uppercase;display:block;margin-bottom:3px;">Autor(es) *</label>'+
+          '<input id="'+fid+'-aut" placeholder="Apellido, N." style="'+"padding:7px 9px;border:1.5px solid rgba(99,30,235,.15);border-radius:7px;font-family:inherit;font-size:.82rem;width:100%;outline:none;"+'" oninput="genAPA('+i+')"></div>'+
+          '<div><label style="font-size:.69rem;font-weight:700;color:#888;text-transform:uppercase;display:block;margin-bottom:3px;">Publicación</label>'+
+          '<input id="'+fid+'-pub" placeholder="Título del libro o artículo" style="'+"padding:7px 9px;border:1.5px solid rgba(99,30,235,.15);border-radius:7px;font-family:inherit;font-size:.82rem;width:100%;outline:none;"+'" oninput="genAPA('+i+')"></div>'+
+        '</div>'+
+
+        // Row 4: Cita textual (editable para corregir OCR)
+        '<div style="margin-bottom:.5rem;">'+
+          '<label style="font-size:.69rem;font-weight:700;color:#888;text-transform:uppercase;display:block;margin-bottom:3px;">Cita textual (editable)</label>'+
+          '<textarea id="'+fid+'-cita" rows="3" style="'+"padding:7px 9px;border:1.5px solid rgba(99,30,235,.15);border-radius:7px;font-family:inherit;font-size:.82rem;width:100%;outline:none;"+'width:100%;resize:vertical;min-height:64px;"></textarea>'+
+        '</div>'+
+
+        // Row 5: APA auto + Link
+        '<div style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem;margin-bottom:.75rem;">'+
+          '<div><label style="font-size:.69rem;font-weight:700;color:#888;text-transform:uppercase;display:block;margin-bottom:3px;">Cita APA (auto)</label>'+
+          '<input id="'+fid+'-apa" placeholder="Se genera automáticamente..." style="'+"padding:7px 9px;border:1.5px solid rgba(99,30,235,.15);border-radius:7px;font-family:inherit;font-size:.82rem;width:100%;outline:none;"+'background:#fff;" readonly></div>'+
+          '<div><label style="font-size:.69rem;font-weight:700;color:#888;text-transform:uppercase;display:block;margin-bottom:3px;">Link (opcional)</label>'+
+          '<input id="'+fid+'-link" placeholder="https://..." style="'+"padding:7px 9px;border:1.5px solid rgba(99,30,235,.15);border-radius:7px;font-family:inherit;font-size:.82rem;width:100%;outline:none;"+'"></div>'+
+        '</div>'+
+
+        // Buttons
+        '<div style="display:flex;gap:.5rem;flex-wrap:wrap;">'+
+          '<button onclick="confirmarEnvioRepo('+i+')" style="background:#631EEB;color:white;padding:7px 16px;border-radius:7px;border:none;cursor:pointer;font-size:.82rem;font-family:inherit;font-weight:600;"> Proponer al repositorio</button>'+
+          '<button onclick="toggleRepoForm('+i+')" style="background:none;border:1px solid rgba(99,30,235,.15);padding:7px 14px;border-radius:7px;cursor:pointer;font-size:.82rem;font-family:inherit;">Cancelar</button>'+
+        '</div>'+
+      '</div>';
+
+    cont.appendChild(card);
+
+    // Pre-fill automático: primero se busca "Autor (Año)" en el propio texto
+    // de la cita; si no aparece, se usa el metadato del documento aplicado
+    // en el panel superior. La cita APA se recalcula con lo que quede
+    // (incluye la página exacta de esta cita, no la del libro en general).
+    var bm = bookMeta || {};
+    var auto = _autoDetectCitaMeta(r.raw) || {};
+    var autEl  = document.getElementById(fid+'-aut');
+    var catEl  = document.getElementById(fid+'-cat');
+    var indEl  = document.getElementById(fid+'-ind');
+    var popEl  = document.getElementById(fid+'-pop');
+    var yearEl = document.getElementById(fid+'-year');
+    var pubEl  = document.getElementById(fid+'-pub');
+    var lnkEl  = document.getElementById(fid+'-link');
+    if(autEl)  autEl.value  = auto.autor || bm.autor || '';
+    if(catEl  && bm.categoria) catEl.value  = bm.categoria;
+    if(indEl  && bm.indicador) indEl.value  = bm.indicador;
+    if(popEl  && bm.poblacion) popEl.value  = bm.poblacion;
+    if(yearEl) yearEl.value = auto.year || bm.year || '';
+    if(pubEl  && bm.titulo)    pubEl.value  = bm.titulo;
+    if(lnkEl  && bm.link)      lnkEl.value  = bm.link;
+    // Pre-fill cita textual
+    var citaEl = document.getElementById(fid+'-cita');
+    if(citaEl) citaEl.value = (r.text || r.hl.replace(/<[^>]*>/g,'')).trim();
+    genAPA(i);
+  });
+}
+
+
+function toggleRepoForm(i){
+  var f=document.getElementById('repo-form-'+i);
+  if(f) f.style.display=f.style.display==='none'?'block':'none';
+}
+
+
+// ── BOOK METADATA ──
+var bookMeta = {};
+
+function updateBookAPA(){
+  var aut  = (document.getElementById('bm-autor')||{}).value||'';
+  var yr   = (document.getElementById('bm-year')||{}).value||'';
+  var tit  = (document.getElementById('bm-titulo')||{}).value||'';
+  var ed   = (document.getElementById('bm-editorial')||{}).value||'';
+  var ciu  = (document.getElementById('bm-ciudad')||{}).value||'';
+  var edi  = (document.getElementById('bm-edicion')||{}).value||'';
+  if(!aut&&!tit) return;
+  var apa = aut;
+  if(yr) apa += ' ('+yr+').';
+  if(tit) apa += ' '+tit+'.';
+  if(edi) apa += ' '+edi+'.';
+  if(ed)  apa += ' '+ed+'.';
+  if(ciu) apa += ' '+ciu+'.';
+  var prev = document.getElementById('bm-apa-preview');
+  if(prev) prev.value = apa;
+}
+
+function aplicarMetadatos(){
+  bookMeta = {
+    autor:      (document.getElementById('bm-autor')||{}).value||'',
+    year:       (document.getElementById('bm-year')||{}).value||'',
+    titulo:     (document.getElementById('bm-titulo')||{}).value||'',
+    editorial:  (document.getElementById('bm-editorial')||{}).value||'',
+    ciudad:     (document.getElementById('bm-ciudad')||{}).value||'',
+    edicion:    (document.getElementById('bm-edicion')||{}).value||'',
+    categoria:  (document.getElementById('bm-cat')||{}).value||'',
+    indicador:  (document.getElementById('bm-ind')||{}).value||'',
+    poblacion:  (document.getElementById('bm-pop')||{}).value||'',
+    link:       (document.getElementById('bm-link')||{}).value||'',
+    apa:        (document.getElementById('bm-apa-preview')||{}).value||''
+  };
+  showToast('Metadatos guardados. Se pre-llenarán en todas las citas.');
+}
+
+function getBookMeta(field){ return (bookMeta && bookMeta[field]) ? bookMeta[field] : ''; }
+
+
+function confirmarEnvioRepo(i){
+  if(!contactData){ showToast('Falta completar tus datos de contacto.','err'); return; }
+  var fid = 'rf-'+i;
+  var citaEl  = document.getElementById(fid+'-cita');
+  var citaLimpia = citaEl ? citaEl.value.trim() : '';
+  if(!citaLimpia){ showToast('La cita textual no puede estar vacía.','err'); return; }
+
+  var cat   = document.getElementById(fid+'-cat').value.trim() || '';
+  if(!cat){ showToast('Selecciona una categoría para el repositorio.','err'); return; }
+
+  var autor = document.getElementById(fid+'-aut').value.trim() || 'Autor desconocido';
+  var ind   = document.getElementById(fid+'-ind').value.trim() || '';
+  var pop   = document.getElementById(fid+'-pop').value.trim() || '';
+  var year  = document.getElementById(fid+'-year').value.trim() || '';
+  var pag   = document.getElementById(fid+'-pag').value.trim() || '';
+  var pub   = document.getElementById(fid+'-pub').value.trim() || (window._pdfName||'PDF');
+  var link  = document.getElementById(fid+'-link').value.trim() || '';
+  var apa   = document.getElementById(fid+'-apa').value.trim() ||
+              (autor+(year?' ('+year+').':' (s.f.).')+' '+pub+'.'+(pag?' p. '+pag+'.':''));
+
+  var btn = document.querySelector('#repo-form-'+i+' button[onclick^="confirmarEnvioRepo"]');
+  if(btn){ btn.textContent='Enviando…'; btn.disabled=true; }
+
+  jsonp('proponerCitaMuestra', {
+    categoria: cat, indicador: ind, poblacion: pop,
+    autor: autor, year: year, pagina: pag, publicacion: pub,
+    cita: citaLimpia, citaAPA: apa, link: link,
+    nombre: contactData.nombre, correo: contactData.email,
+    organizacion: contactData.organizacion,
+    sitioWebTrampa: contactData.sitioWebTrampa
+  }).then(function(resp){
+    if(resp && resp.ok){
+      document.getElementById('repo-form-'+i).style.display = 'none';
+      var citText = document.getElementById('cit-text-'+i);
+      if(citText){
+        citText.style.borderLeft = '3px solid #16a34a';
+        citText.insertAdjacentHTML('afterend','<p style="font-size:.77rem;color:#16a34a;font-weight:600;margin-top:.25rem;">✓ Cita propuesta al Repositorio Bibliográfico — quedó en revisión'+(resp.codigo?(' ('+escapeHtml(resp.codigo)+')'):'')+'</p>');
+      }
+      showToast('✓ Cita propuesta al Repositorio Bibliográfico');
+    } else {
+      if(btn){ btn.textContent='Proponer al repositorio'; btn.disabled=false; }
+      showToast((resp && resp.error) ? resp.error : 'No se pudo enviar la cita. Intenta de nuevo.', 'err');
+    }
+  });
+}
+
+function genAPA(i){
+  var fid = 'rf-'+i;
+  var aut  = (document.getElementById(fid+'-aut')||{}).value||'';
+  var year = (document.getElementById(fid+'-year')||{}).value||'';
+  var pub  = (document.getElementById(fid+'-pub')||{}).value||'';
+  var pag  = (document.getElementById(fid+'-pag')||{}).value||'';
+  if(!aut&&!pub) return;
+  var apa = aut+(year?' ('+year+').':' (s.f.).')+' '+pub+'.'+(pag?' p. '+pag+'.':'');
+  var apaEl = document.getElementById(fid+'-apa');
+  if(apaEl) apaEl.value = apa;
+}
+
+
+function enviarTodasAlRepo(){
+  if(!contactData){ showToast('Falta completar tus datos de contacto.','err'); return; }
+  var res=window._cits;
+  if(!res||!res.length){showToast('No hay citas para enviar.','err');return;}
+  var bm = bookMeta || {};
+  var candidatas = res.filter(function(r){
+    return (r.text||r.hl.replace(/<[^>]*>/g,'')).trim().length>20;
+  });
+  if(!candidatas.length){showToast('No hay citas con suficiente texto para enviar.','err');return;}
+
+  showToast('Enviando '+candidatas.length+' cita(s) al repositorio…');
+  var enviadas=0, fallidas=0, idx=0;
+  function siguiente(){
+    if(idx>=candidatas.length){
+      showToast(enviadas+' cita(s) propuesta(s) al Repositorio Bibliográfico'+(fallidas?(' · '+fallidas+' con error'):'')+'.', fallidas&&!enviadas?'err':'ok');
+      return;
+    }
+    var r = candidatas[idx++];
+    var citaLimpia = (r.text||r.hl.replace(/<[^>]*>/g,'')).trim();
+    // Misma lógica de reconocimiento automático que en cada tarjeta individual:
+    // primero se busca "Autor (Año)" en el propio texto, y de no encontrarse
+    // se usa el metadato del documento ya aplicado en el panel superior.
+    var auto = _autoDetectCitaMeta(citaLimpia) || {};
+    var autor = auto.autor || bm.autor || 'Autor desconocido';
+    var year  = auto.year  || bm.year  || '';
+    var pub   = bm.titulo || (window._pdfName||'PDF');
+    var apa   = autor+(year?' ('+year+').':' (s.f.).')+' '+pub+'.'+(r.page?' p. '+r.page+'.':'');
+    jsonp('proponerCitaMuestra', {
+      categoria: bm.categoria||'', indicador: bm.indicador||'', poblacion: bm.poblacion||'',
+      autor: autor, year: year, pagina: r.page, publicacion: pub,
+      cita: citaLimpia, citaAPA: apa, link: bm.link||'',
+      nombre: contactData.nombre, correo: contactData.email,
+      organizacion: contactData.organizacion,
+      sitioWebTrampa: contactData.sitioWebTrampa
+    }).then(function(resp){
+      if(resp && resp.ok) enviadas++; else fallidas++;
+      setTimeout(siguiente, 350);
+    });
+  }
+  siguiente();
+}
+
+
+function copyCit(i){
+  const r=window._cits[i];
+  navigator.clipboard.writeText(`"${r.raw}" (p. ${r.page})`)
+    .then(()=>showToast('✓ Cita copiada al portapapeles'));
+}
+function copyAll(){
+  if(!window._cits||!window._cits.length)return;
+  const txt=window._cits.map(r=>`"${r.raw}" (p. ${r.page})`).join('\n\n');
+  navigator.clipboard.writeText(txt)
+    .then(()=>showToast(`✓ ${window._cits.length} citas copiadas`));
+}
+
+// ── CLEAR ──
+function clearPDF(){
+  pdfText=[];
+  document.getElementById('pdfFile').value='';
+  document.getElementById('dropAccepted').classList.remove('on');
+  document.getElementById('infoBar').classList.remove('on');
+  document.getElementById('searchArea').classList.remove('on');
+  document.getElementById('results').innerHTML='';
+  document.getElementById('dropZone').style.display='block';
+  document.getElementById('query').value='';
+  showToast('PDF eliminado.');
+}
+
+// ── DRAG & DROP ──
+const dz=document.getElementById('dropZone');
+dz.addEventListener('dragover',e=>{e.preventDefault();dz.classList.add('drag');});
+dz.addEventListener('dragleave',()=>dz.classList.remove('drag'));
+dz.addEventListener('drop',e=>{
+  e.preventDefault();dz.classList.remove('drag');
+  if(e.dataTransfer.files.length){
+    const inp=document.getElementById('pdfFile');
+    const dt=new DataTransfer();dt.items.add(e.dataTransfer.files[0]);
+    inp.files=dt.files;
+    handlePDF(inp);
+  }
+});
+
+// ── TOAST ──
+function showToast(msg,type='ok'){
+  const t=document.getElementById('toast');
+  t.textContent=msg;t.className='toast on '+type;
+  clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove('on'),3200);
+}
+</script>
+
+</body>
+</html>
