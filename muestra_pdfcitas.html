@@ -149,6 +149,12 @@ footer.pie a{color:var(--p);text-decoration:none;}
 .bm-note{font-size:.73rem;color:var(--txl);margin-top:.6rem;}
 @media(max-width:640px){.bm-grid,.bm-grid-3{grid-template-columns:1fr;}}
 
+/* Panel: recibir análisis completo por correo (reflexión + IA) — reusa los
+   estilos .campo-contacto ya definidos para el Paso 0. */
+.analisis-panel{background:var(--bgc);border:1.5px solid rgba(99,30,235,.18);border-radius:14px;padding:1.5rem 1.5rem 1.75rem;margin-top:2rem;}
+.analisis-panel h4{font-family:var(--font-display);font-size:1rem;color:var(--p);margin-bottom:.4rem;}
+.analisis-panel .campo-contacto{margin-bottom:.85rem;}
+
 /* Citation cards */
 .cit{
   background:var(--bgc);border:1px solid var(--brd);
@@ -387,6 +393,60 @@ footer strong{color:var(--tx);}
 
       <div id="results"></div>
 
+      <!-- PANEL: recibir el análisis completo por correo -->
+      <div class="analisis-panel" id="analisisPanel" style="display:none;">
+        <h4>📬 Recibe tu análisis completo por correo</h4>
+        <p style="font-size:.81rem;color:#666;margin-bottom:.9rem;line-height:1.55;">
+          Con tus citas encontradas te enviamos un PDF con dos lecturas: una reflexión breve de David Salgado (fundador de Sintropía Social) y un análisis hecho por IA sobre el conjunto de citas. Para que ambas vayan bien enfocadas, cuéntanos primero para qué las necesitas.
+        </p>
+        <div id="analisisMsg"></div>
+        <div class="campo-contacto"><label>1. ¿Para qué vas a usar este análisis? *</label>
+          <select id="an-uso">
+            <option value="">Selecciona…</option>
+            <option>Artículo o publicación académica</option>
+            <option>Informe o propuesta para una organización</option>
+            <option>Tesis o trabajo de investigación</option>
+            <option>Contenido para blog o redes de Sintropía Social</option>
+            <option>Uso personal / archivo de lectura</option>
+            <option>Otro</option>
+          </select>
+        </div>
+        <div class="campo-contacto"><label>2. ¿Qué tema o pregunta central quieres que conecte estas citas? *</label>
+          <input type="text" id="an-tema" placeholder="Ej: flexibilidad laboral y precariedad juvenil en México">
+        </div>
+        <div class="campo-contacto"><label>3. ¿Qué enfoque o disciplina te interesa privilegiar? *</label>
+          <select id="an-enfoque">
+            <option value="">Selecciona…</option>
+            <option>Sociología</option><option>Antropología</option><option>Psicología</option>
+            <option>Educación</option><option>Investigación Social</option>
+            <option>Mercados Laborales / Empleabilidad</option><option>Historia</option>
+            <option>Filosofía</option><option>Metodología</option><option>Otro</option>
+          </select>
+        </div>
+        <div class="campo-contacto"><label>4. ¿A quién va dirigido este análisis? *</label>
+          <select id="an-audiencia">
+            <option value="">Selecciona…</option>
+            <option>Yo mismo/a (uso personal)</option>
+            <option>Mi equipo de trabajo</option>
+            <option>Una organización cliente</option>
+            <option>Público académico (revisores, comité, etc.)</option>
+            <option>Público general (redes, blog)</option>
+          </select>
+        </div>
+        <div class="campo-contacto"><label>5. ¿Qué tono buscas? *</label>
+          <select id="an-tono">
+            <option value="">Selecciona…</option>
+            <option>Riguroso y académico</option>
+            <option>Accesible / divulgación</option>
+            <option>Ejecutivo — resumen para toma de decisiones</option>
+          </select>
+        </div>
+        <div class="campo-contacto"><label>6. ¿Hay algo que NO quieras que se incluya o enfatice? (opcional)</label>
+          <input type="text" id="an-exclusiones" placeholder="Ej: no hables de la pandemia">
+        </div>
+        <button class="search-btn" id="btnEnviarAnalisis" style="width:100%;" onclick="enviarAnalisisCorreo()">Enviar mi análisis por correo</button>
+      </div>
+
 </div>
 
 <div class="toast" id="toast"></div>
@@ -425,6 +485,36 @@ function jsonp(action, params) {
     setTimeout(function () { if (!cleaned) { cleanup(); resolve({ ok: false, error: 'La plataforma tardó demasiado en responder. Intenta de nuevo.' }); } }, 40000);
     script.src = url;
     document.body.appendChild(script);
+  });
+}
+
+// Variante de jsonp() que manda los parámetros por POST — necesaria para
+// enviarResultadoMuestra, porque las citas encontradas (secciones del PDF)
+// pueden superar el límite práctico de una URL. Mismo patrón que en el
+// resto de la plataforma (ver muestra_dashboard.html).
+function jsonpPost(action, params, timeoutMs) {
+  return new Promise(function (resolve) {
+    var timedOut = false;
+    var timer = setTimeout(function () {
+      timedOut = true;
+      resolve({ ok: false, error: 'La plataforma tardó demasiado en responder. Intenta de nuevo.' });
+    }, timeoutMs || 40000);
+    var body = { action: action };
+    params = params || {};
+    for (var k in params) { if (params[k] !== undefined && params[k] !== null) body[k] = params[k]; }
+    fetch(WEB_APP_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify(body)
+    }).then(function (resp) { return resp.json(); }).then(function (data) {
+      if (timedOut) return;
+      clearTimeout(timer);
+      resolve(data);
+    }).catch(function () {
+      if (timedOut) return;
+      clearTimeout(timer);
+      resolve({ ok: false, error: 'No se pudo conectar. Revisa tu conexión a internet e intenta de nuevo.' });
+    });
   });
 }
 
@@ -716,6 +806,8 @@ function renderResults(res,q){
     if(citaEl) citaEl.value = (r.text || r.hl.replace(/<[^>]*>/g,'')).trim();
     genAPA(i);
   });
+
+  mostrarPanelAnalisis();
 }
 
 
@@ -865,6 +957,97 @@ function enviarTodasAlRepo(){
     });
   }
   siguiente();
+}
+
+// ── ANÁLISIS COMPLETO POR CORREO (reflexión + IA) ──
+var correoAnalisisEnviado = false;
+
+function mostrarPanelAnalisis(){
+  var panel = document.getElementById('analisisPanel');
+  if(panel) panel.style.display = 'block';
+}
+
+function enviarAnalisisCorreo(){
+  if(correoAnalisisEnviado){ showToast('Ya enviamos tu análisis — revisa tu correo.'); return; }
+  if(!contactData){ showToast('Falta completar tus datos de contacto.','err'); return; }
+  var res = window._cits;
+  if(!res || !res.length){ showToast('Primero busca y encuentra al menos una cita.','err'); return; }
+
+  var msgBox = document.getElementById('analisisMsg');
+  var uso = document.getElementById('an-uso').value;
+  var tema = document.getElementById('an-tema').value.trim();
+  var enfoque = document.getElementById('an-enfoque').value;
+  var audiencia = document.getElementById('an-audiencia').value;
+  var tono = document.getElementById('an-tono').value;
+  var exclusiones = document.getElementById('an-exclusiones').value.trim();
+  if(!uso || !tema || !enfoque || !audiencia || !tono){
+    msgBox.innerHTML = '<div class="msg-contacto">Responde las preguntas marcadas con * para que el análisis vaya bien enfocado.</div>';
+    return;
+  }
+  msgBox.innerHTML = '';
+
+  var btn = document.getElementById('btnEnviarAnalisis');
+  if(btn){ btn.textContent='Enviando…'; btn.disabled = true; }
+
+  var bm = bookMeta || {};
+  function metaCita(r){
+    var t = (r.text||r.hl.replace(/<[^>]*>/g,'')).trim();
+    var auto = _autoDetectCitaMeta(t) || {};
+    return { texto: t, autor: auto.autor||bm.autor||'', year: auto.year||bm.year||'' };
+  }
+
+  // Bloque con TODAS las citas encontradas, para que la IA "lea todo el
+  // contenido" — no solo las que se hayan llegado a proponer al repositorio.
+  var bloqueTexto = res.map(function(r,i){
+    var m = metaCita(r);
+    return (i+1)+'. "'+m.texto+'" ('+(m.autor||'autor s/d')+(m.year?', '+m.year:'')+', p. '+r.page+')';
+  }).join('\n').slice(0,3000);
+
+  // Secciones fijas (no generadas por IA) con las citas encontradas, para
+  // el PDF/correo — igual que el resto de las muestras, la IA solo
+  // complementa el contenido real, nunca lo sustituye.
+  var seccionesCitas = [];
+  var loteSize = 5;
+  for(var i=0;i<res.length && seccionesCitas.length<10;i+=loteSize){
+    var lote = res.slice(i,i+loteSize).map(function(r){
+      var m = metaCita(r);
+      return '"'+m.texto+'" — '+(m.autor||'Autor s/d')+(m.year?' ('+m.year+')':'')+', p. '+r.page+'.';
+    });
+    seccionesCitas.push({ titulo: 'Citas encontradas ('+(i+1)+'–'+Math.min(i+loteSize,res.length)+' de '+res.length+')', parrafos: lote });
+  }
+
+  var resumenTexto = 'Se encontraron '+res.length+' cita(s) en "'+(window._pdfName||'el documento')+'"'+
+    (bm.titulo ? (' ('+bm.titulo+(bm.autor?', '+bm.autor:'')+')') : '')+'. Tema de interés: '+tema+'.';
+
+  jsonpPost('enviarResultadoMuestra', {
+    tipoMuestra: 'CitasPDF',
+    nombre: contactData.nombre, correo: contactData.email, organizacion: contactData.organizacion,
+    tituloResultado: 'Tu análisis de citas — '+(window._pdfName||'PDF'),
+    resumenTexto: resumenTexto,
+    secciones: JSON.stringify(seccionesCitas),
+    paramsInterpretacionIA: JSON.stringify({
+      muestra: 'CitasPDF',
+      nombre: contactData.nombre,
+      email: contactData.email,
+      organizacion: contactData.organizacion,
+      documento: window._pdfName || '',
+      tituloLibro: bm.titulo || '', autorLibro: bm.autor || '',
+      totalCitas: res.length,
+      citasTexto: bloqueTexto,
+      uso: uso, tema: tema, enfoque: enfoque, audiencia: audiencia, tono: tono, exclusiones: exclusiones
+    }),
+    sitioWebTrampa: contactData.sitioWebTrampa
+  }).then(function(resp){
+    if(resp && resp.ok){
+      correoAnalisisEnviado = true;
+      msgBox.innerHTML = '<div style="background:#f0ebff;border:1px solid rgba(99,30,235,.18);border-radius:9px;padding:10px 13px;font-size:.83rem;color:#3d3560;margin-top:.5rem;">Tu análisis se está preparando — te llegará por correo a <b>'+escapeHtml(contactData.email)+'</b> en unos minutos, con el PDF adjunto.</div>';
+      if(btn) btn.textContent='✓ Análisis en camino';
+      showToast('✓ Tu análisis se está preparando');
+    } else {
+      if(btn){ btn.textContent='Enviar mi análisis por correo'; btn.disabled=false; }
+      showToast((resp&&resp.error)?resp.error:'No se pudo programar el envío. Intenta de nuevo.','err');
+    }
+  });
 }
 
 
