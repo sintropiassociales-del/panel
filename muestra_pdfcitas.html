@@ -220,6 +220,28 @@ footer.pie a{color:var(--p);text-decoration:none;}
 .toast.ok{border-left:3px solid var(--p);}
 .toast.err{border-left:3px solid #dc2626;}
 
+/* Barra flotante: aparece mientras hay resultados, para no perder el
+   acceso al panel de análisis en documentos con muchas citas. */
+.floating-bar{
+  position:fixed;left:50%;bottom:1.25rem;transform:translateX(-50%);z-index:600;
+  display:none;align-items:center;gap:.7rem;
+  background:var(--p);color:#fff;border-radius:50px;
+  padding:9px 10px 9px 18px;box-shadow:0 8px 26px rgba(99,30,235,.35);
+  font-size:.81rem;white-space:nowrap;
+}
+.floating-bar.on{display:flex;}
+.floating-bar button{
+  background:rgba(255,255,255,.16);color:#fff;border:none;
+  padding:8px 14px;border-radius:50px;font-size:.77rem;font-weight:600;
+  cursor:pointer;font-family:var(--font-body);white-space:nowrap;
+}
+.floating-bar button:hover{background:rgba(255,255,255,.28);}
+.floating-bar .fb-top{padding:8px 11px;}
+@media(max-width:640px){
+  .floating-bar{left:.75rem;right:.75rem;bottom:.9rem;transform:none;padding:8px 8px 8px 14px;}
+  .floating-bar .fb-count{display:none;}
+}
+
 /* Footer */
 footer{background:var(--bg2);border-top:1px solid var(--brd);padding:1.5rem 2rem;text-align:center;font-size:.8rem;color:var(--txl);}
 footer a{color:var(--a);text-decoration:none;}
@@ -397,7 +419,7 @@ footer strong{color:var(--tx);}
       <div class="analisis-panel" id="analisisPanel" style="display:none;">
         <h4>📬 Recibe tu análisis completo por correo</h4>
         <p style="font-size:.81rem;color:#666;margin-bottom:.9rem;line-height:1.55;">
-          Con tus citas encontradas te enviamos un PDF con dos lecturas: una reflexión breve de David Salgado (fundador de Sintropía Social) y un análisis hecho por IA sobre el conjunto de citas. Para que ambas vayan bien enfocadas, cuéntanos primero para qué las necesitas.
+          Con tus citas encontradas te enviamos un PDF con dos lecturas: una reflexión breve de Sintropía Social y un análisis hecho por IA sobre el conjunto de citas. Para que ambas vayan bien enfocadas, cuéntanos primero para qué las necesitas.
         </p>
         <div id="analisisMsg"></div>
         <div class="campo-contacto"><label>1. ¿Para qué vas a usar este análisis? *</label>
@@ -450,6 +472,12 @@ footer strong{color:var(--tx);}
 </div>
 
 <div class="toast" id="toast"></div>
+
+<div class="floating-bar" id="floatingBar">
+  <span class="fb-count" id="floatingCount">0 citas</span>
+  <button onclick="scrollToAnalisis()">↓ Enviar mi análisis</button>
+  <button class="fb-top" onclick="scrollToTop()" title="Volver arriba">↑</button>
+</div>
 
 <footer class="pie">
   <div class="wordmark"><span style="color:var(--p)">Sintropía</span> <span style="color:var(--a)">Social</span></div>
@@ -561,12 +589,31 @@ document.getElementById('btnContinuarContacto').onclick = function () {
 // trae, se busca un año de publicación en el propio texto de la portada.
 // Esto pre-llena el panel de "Metadatos del documento" para no depender
 // de que la persona escriba todo a mano.
+// Algunos generadores de PDF (reportlab y otros) rellenan Título/Autor con
+// valores genéricos de plantilla en vez de dejarlos vacíos cuando nadie los
+// definió a propósito ("anonymous", "untitled", "unknown", etc.). Si
+// aceptáramos esos valores como si fueran datos reales del documento,
+// mostraríamos un autor falso Y bloquearíamos el respaldo que busca el
+// nombre directamente en el texto de la portada (más abajo) — por eso se
+// filtran aquí antes de aceptar cualquier valor de los metadatos.
+var _PLACEHOLDERS_METADATO_PDF = ['anonymous','anónimo','anonimo','unknown','desconocido','desconocida','untitled','sin título','sin titulo','sin nombre','n/a','na','none','null','-','sin autor','sin especificar'];
+function _esPlaceholderMetadatoPdf(s){
+  return _PLACEHOLDERS_METADATO_PDF.indexOf(String(s||'').trim().toLowerCase()) !== -1;
+}
 async function extraerMetadatosAutomaticos(pdf, textoPrimerasPaginas){
   try{
     var md = await pdf.getMetadata();
     var info = (md && md.info) || {};
     var tituloAuto = String(info.Title||'').trim();
     var autorAuto = String(info.Author||'').trim();
+    if(_esPlaceholderMetadatoPdf(tituloAuto)) tituloAuto = '';
+    if(_esPlaceholderMetadatoPdf(autorAuto)) autorAuto = '';
+    // Muchos PDF reales (escaneados, exportados de Word sin llenar
+    // "Propiedades del documento") NO traen Autor en sus metadatos — en ese
+    // caso se busca directamente en el texto de la portada un patrón típico
+    // de autoría ("Por:", "Autor:", "Elaborado por", etc.), antes de
+    // resignarse a dejarlo en blanco.
+    if(!autorAuto) autorAuto = _detectarAutorPortada(textoPrimerasPaginas);
     // Deliberadamente NO se usa CreationDate/ModDate como año de publicación:
     // esa fecha es cuando se generó el ARCHIVO PDF (a veces hoy mismo, si es
     // un escaneo reciente de un libro de los años 80), no cuando se publicó
@@ -584,16 +631,42 @@ async function extraerMetadatosAutomaticos(pdf, textoPrimerasPaginas){
   }catch(e){ /* el PDF no trae metadatos legibles: se completan a mano en el panel */ }
 }
 
+// Busca un patrón explícito de autoría ("Por:", "Autor:", "Autora:",
+// "Autores:", "Elaborado por", "Escrito por") en el texto de las primeras
+// páginas — respaldo cuando el PDF no trae Autor en sus metadatos propios.
+function _detectarAutorPortada(texto){
+  if(!texto) return '';
+  // El texto que llega aquí viene de pdf.js con todos los renglones de la
+  // portada unidos por un solo espacio (no se conservan saltos de línea), así
+  // que no se puede usar "fin de línea" ni "doble espacio" para saber dónde
+  // termina el nombre. En su lugar se reconoce la FORMA de un nombre propio:
+  // una seguidilla de 1 a 5 palabras que empiezan con mayúscula (permitiendo
+  // conectores en minúscula como "de", "del", "la", "y" en medio, típicos de
+  // nombres compuestos en español) — la seguidilla se corta sola en cuanto
+  // aparece un número (como el año) o cualquier palabra en minúscula que no
+  // sea uno de esos conectores.
+  var palabra = "[A-ZÁÉÍÓÚÑ][a-zà-öø-ÿáéíóúñ'’.-]*";
+  var conector = "(?:de|del|la|las|los|y)";
+  var nombre = palabra + "(?:\\s+(?:" + conector + "\\s+)?" + palabra + "){0,4}";
+  var m = String(texto).match(new RegExp('(?:Elaborad[oa]\\s+por|Escrito\\s+por|Autor(?:a|es)?|Por)\\s*:?\\s+(' + nombre + ')'));
+  return m ? m[1].trim() : '';
+}
+
 // Reconocimiento automático de autor y año dentro del propio texto de cada
-// cita (patrones típicos de cita en ciencias sociales: "Apellido (2019)" o
-// "(Apellido, 2019)"). Sirve como respaldo cuando la cita proviene de una
-// fuente distinta a la del documento principal (ej. una cita dentro de otra).
+// cita (patrones típicos de cita en ciencias sociales: "Apellido (2019)",
+// "(Apellido, 2019)", con prefijos comunes como "cfr.", "cf." o "véase", y
+// "et al."). Es solo un RESPALDO: casi siempre el autor correcto de una
+// cita es el autor del documento completo (el del panel de metadatos, ya
+// confirmado por la persona) — esto solo se usa si ese campo está vacío,
+// porque el texto citado puede a su vez estar citando a alguien más.
 function _autoDetectCitaMeta(texto){
   if(!texto) return null;
   var t = String(texto);
-  var m = t.match(/\(([A-ZÁÉÍÓÚÑ][a-zA-Zà-öø-ÿÁÉÍÓÚÑñ'’.-]+(?:\s+(?:&|y|,)\s+[A-ZÁÉÍÓÚÑ][a-zA-Zà-öø-ÿÁÉÍÓÚÑñ'’.-]+)?),?\s*((?:19|20)\d{2})\)/);
+  var pref = '(?:cfr\\.?,?\\s+|cf\\.?,?\\s+|v[ée]ase\\s+)?';
+  var nom = "[A-ZÁÉÍÓÚÑ][a-zA-Zà-öø-ÿÁÉÍÓÚÑñ'’.-]+(?:\\s+et\\s+al\\.?|\\s+(?:&|y|,)\\s+[A-ZÁÉÍÓÚÑ][a-zA-Zà-öø-ÿÁÉÍÓÚÑñ'’.-]+)?";
+  var m = t.match(new RegExp('\\('+pref+'('+nom+'),?\\s*((?:19|20)\\d{2}[a-z]?)\\)'));
   if(m) return { autor: m[1].trim(), year: m[2] };
-  m = t.match(/([A-ZÁÉÍÓÚÑ][a-zA-Zà-öø-ÿÁÉÍÓÚÑñ'’.-]+(?:\s+(?:&|y)\s+[A-ZÁÉÍÓÚÑ][a-zA-Zà-öø-ÿÁÉÍÓÚÑñ'’.-]+)?)\s*\(((?:19|20)\d{2})\)/);
+  m = t.match(new RegExp('('+nom+')\\s*\\('+pref+'((?:19|20)\\d{2}[a-z]?)\\)'));
   if(m) return { autor: m[1].trim(), year: m[2] };
   return null;
 }
@@ -688,12 +761,18 @@ function sim(a,b){
   return[...a].filter(c=>b.includes(c)).length/m;
 }
 
-// ── RENDER ──
+// ── RENDER (con paginación para documentos con muchas citas) ──
+var CITS_POR_PAGINA = 20;
+var _citsMostrados = 0;
+
 function renderResults(res,q){
   window._cits=res;
+  window._lastQuery=q;
+  _citsMostrados=0;
   var cont=document.getElementById('results');
   if(!res.length){
     cont.innerHTML='<div class="no-results"><div class="ni">🔍</div><p>No se encontraron coincidencias para <strong>"'+q+'"</strong></p><p style="margin-top:.4rem;font-size:.78rem;">Prueba con otra variante o desactiva "Palabra completa".</p></div>';
+    ocultarFloatingBar();
     return;
   }
   cont.innerHTML='<div class="results-hd">'+
@@ -701,12 +780,48 @@ function renderResults(res,q){
     '<div style="display:flex;gap:.5rem;flex-wrap:wrap;">'+
       '<button class="ab ab-out" style="padding:6px 14px;font-size:.75rem;" onclick="copyAll()"> Copiar todas</button>'+
       '<button class="ab" style="padding:6px 14px;font-size:.75rem;background:#631EEB;color:white;border-color:#631EEB;" onclick="enviarTodasAlRepo()"> Proponer todas al repositorio</button>'+
-    '</div></div>';
+    '</div></div>'+
+    '<div id="citsLista"></div>'+
+    '<div id="citsMasWrap" style="text-align:center;margin-top:1.25rem;"></div>';
 
-  res.forEach(function(r,i){
+  _renderMasCitas();
+  mostrarPanelAnalisis();
+  mostrarFloatingBar(res.length);
+}
+
+// Agrega el siguiente lote de tarjetas al DOM. Con documentos de 100+ citas,
+// construir todos los formularios de golpe hace la página lenta y casi
+// imposible de recorrer (y dejaba el panel de "enviar mi análisis" fuera de
+// alcance, al fondo de una lista larguísima) — esta paginación simple, junto
+// con la barra flotante de abajo, resuelve ambas cosas.
+function _renderMasCitas(){
+  var res = window._cits || [];
+  var lista = document.getElementById('citsLista');
+  var wrap = document.getElementById('citsMasWrap');
+  if(!lista) return;
+  var inicio = _citsMostrados;
+  var hasta = Math.min(inicio + CITS_POR_PAGINA, res.length);
+  for(var i=inicio; i<hasta; i++){
+    var card = _buildCitCard(res[i], i, i-inicio);
+    lista.appendChild(card);
+    _prefillCitCard(res[i], i);
+  }
+  _citsMostrados = hasta;
+  if(wrap){
+    if(_citsMostrados < res.length){
+      wrap.innerHTML = '<button class="ab ab-out" onclick="_renderMasCitas()">Mostrar más citas ('+(res.length-_citsMostrados)+' restantes)</button>';
+    } else if(res.length > CITS_POR_PAGINA){
+      wrap.innerHTML = '<button class="ab" style="background:#631EEB;color:white;border-color:#631EEB;" onclick="scrollToAnalisis()">✓ Ya viste todas — ir a enviar mi análisis</button>';
+    } else {
+      wrap.innerHTML = '';
+    }
+  }
+}
+
+function _buildCitCard(r,i,idxLote){
     var card=document.createElement('div');
     card.className='cit';
-    card.style.animationDelay=(i*.04)+'s';
+    card.style.animationDelay=((idxLote||0)*.04)+'s';
     var fid='rf-'+i;
     card.innerHTML=
       '<div class="cit-meta">'+
@@ -779,12 +894,19 @@ function renderResults(res,q){
         '</div>'+
       '</div>';
 
-    cont.appendChild(card);
+    return card;
+}
 
-    // Pre-fill automático: primero se busca "Autor (Año)" en el propio texto
-    // de la cita; si no aparece, se usa el metadato del documento aplicado
-    // en el panel superior. La cita APA se recalcula con lo que quede
-    // (incluye la página exacta de esta cita, no la del libro en general).
+// Pre-llena una tarjeta ya insertada en el DOM. Orden de prioridad para
+// Autor/Año: PRIMERO el metadato del documento ya confirmado en el panel
+// superior (es la fuente correcta casi siempre — todas las citas vienen del
+// MISMO documento); SOLO si ese campo sigue vacío se intenta leer un patrón
+// "Autor (Año)" dentro del propio texto citado (útil cuando el documento a
+// su vez cita a alguien más dentro del párrafo). Antes el orden era al
+// revés, lo que podía atribuir la cita a un autor mencionado de pasada en
+// vez de a quien realmente escribió el documento.
+function _prefillCitCard(r,i){
+    var fid='rf-'+i;
     var bm = bookMeta || {};
     var auto = _autoDetectCitaMeta(r.raw) || {};
     var autEl  = document.getElementById(fid+'-aut');
@@ -794,20 +916,17 @@ function renderResults(res,q){
     var yearEl = document.getElementById(fid+'-year');
     var pubEl  = document.getElementById(fid+'-pub');
     var lnkEl  = document.getElementById(fid+'-link');
-    if(autEl)  autEl.value  = auto.autor || bm.autor || '';
+    if(autEl)  autEl.value  = bm.autor || auto.autor || '';
     if(catEl  && bm.categoria) catEl.value  = bm.categoria;
     if(indEl  && bm.indicador) indEl.value  = bm.indicador;
     if(popEl  && bm.poblacion) popEl.value  = bm.poblacion;
-    if(yearEl) yearEl.value = auto.year || bm.year || '';
+    if(yearEl) yearEl.value = bm.year || auto.year || '';
     if(pubEl  && bm.titulo)    pubEl.value  = bm.titulo;
     if(lnkEl  && bm.link)      lnkEl.value  = bm.link;
     // Pre-fill cita textual
     var citaEl = document.getElementById(fid+'-cita');
     if(citaEl) citaEl.value = (r.text || r.hl.replace(/<[^>]*>/g,'')).trim();
     genAPA(i);
-  });
-
-  mostrarPanelAnalisis();
 }
 
 
@@ -852,7 +971,16 @@ function aplicarMetadatos(){
     link:       (document.getElementById('bm-link')||{}).value||'',
     apa:        (document.getElementById('bm-apa-preview')||{}).value||''
   };
-  showToast('Metadatos guardados. Se pre-llenarán en todas las citas.');
+  // Si ya hay resultados en pantalla (p. ej. la persona buscó antes de
+  // llenar el panel de metadatos), se vuelven a construir con el metadato
+  // recién confirmado — así el autor/año quedan correctos en TODAS las
+  // citas, no solo en las que se rendericen de aquí en adelante.
+  if(window._cits && window._cits.length){
+    renderResults(window._cits, window._lastQuery||'');
+    showToast('Metadatos aplicados a las '+window._cits.length+' citas encontradas.');
+  } else {
+    showToast('Metadatos guardados. Se pre-llenarán en todas las citas.');
+  }
 }
 
 function getBookMeta(field){ return (bookMeta && bookMeta[field]) ? bookMeta[field] : ''; }
@@ -937,11 +1065,11 @@ function enviarTodasAlRepo(){
     var r = candidatas[idx++];
     var citaLimpia = (r.text||r.hl.replace(/<[^>]*>/g,'')).trim();
     // Misma lógica de reconocimiento automático que en cada tarjeta individual:
-    // primero se busca "Autor (Año)" en el propio texto, y de no encontrarse
-    // se usa el metadato del documento ya aplicado en el panel superior.
+    // primero el metadato del documento ya aplicado en el panel superior, y
+    // solo si falta se busca "Autor (Año)" dentro del propio texto citado.
     var auto = _autoDetectCitaMeta(citaLimpia) || {};
-    var autor = auto.autor || bm.autor || 'Autor desconocido';
-    var year  = auto.year  || bm.year  || '';
+    var autor = bm.autor || auto.autor || 'Autor desconocido';
+    var year  = bm.year  || auto.year  || '';
     var pub   = bm.titulo || (window._pdfName||'PDF');
     var apa   = autor+(year?' ('+year+').':' (s.f.).')+' '+pub+'.'+(r.page?' p. '+r.page+'.':'');
     jsonp('proponerCitaMuestra', {
@@ -965,6 +1093,25 @@ var correoAnalisisEnviado = false;
 function mostrarPanelAnalisis(){
   var panel = document.getElementById('analisisPanel');
   if(panel) panel.style.display = 'block';
+}
+
+// ── BARRA FLOTANTE (acceso rápido al panel de análisis en listas largas) ──
+function mostrarFloatingBar(n){
+  var bar = document.getElementById('floatingBar');
+  var cnt = document.getElementById('floatingCount');
+  if(cnt) cnt.textContent = n+' cita'+(n===1?'':'s')+' encontrada'+(n===1?'':'s');
+  if(bar) bar.classList.add('on');
+}
+function ocultarFloatingBar(){
+  var bar = document.getElementById('floatingBar');
+  if(bar) bar.classList.remove('on');
+}
+function scrollToAnalisis(){
+  var el = document.getElementById('analisisPanel');
+  if(el) el.scrollIntoView({behavior:'smooth', block:'start'});
+}
+function scrollToTop(){
+  window.scrollTo({top:0, behavior:'smooth'});
 }
 
 function enviarAnalisisCorreo(){
