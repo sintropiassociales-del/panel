@@ -386,6 +386,7 @@ tr:nth-child(even):hover td{background:var(--bg2);}
 .col-chip-type.num{background:rgba(99,30,235,.1);color:var(--p);}
 .col-chip-type.cat{background:rgba(255,121,41,.12);color:var(--a);}
 .col-chip-type.txt{background:rgba(0,0,0,.07);color:#888;}
+.col-chip-type.fecha{background:rgba(16,185,129,.12);color:#0f9d6f;}
 .col-summary-bar{display:flex;gap:1.25rem;padding:.5rem .85rem;background:var(--bg2);border-radius:var(--r-sm);margin-bottom:.75rem;flex-wrap:wrap;align-items:center;}
 .col-summary-bar span{font-size:.77rem;color:var(--txl);}
 .col-summary-bar strong{color:var(--p);font-weight:700;}
@@ -635,7 +636,7 @@ document.getElementById('btnContinuarContacto').onclick = function () {
 };
 
 // ── STATE ──
-var rawData=[],filteredData=[],headers=[],chartInstances={},chartTypes={},chartSizes={},selectedCols=[];
+var rawData=[],filteredData=[],headers=[],chartInstances={},chartTypes={},chartSizes={},selectedCols=[],chartTitleOverrides={};
 var curPage=1,rpp=50,sortCol=null,sortDir=1,logoURL=null,currentFont='Open Sans',currentPalette='sintropia';
 var _colIndexMap = {}; // maps col name → index for safe referencing
 
@@ -727,11 +728,16 @@ function processFile(file){
     try{
       showProgress('Procesando…',30);
       if(ext==='csv'){
-        setTimeout(function(){ parseCSVChunked(e.target.result); },50);
+        setTimeout(function(){ parseCSVChunked(_decodeCSVBuffer(e.target.result)); },50);
       } else {
         setTimeout(function(){
           try{
-            var wb=XLSX.read(new Uint8Array(e.target.result),{type:'array'});
+            // cellDates:true — sin esto, XLSX entrega las fechas como el
+            // número de serie interno de Excel (p. ej. 45285), y como es un
+            // número perfectamente válido, el resto del código lo trataba
+            // como una columna numérica cualquiera y la graficaba en rangos
+            // sin sentido ("27,303-28,128" en vez de fechas legibles).
+            var wb=XLSX.read(new Uint8Array(e.target.result),{type:'array',cellDates:true});
             var ws=wb.Sheets[wb.SheetNames[0]];
             showProgress('Leyendo columnas…',50);
             var json=XLSX.utils.sheet_to_json(ws,{header:1,defval:''});
@@ -757,8 +763,22 @@ function processFile(file){
       }
     }catch(err){ hideProgress(); toast('Error: '+err.message,'err'); }
   };
-  if(ext==='csv') reader.readAsText(file,'UTF-8');
-  else reader.readAsArrayBuffer(file);
+  reader.readAsArrayBuffer(file);
+}
+
+// Muchos CSV exportados desde Excel en México/LatAm quedan en Windows-1252
+// (ANSI), no en UTF-8. Forzar 'UTF-8' a ciegas (como hacía antes este
+// archivo) corrompe cualquier acento o "ñ" (p. ej. "Fundación" se leía
+// "FundaciÚn"). Aquí se decodifica como UTF-8 estricto y, si el archivo no
+// es UTF-8 válido, se reintenta como Windows-1252 — la codificación de
+// respaldo correcta para este caso.
+function _decodeCSVBuffer(buf){
+  try{
+    return new TextDecoder('utf-8',{fatal:true}).decode(buf);
+  }catch(eUtf8){
+    try{ return new TextDecoder('windows-1252').decode(buf); }
+    catch(eWin){ return new TextDecoder('utf-8').decode(buf); }
+  }
 }
 
 function parseCSVChunked(txt){
@@ -832,21 +852,100 @@ function initDash(){
 }
 
 // ── ANALYZE COL ──
+// Reconoce una fecha real en un valor de celda — ya sea un objeto Date (lo
+// que entrega XLSX cuando se lee con cellDates:true) o un texto con alguno
+// de los formatos comunes de fecha en CSV (ISO, o día/mes/año al estilo
+// mexicano). Los números puros NUNCA se interpretan aquí como fecha — eso
+// es justo lo que causaba que una columna de fecha leída como serial de
+// Excel (p. ej. 45285) se graficara como si fuera un rango numérico plano
+// ("27,303-28,128") en vez de una fecha legible.
+function _parseFlexDate(v){
+  if(v instanceof Date) return isNaN(v.getTime())?null:v;
+  if(typeof v==='number') return null;
+  var s=String(v||'').trim();
+  if(!s) return null;
+  var m;
+  if((m=s.match(/^(\d{4})[-\/](\d{1,2})[-\/](\d{1,2})(?:[ T].*)?$/))){
+    var d=new Date(+m[1],+m[2]-1,+m[3]);
+    return (isNaN(d.getTime())||+m[2]>12||+m[3]>31)?null:d;
+  }
+  if((m=s.match(/^(\d{1,2})[-\/](\d{1,2})[-\/](\d{4})$/))){
+    var dd=+m[1],mm=+m[2],yy=+m[3];
+    if(mm>12||dd>31) return null;
+    var d2=new Date(yy,mm-1,dd);
+    return isNaN(d2.getTime())?null:d2;
+  }
+  return null;
+}
+
+function fmtDateShort(d){
+  if(!(d instanceof Date)||isNaN(d.getTime())) return '—';
+  return d.toLocaleDateString('es-MX',{year:'numeric',month:'short'});
+}
+
+// cellDates:true (arriba, en processFile) solo convierte celdas que EXCEL YA
+// TENÍA marcadas con formato de fecha. Una columna de fechas capturada como
+// número plano (sin formato aplicado — muy común si vino de una fórmula, un
+// import previo o solo se escribió el número) llega aquí como un número común
+// y corriente, indistinguible de una columna de folios o montos. Por eso se
+// necesita un segundo criterio, más conservador: solo se acepta como fecha si
+// el NOMBRE de la columna sugiere que lo es Y los valores caen en un rango de
+// serie de Excel plausible (evita confundir columnas de IDs/montos).
+var _DATE_HEADER_RE=/fecha|\bdate\b|d[ií]a\b|timestamp|creaci[oó]n|nacimiento|registro|per[ií]odo|ingreso|egreso|inicio|t[eé]rmino|vencimiento/i;
+function _excelSerialToDate(n){
+  // Excel (sistema 1900) cuenta los días desde 1899-12-30; 25569 es la
+  // cantidad de días entre esa fecha y la época Unix (1970-01-01).
+  var ms=Math.round((n-25569)*86400*1000);
+  var d=new Date(ms);
+  return isNaN(d.getTime())?null:d;
+}
+
 function analyzeCol(col){
   var vals=rawData.map(function(r){ return r[col]; }).filter(function(v){ return v!==''&&v!=null; });
-  var nums=vals.map(Number).filter(function(n){ return !isNaN(n)&&isFinite(n); });
-  var isNum=vals.length>0&&nums.length/vals.length>0.7;
+  var dateObjs=vals.map(_parseFlexDate).filter(function(d){ return d; });
+  var isDate=vals.length>0&&dateObjs.length/vals.length>0.7;
+  if(!isDate&&vals.length>0&&_DATE_HEADER_RE.test(col)){
+    var serialDates=vals.map(function(v){
+      return (typeof v==='number'&&v>20000&&v<60000&&Math.abs(v-Math.round(v))<0.01)?_excelSerialToDate(v):null;
+    }).filter(function(d){ return d; });
+    if(serialDates.length/vals.length>0.7){ dateObjs=serialDates; isDate=true; }
+  }
+  var nums=isDate?[]:vals.map(Number).filter(function(n){ return !isNaN(n)&&isFinite(n); });
+  var isNum=!isDate&&vals.length>0&&nums.length/vals.length>0.7;
   var uniqMap={};
-  vals.forEach(function(v){ uniqMap[String(v)]=true; });
+  vals.forEach(function(v){ var k=String(v); uniqMap[k]=(uniqMap[k]||0)+1; });
   var uniq=Object.keys(uniqMap);
+  // ── Texto libre vs. categoría real ──
+  // "≤40 valores únicos" por sí solo no distingue una categoría real (Sí/No,
+  // Alto/Medio/Bajo) de una columna de texto libre que por casualidad tiene
+  // pocos valores únicos — y las dos formas en que eso pasaba rompían el
+  // dashboard igual: (a) una columna de nombres/títulos casi todos distintos
+  // (cada uno aparece 1 sola vez) se graficaba como una barra por fila, todas
+  // de altura 1, sin ninguna lectura real; (b) una descripción larga
+  // (repetida en unas cuantas filas) se graficaba con el PÁRRAFO COMPLETO
+  // como etiqueta de cada rebanada/barra, desbordando la tarjeta y la
+  // página. Dos señales bastan para separarlas de una categoría real:
+  // - "maxFreq": en una categoría real, al menos un valor se repite. Si CADA
+  //   valor aparece exactamente 1 vez (con datos suficientes para que sea
+  //   señal y no casualidad), es una lista de textos/nombres, no categorías.
+  // - "avgLen": una categoría real es una etiqueta corta; un párrafo no lo
+  //   es, sin importar cuántas veces se repita.
+  var maxFreq=0; for(var kf in uniqMap){ if(uniqMap[kf]>maxFreq) maxFreq=uniqMap[kf]; }
+  var avgLen=uniq.length?uniq.reduce(function(s,v){return s+v.length;},0)/uniq.length:0;
+  var esListaDeTexto=vals.length>=6&&maxFreq===1;
+  var esParrafo=avgLen>55;
+  var isCateg=uniq.length<=40&&!isNum&&!isDate&&!esListaDeTexto&&!esParrafo;
+  var isTexto=!isNum&&!isDate&&!isCateg&&vals.length>0;
   var sorted=nums.slice().sort(function(a,b){return a-b;});
   var sum=nums.reduce(function(a,b){return a+b;},0);
+  var sortedDates=dateObjs.slice().sort(function(x,y){return x-y;});
   return{
-    isNum:isNum, isCateg:uniq.length<=40&&!isNum, uniq:uniq,
-    nums:nums, total:vals.length, missing:rawData.length-vals.length,
+    isNum:isNum, isCateg:isCateg, isDate:isDate, isTexto:isTexto, uniq:uniq,
+    nums:nums, dates:dateObjs, total:vals.length, missing:rawData.length-vals.length,
     sum:sum, avg:nums.length?sum/nums.length:0,
     min:sorted[0]||0, max:sorted[sorted.length-1]||0,
-    median:sorted[Math.floor(sorted.length/2)]||0
+    median:sorted[Math.floor(sorted.length/2)]||0,
+    minDate:sortedDates[0]||null, maxDate:sortedDates[sortedDates.length-1]||null
   };
 }
 
@@ -856,10 +955,12 @@ function buildMetrics(){
   row.innerHTML='';
   var numCols=headers.filter(function(h){return analyzeCol(h).isNum;});
   var catCols=headers.filter(function(h){return analyzeCol(h).isCateg;});
+  var txtCols=headers.filter(function(h){return analyzeCol(h).isTexto;});
   addMetric(row,rawData.length.toLocaleString(),'Registros totales','');
   addMetric(row,headers.length,'Variables','');
   addMetric(row,numCols.length,'Numéricas','');
   addMetric(row,catCols.length,'Categóricas','');
+  if(txtCols.length>0) addMetric(row,txtCols.length,'Texto libre','');
   if(numCols.length>0){
     var a=analyzeCol(numCols[0]);
     addMetric(row,fmtNum(a.avg),'Promedio · '+numCols[0],'');
@@ -890,6 +991,19 @@ function getColors(n){
   return arr;
 }
 
+// Red de seguridad para etiquetas de gráfica: analyzeCol() ya evita que una
+// columna de párrafos completos se clasifique como categórica (ver
+// "esParrafo" ahí), pero esa regla mira el PROMEDIO de longitud de la
+// columna — un valor atípico largo mezclado con varios cortos puede colarse
+// igual. Cortar cada etiqueta individual antes de dársela a Chart.js es lo
+// que de verdad garantiza que ninguna leyenda ni eje se desborde de su
+// tarjeta, sin importar de dónde venga el dato.
+function _truncLabel(s,max){
+  s=String(s==null?'':s);
+  max=max||42;
+  return s.length>max?s.slice(0,max-1)+'…':s;
+}
+
 function buildCharts(){
   var grid=document.getElementById('chartsGrid'); if(!grid) return;
   grid.innerHTML='';
@@ -899,9 +1013,17 @@ function buildCharts(){
   var n=0;
   activeCols.forEach(function(h){
     var a=analyzeCol(h);
-    if(!a.isCateg&&!a.isNum) return;
+    if(!a.isCateg&&!a.isNum&&!a.isDate) return;
     if(n>=8) return;
-    if(!chartTypes[h]) chartTypes[h]=a.isNum?'bar':(a.uniq.length<=6?'pie':'bar');
+    // Antes una categórica con ≤6 valores únicos default eaba a pie/dona —
+    // pero un pie no distingue nada cuando una categoría domina el conjunto
+    // (p. ej. 50%+15%+14%+7%+7%+7%): la rebanada grande se lee bien, el resto
+    // queda como astillas casi imposibles de comparar entre sí. Una barra
+    // muestra la misma distribución, esté o no sesgada, con una lectura
+    // directa (largo = cantidad) — así que es el default parejo para
+    // cualquier categórica; pie/dona siguen disponibles como opción manual
+    // (los botones de tipo, abajo) para quien de verdad quiera esa lectura.
+    if(!chartTypes[h]) chartTypes[h]=a.isDate?'line':'bar';
     if(!chartSizes[h]) chartSizes[h]='sm';
     buildOneChart(h,a,grid,n); n++;
   });
@@ -926,28 +1048,56 @@ function buildOneChart(h,a,grid,idx){
     }
   });
   // Build data
+  var isPie=type==='pie'||type==='doughnut';
   var labels=[],data=[];
   if(a.isCateg){
     var counts={};
     rawData.forEach(function(r){var v=String(r[h]||'');counts[v]=(counts[v]||0)+1;});
-    var sorted2=Object.entries(counts).sort(function(x,y){return y[1]-x[1];}).slice(0,15);
-    labels=sorted2.map(function(x){return x[0];});
+    var sortedAll=Object.entries(counts).sort(function(x,y){return y[1]-x[1];});
+    // En pie/doughnut, más de 6-7 rebanadas es ilegible y, si una categoría
+    // domina el conjunto (p. ej. 95% "Activo"), el resto queda como astillas
+    // invisibles — visualmente parece un círculo sólido roto, sin dar ninguna
+    // lectura real de la distribución. Se agrupan las categorías menores en
+    // "Otros" para que las rebanadas que sí importan queden legibles.
+    var TOPN_PIE=6;
+    var sorted2=isPie&&sortedAll.length>TOPN_PIE?sortedAll.slice(0,TOPN_PIE):sortedAll.slice(0,15);
+    if(isPie&&sortedAll.length>TOPN_PIE){
+      var restoSum=sortedAll.slice(TOPN_PIE).reduce(function(s,x){return s+x[1];},0);
+      if(restoSum>0) sorted2=sorted2.concat([['Otros ('+(sortedAll.length-TOPN_PIE)+')',restoSum]]);
+    }
+    labels=sorted2.map(function(x){return _truncLabel(x[0]);});
     data=sorted2.map(function(x){return x[1];});
+  } else if(a.isDate){
+    var loD=a.minDate?a.minDate.getTime():0, hiD=a.maxDate?a.maxDate.getTime():0;
+    var binsD=8, rangeD=(hiD-loD)||1, stepD=rangeD/binsD;
+    for(var id=0;id<binsD;id++){
+      var loT=loD+id*stepD, hiT=loD+(id+1)*stepD, lastD=id===binsD-1;
+      labels.push(fmtDateShort(new Date(loT))+' – '+fmtDateShort(new Date(hiT)));
+      data.push(a.dates.filter(function(d2){var t=d2.getTime();return t>=loT&&(lastD?t<=hiT:t<hiT);}).length);
+    }
   } else {
+    // El último bin es inclusivo del máximo — con "<" estricto en los 8
+    // bins, el valor más alto del conjunto quedaba fuera de cualquier
+    // rango y se contaba como cero, restándole un registro al total real.
     var bins=8,range=a.max-a.min||1,step=range/bins;
     for(var i=0;i<bins;i++){
-      var lo=a.min+i*step,hi=a.min+(i+1)*step;
+      var lo=a.min+i*step,hi=a.min+(i+1)*step,last=i===bins-1;
       labels.push(fmtNum(lo)+'-'+fmtNum(hi));
-      data.push(a.nums.filter(function(n2){return n2>=lo&&n2<hi;}).length);
+      data.push(a.nums.filter(function(n2){return n2>=lo&&(last?n2<=hi:n2<hi);}).length);
     }
   }
   var colors=getColors(labels.length);
-  var isPie=type==='pie'||type==='doughnut';
+  // Barra horizontal para categorías con etiquetas largas o muchos valores —
+  // en vertical, esas etiquetas solo caben rotadas en diagonal (ver
+  // "Proyecto"/"Plazo" antes de este cambio), que es lento de leer. En
+  // horizontal cada etiqueta va completa sobre su propia fila, sin rotar.
+  var avgLabelLen=labels.length?labels.reduce(function(s,l){return s+String(l).length;},0)/labels.length:0;
+  var horizontal=!isPie&&type==='bar'&&a.isCateg&&(avgLabelLen>13||labels.length>6);
   var safeH=h.replace(/['"]/g,'');
   card.innerHTML=
     '<div class="chart-card-hd">'+
       '<span class="drag-handle" title="Arrastrar">⠿</span>'+
-      '<input class="chart-title-input" value="'+safeH+'" placeholder="Título…"/>'+
+      '<input class="chart-title-input" value="'+(chartTitleOverrides[safeH]||safeH)+'" placeholder="Título…" oninput="chartTitleOverrides[\''+safeH+'\']=this.value"/>'+
     '</div>'+
     '<div class="chart-ctrl-row">'+
       ['bar','line','pie','doughnut','radar'].map(function(t){
@@ -960,11 +1110,16 @@ function buildOneChart(h,a,grid,idx){
     '<canvas id="cv-'+idx+'"></canvas>';
   grid.appendChild(card);
   var ctx=document.getElementById('cv-'+idx).getContext('2d');
+  var totalPie=isPie?data.reduce(function(s,v){return s+v;},0)||1:0;
   var dataset={
     label:h, data:data,
+    // Rebanadas con borde blanco: sin esto, dos rebanadas de colores
+    // parecidos (o repetidos, si hay más categorías que colores en la
+    // paleta) se funden visualmente en una sola mancha — el borde blanco
+    // separa cada rebanada aunque el relleno sea casi idéntico al vecino.
     backgroundColor:isPie?colors:colors[0]+'cc',
-    borderColor:isPie?colors:colors[0],
-    borderWidth:isPie?1:2, borderRadius:type==='bar'?6:0,
+    borderColor:isPie?'#ffffff':colors[0],
+    borderWidth:isPie?2:2, borderRadius:type==='bar'?6:0,
     tension:0.4
   };
   chartInstances['cv-'+idx]=new Chart(ctx,{
@@ -972,11 +1127,43 @@ function buildOneChart(h,a,grid,idx){
     data:{labels:labels,datasets:[dataset]},
     options:{
       responsive:true,maintainAspectRatio:true,
-      plugins:{legend:{display:isPie,position:'bottom',labels:{font:{size:10},boxWidth:10}},tooltip:{}},
-      scales:isPie||type==='radar'?{}:{
+      indexAxis:horizontal?'y':'x',
+      plugins:{
+        legend:{
+          display:isPie,position:'bottom',
+          labels:{
+            font:{size:10},boxWidth:10,
+            // El % junto a cada etiqueta es lo que realmente distingue una
+            // rebanada dominante (94%) de una pareja (48/52) — sin esto solo
+            // hay un color y un nombre, y una distribución muy sesgada se lee
+            // igual que un empate.
+            generateLabels:function(chart){
+              var ds=chart.data.datasets[0];
+              return chart.data.labels.map(function(lab,i){
+                var pct=totalPie?Math.round((ds.data[i]/totalPie)*100):0;
+                return {
+                  text:lab+' — '+pct+'%',
+                  fillStyle:ds.backgroundColor[i],
+                  strokeStyle:'#fff',lineWidth:1,index:i
+                };
+              });
+            }
+          }
+        },
+        tooltip:{
+          callbacks:isPie?{label:function(ctx2){
+            var pct=totalPie?Math.round((ctx2.parsed/totalPie)*100):0;
+            return ctx2.label+': '+ctx2.parsed+' ('+pct+'%)';
+          }}:{}
+        }
+      },
+      scales:isPie||type==='radar'?{}:(horizontal?{
+        x:{ticks:{font:{size:9}},grid:{color:'rgba(0,0,0,.05)'}},
+        y:{ticks:{font:{size:9},autoSkip:false},grid:{display:false}}
+      }:{
         x:{ticks:{font:{size:9},maxRotation:40},grid:{display:false}},
         y:{ticks:{font:{size:9}},grid:{color:'rgba(0,0,0,.05)'}}
-      }
+      })
     }
   });
   chartInstances['cv-'+idx]._colKey=h;
@@ -1011,7 +1198,7 @@ function rebuildCharts(){
   var n=0;
   activeCols.forEach(function(h){
     var a=analyzeCol(h);
-    if(!a.isCateg&&!a.isNum) return;
+    if(!a.isCateg&&!a.isNum&&!a.isDate) return;
     if(n>=8) return;
     buildOneChart(h,a,grid,n); n++;
   });
@@ -1028,8 +1215,8 @@ function buildColSelector(){
   var numCount=0,catCount=0,txtCount=0;
   headers.forEach(function(h,idx){
     var a=analyzeCol(h);
-    var type=a.isNum?'num':(a.isCateg?'cat':'txt');
-    var typeLabel=a.isNum?'Num':(a.isCateg?'Cat':'Txt');
+    var type=a.isDate?'fecha':(a.isNum?'num':(a.isCateg?'cat':'txt'));
+    var typeLabel=a.isDate?'Fecha':(a.isNum?'Num':(a.isCateg?'Cat':'Txt'));
     if(a.isNum) numCount++; else if(a.isCateg) catCount++; else txtCount++;
     var chip=document.createElement('label');
     chip.className='col-chip active';
@@ -1101,10 +1288,12 @@ function buildMetricsFiltered(){
   row.innerHTML='';
   var numCols=selectedCols.filter(function(h){return analyzeCol(h).isNum;});
   var catCols=selectedCols.filter(function(h){return analyzeCol(h).isCateg;});
+  var txtCols=selectedCols.filter(function(h){return analyzeCol(h).isTexto;});
   addMetric(row,rawData.length.toLocaleString(),'Registros totales','');
   addMetric(row,selectedCols.length,'Columnas activas','');
   addMetric(row,numCols.length,'Numéricas','');
   addMetric(row,catCols.length,'Categóricas','');
+  if(txtCols.length>0) addMetric(row,txtCols.length,'Texto libre','');
   if(numCols.length>0){var a=analyzeCol(numCols[0]);addMetric(row,fmtNum(a.avg),'Promedio · '+numCols[0],'');addMetric(row,fmtNum(a.max),'Máximo · '+numCols[0],'');}
 }
 
@@ -1326,6 +1515,14 @@ function buildAnalysis(){
   var activeCols=selectedCols.length?selectedCols:headers;
   var numCols=activeCols.filter(function(h){return analyzeCol(h).isNum;});
   var catCols=activeCols.filter(function(h){return analyzeCol(h).isCateg;});
+  // Columnas de texto libre (descripciones, nombres, notas) — analyzeCol()
+  // ya las separa de las categóricas reales (ver "esListaDeTexto"/
+  // "esParrafo" ahí) precisamente para que existan como su propio grupo:
+  // antes esta información simplemente se perdía (ni se graficaba bien ni
+  // se mencionaba en ningún lado del análisis) — ahora el análisis
+  // cualitativo señala que existe y da un fragmento real, en vez de
+  // ignorarla.
+  var txtCols=activeCols.filter(function(h){return analyzeCol(h).isTexto;});
   var total=rawData.length;
   var catInsight='';
   if(catCols.length>0){
@@ -1346,26 +1543,42 @@ function buildAnalysis(){
   var missText=missCols.length
     ?'Se detectaron datos faltantes en '+missCols.length+' variable(s): '+missCols.slice(0,3).join(', ')+'.'
     :'El conjunto no presenta valores faltantes.';
-  content.innerHTML=
-    '<div class="ana-section"><h4>1. Lectura contextual</h4>'+
-    '<p>El análisis de <strong>'+title+'</strong> parte de <strong>'+total.toLocaleString()+' registros</strong> en <strong>'+headers.length+' variables</strong> — '+numCols.length+' numéricas y '+catCols.length+' categóricas. Los datos no son neutros: son el resultado de decisiones metodológicas que ya implican una mirada sobre la realidad.</p>'+
-    '<div class="ana-cite">"El hombre es un animal inserto en tramas de significación que él mismo ha tejido." — Geertz, C. (1987). La interpretación de las culturas. Gedisa, p. 20.</div></div>'+
-    '<div class="ana-section"><h4>2. Patrones observados</h4>'+
-    '<p>'+catInsight+numInsight+missText+'</p></div>'+
-    '<div class="ana-section"><h4>3. Lo que los datos no capturan</h4>'+
+
+  var secciones=[];
+  secciones.push({titulo:'Lectura contextual', html:
+    '<p>El análisis de <strong>'+title+'</strong> parte de <strong>'+total.toLocaleString()+' registros</strong> en <strong>'+headers.length+' variables</strong> — '+numCols.length+' numéricas, '+catCols.length+' categóricas'+(txtCols.length?' y '+txtCols.length+' de texto libre':'')+'. Los datos no son neutros: son el resultado de decisiones metodológicas que ya implican una mirada sobre la realidad.</p>'+
+    '<div class="ana-cite">"El hombre es un animal inserto en tramas de significación que él mismo ha tejido." — Geertz, C. (1987). La interpretación de las culturas. Gedisa, p. 20.</div>'});
+  secciones.push({titulo:'Patrones observados', html: '<p>'+catInsight+numInsight+missText+'</p>'});
+  if(txtCols.length>0){
+    var muestraCol=txtCols[0], muestraVal='';
+    for(var mi=0;mi<rawData.length;mi++){
+      var vTxt=String(rawData[mi][muestraCol]||'').trim();
+      if(vTxt){ muestraVal=vTxt; break; }
+    }
+    if(muestraVal.length>240) muestraVal=muestraVal.slice(0,240).trim()+'…';
+    secciones.push({titulo:'Contenido cualitativo sin graficar', html:
+      '<p>Se identificaron <strong>'+txtCols.length+' columna(s) de texto libre</strong> ('+txtCols.slice(0,4).map(escapeHtml).join(', ')+(txtCols.length>4?'…':'')+') — descripciones, nombres o notas que no se resumen bien en una gráfica y que vale más leer directamente. Un fragmento, tomado de "'+escapeHtml(muestraCol)+'":</p>'+
+      (muestraVal?'<div class="ana-cite">"'+escapeHtml(muestraVal)+'"</div>':'')});
+  }
+  secciones.push({titulo:'Lo que los datos no capturan', html:
     '<p>Todo instrumento tiene un horizonte. Las trayectorias personales, los contextos familiares, las percepciones subjetivas: aquello que no aparece en el dataset es tan importante como lo que sí aparece.</p>'+
-    '<div class="ana-cite">"La realidad no se agota en lo medible." — Zemelman, H. (1992). Los horizontes de la razón. Anthropos.</div></div>'+
-    '<div class="ana-section"><h4>4. Preguntas que abre este análisis</h4>'+
+    '<div class="ana-cite">"La realidad no se agota en lo medible." — Zemelman, H. (1992). Los horizontes de la razón. Anthropos.</div>'});
+  secciones.push({titulo:'Preguntas que abre este análisis', html:
     '<ul class="ana-questions">'+
     '<li>¿Los patrones reflejan condiciones estructurales o artefactos del instrumento?</li>'+
     (catCols.length?'<li>¿Qué explica la concentración en las categorías dominantes?</li>':'')+
     (missCols.length?'<li>¿Por qué hay datos faltantes en '+missCols[0]+'?</li>':'')+
+    (txtCols.length?'<li>¿Qué dicen, en sus propias palabras, quienes están detrás de "'+escapeHtml(txtCols[0])+'"?</li>':'')+
     '<li>¿Qué actores o poblaciones no están representados?</li>'+
-    '</ul></div>'+
-    '<div class="ana-section"><h4>5. Referencias (APA 7ª ed.)</h4>'+
+    '</ul>'});
+  secciones.push({titulo:'Referencias (APA 7ª ed.)', html:
     '<p style="font-size:.82rem;color:var(--txl);line-height:1.8;">Geertz, C. (1987). <em>La interpretación de las culturas</em>. Gedisa.<br>'+
     'Zemelman, H. (1992). <em>Los horizontes de la razón</em>. Anthropos.<br>'+
-    'Salgado López, D. (2023). <em>Análisis Conecta Empleo</em>. Sintropía Social.</p></div>'+
+    'Salgado López, D. (2023). <em>Análisis Conecta Empleo</em>. Sintropía Social.</p>'});
+
+  content.innerHTML=secciones.map(function(s,i){
+    return '<div class="ana-section"><h4>'+(i+1)+'. '+s.titulo+'</h4>'+s.html+'</div>';
+  }).join('')+
     '<p style="font-size:.76rem;color:var(--txl);margin-top:.75rem;border-top:1px solid var(--brd);padding-top:.75rem;">'+
     'Análisis generado por Sintropía Social · David Salgado López · Antropólogo · ENAH</p>';
   box.scrollIntoView({behavior:'smooth',block:'start'});
@@ -1418,11 +1631,16 @@ function _seccionesTextoDesdeAnalisis(){
 function _resumenMetricasTexto(){
   var numCols = headers.filter(function(h){ return analyzeCol(h).isNum; });
   var catCols = headers.filter(function(h){ return analyzeCol(h).isCateg; });
+  var dateCols = headers.filter(function(h){ return analyzeCol(h).isDate; });
   var missCols = headers.filter(function(h){ return analyzeCol(h).missing > 0; });
-  var partes = [rawData.length.toLocaleString() + ' registros en ' + headers.length + ' variables (' + numCols.length + ' numéricas, ' + catCols.length + ' categóricas).'];
+  var partes = [rawData.length.toLocaleString() + ' registros en ' + headers.length + ' variables (' + numCols.length + ' numéricas, ' + catCols.length + ' categóricas' + (dateCols.length ? ', ' + dateCols.length + ' de fecha' : '') + ').'];
   if (numCols.length) {
     var a = analyzeCol(numCols[0]);
     partes.push('Para "' + numCols[0] + '": promedio ' + fmtNum(a.avg) + ', rango de ' + fmtNum(a.min) + ' a ' + fmtNum(a.max) + '.');
+  }
+  if (dateCols.length) {
+    var ad = analyzeCol(dateCols[0]);
+    if (ad.minDate && ad.maxDate) partes.push('El periodo cubierto en "' + dateCols[0] + '" va de ' + fmtDateShort(ad.minDate) + ' a ' + fmtDateShort(ad.maxDate) + '.');
   }
   partes.push(missCols.length ? 'Se detectaron datos faltantes en ' + missCols.length + ' variable(s).' : 'El conjunto no presenta valores faltantes.');
   return partes.join(' ');
@@ -1433,6 +1651,7 @@ function _resumenMetricasTexto(){
 function _paramsInterpretacionIA(){
   var numCols = headers.filter(function(h){ return analyzeCol(h).isNum; });
   var catCols = headers.filter(function(h){ return analyzeCol(h).isCateg; });
+  var dateCols = headers.filter(function(h){ return analyzeCol(h).isDate; });
   var d = contactData || {};
   return {
     muestra: 'AnalisisDatos',
@@ -1444,6 +1663,7 @@ function _paramsInterpretacionIA(){
     totalVariables: headers.length,
     columnasNumericas: numCols.slice(0, 8).join(', '),
     columnasCategoricas: catCols.slice(0, 8).join(', '),
+    columnasFecha: dateCols.slice(0, 4).join(', '),
     analisisPrevio: _seccionesTextoDesdeAnalisis().map(function(s){ return s.titulo + ': ' + s.parrafos.join(' '); }).join(' ').slice(0, 3000),
     sitioWebTrampa: d.sitioWebTrampa
   };
@@ -1505,47 +1725,208 @@ async function exportPDF(){
     var title=document.getElementById('dashTitle').value||'Dashboard Sintropía Social';
     var org=document.getElementById('orgName').value||'Sintropía Social';
     var fecha=new Date().toLocaleDateString('es-MX',{year:'numeric',month:'long',day:'numeric'});
-    doc.setFillColor(99,30,235); doc.rect(0,0,W,20,'F');
-    if(logoURL){try{doc.addImage(logoURL,'PNG',W-36,2,28,16);}catch(e){}}
-    doc.setTextColor(255,255,255); doc.setFont('helvetica','bold'); doc.setFontSize(13);
-    doc.text(title,10,13);
-    doc.setFillColor(240,235,255); doc.rect(0,20,W,9,'F');
-    doc.setTextColor(99,30,235); doc.setFont('helvetica','normal'); doc.setFontSize(8);
-    doc.text(org+' · '+fecha,10,26);
-    doc.setTextColor(100,100,100); doc.text('sintropiasocial.com',W-45,26);
-    doc.setDrawColor(224,217,247); doc.setLineWidth(.3); doc.line(10,30,W-10,30);
-    var mets=[rawData.length.toLocaleString()+' registros',headers.length+' variables',
-      headers.filter(function(h){return analyzeCol(h).isNum;}).length+' numéricas',
-      headers.filter(function(h){return analyzeCol(h).isCateg;}).length+' categóricas'];
-    // skip metrics row for simplicity, go to charts
+
+    function drawHeaderLandscape(subt){
+      doc.setFillColor(99,30,235); doc.rect(0,0,W,20,'F');
+      // El logo se ajusta a una caja máxima de 28x16mm CONSERVANDO su
+      // proporción real (doc.getImageProperties da el ancho/alto original) —
+      // antes se forzaba a esa caja exacta sin importar la forma del logo
+      // subido, así que cualquier logo que no fuera ya 1.75:1 (28/16) salía
+      // estirado o achatado. Ahora se calcula el factor que quepa completo
+      // dentro de la caja y se centra verticalmente en ella.
+      if(logoURL){
+        try{
+          var logoProps=doc.getImageProperties(logoURL);
+          var maxLogoW=28,maxLogoH=16;
+          var fLogo=Math.min(maxLogoW/logoProps.width,maxLogoH/logoProps.height);
+          var lw=logoProps.width*fLogo, lh=logoProps.height*fLogo;
+          doc.addImage(logoURL,logoProps.fileType||'PNG',W-8-lw,2+(maxLogoH-lh)/2,lw,lh);
+        }catch(e){}
+      }
+      doc.setTextColor(255,255,255); doc.setFont('helvetica','bold'); doc.setFontSize(13);
+      doc.text(title,10,13);
+      doc.setFillColor(240,235,255); doc.rect(0,20,W,9,'F');
+      doc.setTextColor(99,30,235); doc.setFont('helvetica','normal'); doc.setFontSize(8);
+      doc.text(subt||(org+' · '+fecha),10,26);
+      doc.setTextColor(100,100,100); doc.text('sintropiasocial.com',W-45,26);
+      doc.setDrawColor(224,217,247); doc.setLineWidth(.3); doc.line(10,30,W-10,30);
+    }
+
+    drawHeaderLandscape();
+
+    // ── Franja de métricas (KPI) — más grande y con acento de color, para
+    // que el resumen numérico se lea de un vistazo, como en un tablero de
+    // indicadores, antes de entrar al detalle de las gráficas. Antes se
+    // calculaba (var mets=...) y nunca se dibujaba ("skip metrics row for
+    // simplicity"); sin esto el PDF no daba ningún panorama numérico del
+    // conjunto, solo las gráficas sueltas. ──
+    var numColsAll=headers.filter(function(h){return analyzeCol(h).isNum;});
+    var catColsAll=headers.filter(function(h){return analyzeCol(h).isCateg;});
+    var dateColsAll=headers.filter(function(h){return analyzeCol(h).isDate;});
+    var txtColsAll=headers.filter(function(h){return analyzeCol(h).isTexto;});
+    var mets=[
+      {v:rawData.length.toLocaleString(),l:'Registros'},
+      {v:String(headers.length),l:'Variables'},
+      {v:String(numColsAll.length),l:'Numéricas'},
+      {v:String(catColsAll.length),l:'Categóricas'}
+    ];
+    if(txtColsAll.length) mets.push({v:String(txtColsAll.length),l:'Texto libre'});
+    if(dateColsAll.length) mets.push({v:String(dateColsAll.length),l:'De fecha'});
+    if(numColsAll.length){
+      var a0=analyzeCol(numColsAll[0]);
+      mets.push({v:fmtNum(a0.avg),l:'Promedio · '+numColsAll[0]});
+    }
+    var kpiY=34,kpiH=20;
+    var mw=(W-20)/mets.length;
+    mets.forEach(function(m,mi){
+      var mx=10+mi*mw;
+      doc.setFillColor(250,249,247); doc.roundedRect(mx,kpiY,mw-3,kpiH,1.8,1.8,'F');
+      doc.setDrawColor(224,217,247); doc.roundedRect(mx,kpiY,mw-3,kpiH,1.8,1.8,'S');
+      doc.setFillColor(99,30,235); doc.roundedRect(mx,kpiY,mw-3,1.6,1.8,1.8,'F');
+      doc.setTextColor(45,35,70); doc.setFont('helvetica','bold'); doc.setFontSize(15);
+      doc.text(String(m.v),mx+4,kpiY+13);
+      doc.setTextColor(100,100,100); doc.setFont('helvetica','normal'); doc.setFontSize(7);
+      doc.text(doc.splitTextToSize(m.l,mw-8)[0],mx+4,kpiY+18);
+    });
+
+    // ── Gráficas agrupadas por tipo — antes se volcaban todas en una sola
+    // cuadrícula plana, en el orden en que aparecían en pantalla, sin ningún
+    // criterio de lectura (así se mezclaban tendencias, categorías e
+    // histogramas numéricos sin distinción). Agruparlas por lo que
+    // realmente muestran — con su propio rótulo de sección — es lo que hace
+    // que el PDF se lea como un reporte y no como gráficas sueltas. Cada
+    // tarjeta conserva su título (antes se perdía: el campo de título ni
+    // siquiera guardaba lo que la persona escribía). ──
     var canvases=document.querySelectorAll('#chartsGrid canvas');
-    var x=10,y=38,colW=88,rowH=66,col=0,mpr=3;
+    var grupos=[
+      {titulo:'Tendencias en el tiempo',items:[],mpr:2,colW:136},
+      {titulo:'Distribución por categoría',items:[],mpr:3,colW:88},
+      {titulo:'Distribución numérica',items:[],mpr:3,colW:88}
+    ];
     for(var ci=0;ci<canvases.length;ci++){
-      try{
-        var img=canvases[ci].toDataURL('image/png',1.0);
+      var cv=canvases[ci];
+      var inst=chartInstances[cv.id];
+      var colKey=(inst&&inst._colKey)||'';
+      var safeKey=colKey.replace(/['"]/g,'');
+      var chTitle=chartTitleOverrides[safeKey]||safeKey||('Gráfica '+(ci+1));
+      var a=colKey?analyzeCol(colKey):null;
+      var img;
+      try{ img=cv.toDataURL('image/png',1.0); }catch(e){ continue; }
+      var grupo=(a&&a.isDate)?grupos[0]:((a&&a.isCateg)?grupos[1]:grupos[2]);
+      grupo.items.push({titulo:chTitle,img:img});
+    }
+
+    var rowH=64,y=kpiY+kpiH+8;
+
+    function drawSectionLabel(tit){
+      doc.setFillColor(240,235,255); doc.roundedRect(10,y,W-20,7,1.2,1.2,'F');
+      doc.setTextColor(99,30,235); doc.setFont('helvetica','bold'); doc.setFontSize(9.5);
+      doc.text(tit,13,y+5);
+      y+=11;
+    }
+    function pageBreakIfNeeded(need,seccionActual){
+      if(y+need>H-12){
+        doc.addPage('a4','landscape');
+        drawHeaderLandscape('Gráficas — continuación');
+        y=38;
+        if(seccionActual) drawSectionLabel(seccionActual);
+        return true;
+      }
+      return false;
+    }
+
+    grupos.forEach(function(grupo){
+      if(!grupo.items.length) return;
+      // pageBreakIfNeeded ya dibuja el rótulo de sección cuando SÍ salta de
+      // página (para que la continuación diga a qué sección pertenece); si
+      // no saltó, todavía falta dibujarlo aquí — dibujarlo siempre en ambos
+      // casos es lo que producía el rótulo duplicado, uno encima del otro,
+      // cuando el salto de página coincidía con el inicio de una sección.
+      var salto=pageBreakIfNeeded(7+rowH,grupo.titulo);
+      if(!salto) drawSectionLabel(grupo.titulo);
+      var x=10,col=0,mpr=grupo.mpr,colW=grupo.colW;
+      grupo.items.forEach(function(it){
         doc.setFillColor(255,255,255); doc.roundedRect(x,y,colW,rowH,2,2,'F');
         doc.setDrawColor(224,217,247); doc.roundedRect(x,y,colW,rowH,2,2,'S');
-        doc.setFillColor(99,30,235); doc.rect(x,y,colW,1.5,'F');
-        doc.addImage(img,'PNG',x+1,y+3,colW-2,rowH-5);
-        col++; x+=colW+3;
-        if(col>=mpr){col=0;x=10;y+=rowH+4;
-          if(y+rowH>H-12){
-            doc.addPage();
-            doc.setFillColor(99,30,235); doc.rect(0,0,W,12,'F');
-            doc.setTextColor(255,255,255); doc.setFontSize(9); doc.setFont('helvetica','bold');
-            doc.text(title+' — continuación',10,8);
-            y=18;x=10;col=0;
-          }
+        doc.setFillColor(99,30,235); doc.rect(x,y,colW,6,'F');
+        doc.setTextColor(255,255,255); doc.setFont('helvetica','bold'); doc.setFontSize(8.5);
+        doc.text(doc.splitTextToSize(it.titulo,colW-4)[0],x+2,y+4.2);
+        // El acomodo de la cuadrícula (col/x/y) ya NO depende de que la
+        // imagen se incruste con éxito — antes, si addImage fallaba para una
+        // sola gráfica (PNG con una codificación que jsPDF no reconoce, algo
+        // raro pero posible), todo el try/catch se saltaba entero y la
+        // posición nunca avanzaba: el resto de las secciones del PDF quedaba
+        // dibujado unas encima de otras. Ahora, si una imagen puntual falla,
+        // esa tarjeta muestra un aviso y el resto del reporte sigue en su
+        // lugar normalmente.
+        try{ doc.addImage(it.img,'PNG',x+1,y+7,colW-2,rowH-8); }
+        catch(eImg){
+          doc.setTextColor(150,150,150); doc.setFont('helvetica','italic'); doc.setFontSize(7.5);
+          doc.text(doc.splitTextToSize('(No se pudo incrustar esta gráfica)',colW-8),x+4,y+rowH/2);
         }
-      }catch(e){}
+        col++; x+=colW+3;
+        if(col>=mpr){
+          col=0;x=10;y+=rowH+4;
+          pageBreakIfNeeded(rowH,grupo.titulo);
+        }
+      });
+      if(col!==0){ y+=rowH+4; }
+      y+=4;
+    });
+
+    // ── Análisis cualitativo — antes el PDF descargable NO incluía nada de
+    // esto (solo las gráficas); se reutiliza la misma extracción de texto
+    // que ya alimenta el correo, para no duplicar la lógica de
+    // buildAnalysis(). Va en páginas verticales (carta) porque un párrafo
+    // de lectura corrida se lee mejor en una columna angosta que en el
+    // ancho completo de una página horizontal. ──
+    var secciones=_seccionesTextoDesdeAnalisis();
+    if(secciones.length){
+      var PW=210,PH=297,margin=18,contentW=PW-margin*2,py=40;
+      function drawHeaderPortrait(subt){
+        doc.setFillColor(99,30,235); doc.rect(0,0,PW,20,'F');
+        doc.setTextColor(255,255,255); doc.setFont('helvetica','bold'); doc.setFontSize(13);
+        doc.text('Análisis cualitativo',margin,13);
+        doc.setFillColor(240,235,255); doc.rect(0,20,PW,9,'F');
+        doc.setTextColor(99,30,235); doc.setFont('helvetica','normal'); doc.setFontSize(8);
+        doc.text(subt||title,margin,26);
+        doc.setTextColor(100,100,100); doc.text('sintropiasocial.com',PW-45,26);
+        doc.setDrawColor(224,217,247); doc.setLineWidth(.3); doc.line(margin,30,PW-margin,30);
+      }
+      function ensureSpace(need){
+        if(py+need>PH-16){ doc.addPage('a4','portrait'); drawHeaderPortrait('continuación'); py=40; }
+      }
+      doc.addPage('a4','portrait');
+      drawHeaderPortrait();
+      secciones.forEach(function(sec){
+        ensureSpace(14);
+        doc.setTextColor(99,30,235); doc.setFont('helvetica','bold'); doc.setFontSize(11.5);
+        doc.text(sec.titulo,margin,py);
+        py+=7;
+        sec.parrafos.forEach(function(par){
+          var esCita=par.trim().charAt(0)==='"';
+          var lines=doc.splitTextToSize(par,contentW-(esCita?6:0));
+          var lh=5;
+          ensureSpace(lines.length*lh+4);
+          if(esCita){ doc.setFont('helvetica','italic'); doc.setTextColor(120,105,180); }
+          else { doc.setFont('helvetica','normal'); doc.setTextColor(45,45,45); }
+          doc.setFontSize(9.5);
+          lines.forEach(function(ln){ doc.text(ln,margin+(esCita?6:0),py); py+=lh; });
+          py+=2.5;
+        });
+        py+=3;
+      });
     }
+
+    // ── Pie de página en todas las páginas (soporta orientaciones mixtas) ──
     var pages=doc.getNumberOfPages();
     for(var pi=1;pi<=pages;pi++){
       doc.setPage(pi);
-      doc.setFillColor(99,30,235); doc.rect(0,H-8,W,8,'F');
+      var pw=doc.internal.pageSize.getWidth(), ph=doc.internal.pageSize.getHeight();
+      doc.setFillColor(99,30,235); doc.rect(0,ph-8,pw,8,'F');
       doc.setTextColor(255,255,255); doc.setFontSize(6.5); doc.setFont('helvetica','normal');
-      doc.text('Sintropía Social · contacto@sintropiasocial.com',10,H-3);
-      doc.text('Pág. '+pi+' / '+pages,W-18,H-3);
+      doc.text('Sintropía Social · contacto@sintropiasocial.com',10,ph-3);
+      doc.text('Pág. '+pi+' / '+pages,pw-18,ph-3);
     }
     doc.save((title.replace(/\s+/g,'_')||'dashboard_sintropia')+'.pdf');
     toast('PDF generado');
@@ -1583,7 +1964,7 @@ function hideProgress(){
 
 // ── CLEAR ──
 function clearAll(){
-  rawData=[];filteredData=[];headers=[];chartInstances={};chartTypes={};chartSizes={};selectedCols=[];logoURL=null;
+  rawData=[];filteredData=[];headers=[];chartInstances={};chartTypes={};chartSizes={};selectedCols=[];chartTitleOverrides={};logoURL=null;
   ['ctrlPanel','actionRow','chartsSection','filtersCard','tableWrap','metricsRow','analysisBox','compBox','colSelectorPanel','emptyState'].forEach(function(id){
     var e=document.getElementById(id); if(e) e.style.display='none';
   });
