@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="description" content="Sintropía Social — elige si vienes como empresa, organización o persona para ver nuestras muestras gratuitas.">
+<meta name="description" content="Sintropía Social — elige si vienes como empresa, organización, centro escolar o persona para ver nuestras muestras gratuitas.">
 <title>Sintropía Social — Empieza aquí</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -33,22 +33,39 @@
   header.top h1 { font-size: 22px; margin: 14px auto 6px; max-width: 460px; font-weight: 800; }
   header.top p { font-size: 14px; opacity: .92; max-width: 440px; margin: 0 auto; }
 
-  main { max-width: 1080px; margin: -30px auto 40px; padding: 0 16px; }
+  main { max-width: 920px; margin: -30px auto 40px; padding: 0 16px; }
 
-  .columnas { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 18px; }
-  @media (max-width: 900px) { .columnas { grid-template-columns: 1fr 1fr; } }
-  @media (max-width: 640px) { .columnas { grid-template-columns: 1fr; } }
+  .columnas { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; margin-bottom: 18px; }
+  @media (max-width: 720px) { .columnas { grid-template-columns: 1fr; } }
 
-  .columna {
-    background: var(--card); border-radius: 16px; padding: 22px 20px 20px; border: 1.5px solid var(--border);
-    box-shadow: 0 6px 20px rgba(99,30,235,.08);
+  .division {
+    background: var(--card); border-radius: 16px; border: 1.5px solid var(--border);
+    box-shadow: 0 6px 20px rgba(99,30,235,.08); overflow: hidden;
   }
-  .columna .etiqueta {
+
+  .division-toggle {
+    width: 100%; display: flex; align-items: flex-start; justify-content: space-between; gap: 10px;
+    background: none; border: none; text-align: left; cursor: pointer;
+    padding: 22px 20px 20px; font-family: inherit; color: inherit;
+  }
+  .division-toggle:hover .chevron { color: var(--purple); }
+  .div-info { display: block; }
+  .division .etiqueta {
     display: inline-block; font-size: 11px; font-weight: 700; letter-spacing: .5px; text-transform: uppercase;
     color: var(--orange); margin-bottom: 8px;
   }
-  .columna h2 { font-size: 19px; margin: 0 0 6px; color: var(--purple-dark); }
-  .columna > p { font-size: 13.5px; color: var(--subtle); margin: 0 0 16px; }
+  .division h2 { font-size: 19px; margin: 0 0 6px; color: var(--purple-dark); }
+  .division-toggle > .div-info > p { font-size: 13.5px; color: var(--subtle); margin: 0; }
+  .chevron {
+    flex-shrink: 0; font-size: 20px; line-height: 1; color: var(--subtle); margin-top: 4px;
+    transition: transform .3s ease, color .2s ease;
+  }
+  .division.open .chevron { transform: rotate(180deg); color: var(--purple); }
+
+  .division-body {
+    max-height: 0; overflow: hidden; transition: max-height .35s ease;
+  }
+  .division-body-inner { padding: 0 20px 20px; }
 
   a.suboferta {
     display: block; text-decoration: none; color: inherit;
@@ -61,12 +78,16 @@
   a.suboferta .desc { display: block; font-size: 13px; color: var(--subtle); margin-bottom: 10px; }
   a.suboferta .cta { display: inline-flex; align-items: center; gap: 6px; font-weight: 700; font-size: 13.5px; color: var(--purple); }
   a.suboferta:hover .cta { color: var(--purple-dark); }
-  .nombre-fila { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+  .nombre-fila { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; flex-wrap: wrap; }
   .nombre-fila .nombre { margin-bottom: 0; }
-  .tag-candidatos {
+  .tag-candidatos, .tag-ia {
     display: inline-block; font-size: 10px; font-weight: 800; letter-spacing: .4px; text-transform: uppercase;
-    color: #fff; background: var(--orange); padding: 2px 9px; border-radius: 20px; white-space: nowrap;
+    color: #fff; padding: 2px 9px; border-radius: 20px; white-space: nowrap;
   }
+  .tag-candidatos { background: var(--orange); }
+  .tag-ia { background: var(--purple); }
+  a.suboferta.destacada { border-style: dashed; border-color: #c9bcf2; background: #FBFAFF; }
+  a.suboferta.destacada:hover { border-style: solid; }
 
   .nota {
     text-align: center; font-size: 13px; color: var(--subtle); margin: 4px 0 0;
@@ -82,77 +103,143 @@
 
 <header class="top">
   <div class="marca">Sintropía <span>Social</span></div>
-  <h1>¿Vienes como empresa, organización o persona?</h1>
-  <p>Elige una opción y te llevamos directo a lo que te interesa — toma menos de un minuto empezar.</p>
+  <h1>¿Vienes como empresa, organización, centro escolar o persona?</h1>
+  <p>Toca una opción para ver sus muestras gratuitas — toma menos de un minuto empezar.</p>
 </header>
 
 <main>
   <div class="columnas">
-    <div class="columna">
-      <span class="etiqueta">Empresas</span>
-      <h2>Para tu empresa</h2>
-      <p>Contratación, riesgos y talento.</p>
-      <a class="suboferta" href="muestra_se.html">
-        <span class="nombre">Estudio socioeconómico y gestión de riesgos</span>
-        <span class="desc">Responde 20 preguntas breves sobre tu proceso de contratación actual y recibe un semáforo de riesgo gratuito.</span>
-        <span class="cta">Ver muestra →</span>
-      </a>
-      <a class="suboferta" href="muestra_candidato.html">
-        <span class="nombre-fila"><span class="nombre">Estoy buscando empleo</span><span class="tag-candidatos">Candidatos</span></span>
-        <span class="desc">Responde unas preguntas para saber qué tan lista está tu búsqueda de empleo y autoriza que te avisemos de vacantes a tu medida.</span>
-        <span class="cta">Ver mi diagnóstico →</span>
-      </a>
+
+    <div class="division" id="div-empresas">
+      <button class="division-toggle" onclick="toggleDivision('div-empresas')" aria-expanded="false">
+        <span class="div-info">
+          <span class="etiqueta">Empresas</span>
+          <h2>Para tu empresa</h2>
+          <p>Contratación, riesgos y datos.</p>
+        </span>
+        <span class="chevron">⌄</span>
+      </button>
+      <div class="division-body">
+        <div class="division-body-inner">
+          <a class="suboferta" href="muestra_se.html">
+            <span class="nombre">Estudio socioeconómico y gestión de riesgos</span>
+            <span class="desc">Responde 20 preguntas breves sobre tu proceso de contratación actual y recibe un semáforo de riesgo gratuito.</span>
+            <span class="cta">Ver muestra →</span>
+          </a>
+          <a class="suboferta" href="muestra_dashboard.html">
+            <span class="nombre">Dashboard interactivo de tus datos</span>
+            <span class="desc">Sube tu CSV o Excel y recibe gráficas, métricas y una lectura cualitativa automática con perspectiva antropológica — sin instalar nada.</span>
+            <span class="cta">Ver muestra →</span>
+          </a>
+          <a class="suboferta destacada" href="muestra_instrumento.html?eje=empresas">
+            <span class="nombre-fila"><span class="nombre">¿Necesitas un instrumento a tu medida?</span><span class="tag-ia">Con IA</span></span>
+            <span class="desc">Cuéntanos qué necesitas medir en tu empresa y en unos minutos te llega una propuesta de instrumento + nuestras recomendaciones.</span>
+            <span class="cta">Empezar →</span>
+          </a>
+        </div>
+      </div>
     </div>
-    <div class="columna">
-      <span class="etiqueta">Organizaciones</span>
-      <h2>Para tu organización</h2>
-      <p>OSC, gobierno, universidades.</p>
-      <a class="suboferta" href="diagnostico.html">
-        <span class="nombre">Diagnóstico social</span>
-        <span class="desc">Cuéntanos de tu organización y responde un cuestionario breve — recibe un diagnóstico preliminar gratuito con perspectiva antropológica.</span>
-        <span class="cta">Empezar diagnóstico →</span>
-      </a>
-      <a class="suboferta" href="muestra_disenio_instruccional.html">
-        <span class="nombre">Diseño instruccional de cursos</span>
-        <span class="desc">Cursos presenciales, virtuales o híbridos. Cuéntanos qué necesitas y recibe una propuesta de secuencia didáctica generada con IA.</span>
-        <span class="cta">Ver muestra →</span>
-      </a>
-      <a class="suboferta" href="muestra_territorio.html">
-        <span class="nombre">Mapa territorial de tu proyecto</span>
-        <span class="desc">Ubica tu proyecto en un mapa, mapea a tus actores clave y responde diez preguntas breves — recibe tu resultado gratis.</span>
-        <span class="cta">Ver muestra →</span>
-      </a>
-      <a class="suboferta" href="muestra_track.html">
-        <span class="nombre">Sintropía Track: seguimiento de tu proyecto</span>
-        <span class="desc">Cuéntanos de tu proyecto y responde once preguntas breves — recibe un plan preliminar gratuito con indicadores, metas y cronograma.</span>
-        <span class="cta">Ver muestra →</span>
-      </a>
-      <a class="suboferta" href="muestra_dashboard.html">
-        <span class="nombre">Dashboard interactivo de tus datos</span>
-        <span class="desc">Sube tu CSV o Excel y recibe gráficas, métricas y una lectura cualitativa automática con perspectiva antropológica — sin instalar nada.</span>
-        <span class="cta">Ver muestra →</span>
-      </a>
-      <a class="suboferta" href="muestra_pdfcitas.html">
-        <span class="nombre">Buscador de citas en PDF</span>
-        <span class="desc">Sube un libro, reporte o tesis en PDF, busca una palabra clave y propone tus citas con página exacta al Repositorio Bibliográfico de Sintropía Social.</span>
-        <span class="cta">Ver muestra →</span>
-      </a>
+
+    <div class="division" id="div-organizaciones">
+      <button class="division-toggle" onclick="toggleDivision('div-organizaciones')" aria-expanded="false">
+        <span class="div-info">
+          <span class="etiqueta">Organizaciones</span>
+          <h2>Para tu organización</h2>
+          <p>OSC, gobierno, seguimiento de proyectos.</p>
+        </span>
+        <span class="chevron">⌄</span>
+      </button>
+      <div class="division-body">
+        <div class="division-body-inner">
+          <a class="suboferta" href="diagnostico.html">
+            <span class="nombre">Diagnóstico social</span>
+            <span class="desc">Cuéntanos de tu organización y responde un cuestionario breve — recibe un diagnóstico preliminar gratuito con perspectiva antropológica.</span>
+            <span class="cta">Empezar diagnóstico →</span>
+          </a>
+          <a class="suboferta" href="muestra_territorio.html">
+            <span class="nombre">Mapa territorial de tu proyecto</span>
+            <span class="desc">Ubica tu proyecto en un mapa, mapea a tus actores clave y responde diez preguntas breves — recibe tu resultado gratis.</span>
+            <span class="cta">Ver muestra →</span>
+          </a>
+          <a class="suboferta" href="muestra_track.html">
+            <span class="nombre">Sintropía Track: seguimiento de tu proyecto</span>
+            <span class="desc">Cuéntanos de tu proyecto y responde once preguntas breves — recibe un plan preliminar gratuito con indicadores, metas y cronograma.</span>
+            <span class="cta">Ver muestra →</span>
+          </a>
+          <a class="suboferta destacada" href="muestra_instrumento.html?eje=organizaciones">
+            <span class="nombre-fila"><span class="nombre">¿Necesitas un instrumento a tu medida?</span><span class="tag-ia">Con IA</span></span>
+            <span class="desc">Cuéntanos qué necesita medir tu organización y en unos minutos te llega una propuesta de instrumento + nuestras recomendaciones.</span>
+            <span class="cta">Empezar →</span>
+          </a>
+        </div>
+      </div>
     </div>
-    <div class="columna">
-      <span class="etiqueta">Personas</span>
-      <h2>Para ti</h2>
-      <p>Conoce tus habilidades para el empleo.</p>
-      <a class="suboferta" href="muestra_imes.html">
-        <span class="nombre">Quiero probar el IMES Preparatoria</span>
-        <span class="desc">¿Estudias la prepa y quieres conocer tus habilidades para el empleo? Responde una muestra breve y gratuita del IMES y ve tu resultado en minutos.</span>
-        <span class="cta">Probar la muestra →</span>
-      </a>
-      <a class="suboferta" href="muestra_imes_universidad.html">
-        <span class="nombre">Quiero probar el IMES Universidad</span>
-        <span class="desc">¿Estudias la universidad? Responde una muestra breve y gratuita sobre tus habilidades sociales, de empleabilidad y técnicas rumbo a tu primer empleo profesional.</span>
-        <span class="cta">Probar la muestra →</span>
-      </a>
+
+    <div class="division" id="div-escolar">
+      <button class="division-toggle" onclick="toggleDivision('div-escolar')" aria-expanded="false">
+        <span class="div-info">
+          <span class="etiqueta">Centro Escolar</span>
+          <h2>Para tu centro escolar</h2>
+          <p>Cursos, prepa y universidad.</p>
+        </span>
+        <span class="chevron">⌄</span>
+      </button>
+      <div class="division-body">
+        <div class="division-body-inner">
+          <a class="suboferta" href="muestra_disenio_instruccional.html">
+            <span class="nombre">Diseño instruccional de cursos</span>
+            <span class="desc">Cursos presenciales, virtuales o híbridos. Cuéntanos qué necesitas y recibe una propuesta de secuencia didáctica generada con IA.</span>
+            <span class="cta">Ver muestra →</span>
+          </a>
+          <a class="suboferta" href="muestra_imes.html">
+            <span class="nombre">Quiero probar el IMES Preparatoria</span>
+            <span class="desc">¿Estudias la prepa y quieres conocer tus habilidades para el empleo? Responde una muestra breve y gratuita del IMES y ve tu resultado en minutos.</span>
+            <span class="cta">Probar la muestra →</span>
+          </a>
+          <a class="suboferta" href="muestra_imes_universidad.html">
+            <span class="nombre">Quiero probar el IMES Universidad</span>
+            <span class="desc">¿Estudias la universidad? Responde una muestra breve y gratuita sobre tus habilidades sociales, de empleabilidad y técnicas rumbo a tu primer empleo profesional.</span>
+            <span class="cta">Probar la muestra →</span>
+          </a>
+          <a class="suboferta destacada" href="muestra_instrumento.html?eje=escolar">
+            <span class="nombre-fila"><span class="nombre">¿Necesitas un instrumento a tu medida?</span><span class="tag-ia">Con IA</span></span>
+            <span class="desc">Cuéntanos qué necesita medir tu centro escolar y en unos minutos te llega una propuesta de instrumento + nuestras recomendaciones.</span>
+            <span class="cta">Empezar →</span>
+          </a>
+        </div>
+      </div>
     </div>
+
+    <div class="division" id="div-personas">
+      <button class="division-toggle" onclick="toggleDivision('div-personas')" aria-expanded="false">
+        <span class="div-info">
+          <span class="etiqueta">Personas</span>
+          <h2>Para ti</h2>
+          <p>Empleo e investigación.</p>
+        </span>
+        <span class="chevron">⌄</span>
+      </button>
+      <div class="division-body">
+        <div class="division-body-inner">
+          <a class="suboferta" href="muestra_candidato.html">
+            <span class="nombre-fila"><span class="nombre">Estoy buscando empleo</span><span class="tag-candidatos">Candidatos</span></span>
+            <span class="desc">Responde unas preguntas para saber qué tan lista está tu búsqueda de empleo y autoriza que te avisemos de vacantes a tu medida.</span>
+            <span class="cta">Ver mi diagnóstico →</span>
+          </a>
+          <a class="suboferta" href="muestra_pdfcitas.html">
+            <span class="nombre">Buscador de citas en PDF</span>
+            <span class="desc">Sube un libro, reporte o tesis en PDF, busca una palabra clave y propone tus citas con página exacta al Repositorio Bibliográfico de Sintropía Social.</span>
+            <span class="cta">Ver muestra →</span>
+          </a>
+          <a class="suboferta destacada" href="muestra_instrumento.html?eje=personas">
+            <span class="nombre-fila"><span class="nombre">¿Necesitas un instrumento a tu medida?</span><span class="tag-ia">Con IA</span></span>
+            <span class="desc">Cuéntanos qué necesitas medir y en unos minutos te llega una propuesta de instrumento + nuestras recomendaciones.</span>
+            <span class="cta">Empezar →</span>
+          </a>
+        </div>
+      </div>
+    </div>
+
   </div>
   <p class="nota">¿No estás seguro? Escríbenos a <a href="mailto:comunicacion@sintropiasocial.com">comunicacion@sintropiasocial.com</a> y te orientamos.</p>
 </main>
@@ -161,6 +248,30 @@
   <div class="wordmark"><span style="color:var(--purple)">Sintropía</span> <span style="color:var(--orange)">Social</span></div>
   <a href="https://sintropiassociales-del.github.io/">Sintropía Social</a> · <a href="mailto:comunicacion@sintropiasocial.com">comunicacion@sintropiasocial.com</a>
 </footer>
+
+<script>
+// Acordeón simple: un solo div por división, mostrado/ocultado con
+// max-height animado (leyendo scrollHeight) en vez de una librería aparte.
+// Antes las cuatro divisiones mostraban TODAS sus muestras siempre —con
+// cuatro columnas eso hacía la página demasiado larga para decidir rápido—
+// así que ahora arrancan cerradas y cada quien abre solo la suya.
+function toggleDivision(id){
+  var div = document.getElementById(id);
+  if(!div) return;
+  var body = div.querySelector('.division-body');
+  var btn = div.querySelector('.division-toggle');
+  var abierta = div.classList.contains('open');
+  if(abierta){
+    div.classList.remove('open');
+    body.style.maxHeight = '0px';
+    btn.setAttribute('aria-expanded','false');
+  } else {
+    div.classList.add('open');
+    body.style.maxHeight = body.scrollHeight + 'px';
+    btn.setAttribute('aria-expanded','true');
+  }
+}
+</script>
 
 </body>
 </html>
