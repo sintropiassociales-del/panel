@@ -1,0 +1,758 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Pulso rápido de mercado — ¿qué tan bien conoces a tus clientes y tu competencia? Muestra gratuita de Sintropía Social.">
+<title>Pulso de Mercado — Sintropía Social</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<style>
+  :root {
+    --purple: #631EEB;
+    --purple-dark: #4E17B8;
+    --orange: #FF7929;
+    --bg: #F5F3FC;
+    --card: #FFFFFF;
+    --text: #2C2C2C;
+    --subtle: #6B6B78;
+    --border: #E6E2F5;
+    --error: #C0392B;
+    --error-bg: #FDECEA;
+    --verde: #1E8449; --verde-bg: #EAF7EE; --verde-luz: #22C55E;
+    --amarillo: #B7770A; --amarillo-bg: #FEF6E0; --amarillo-luz: #FBBF24;
+    --rojo: #C0392B; --rojo-bg: #FDECEA; --rojo-luz: #E63946;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; font-family: 'Open Sans', -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+    background: var(--bg); color: var(--text); line-height: 1.55;
+  }
+  header.top {
+    background: var(--purple); color: #fff; padding: 26px 18px 44px; text-align: center;
+    border-radius: 0 0 22px 22px;
+  }
+  header.top .marca { font-size: 20px; font-weight: 800; letter-spacing: .3px; }
+  header.top .marca span { color: var(--orange); }
+  header.top .subt { font-size: 13.5px; opacity: .92; margin-top: 6px; max-width: 440px; margin-left: auto; margin-right: auto; }
+  main { max-width: 660px; margin: -26px auto 40px; padding: 0 16px; }
+  .card {
+    background: var(--card); border-radius: 14px; padding: 26px 24px; margin-bottom: 16px;
+    box-shadow: 0 6px 20px rgba(99,30,235,.08); border: 1px solid var(--border);
+  }
+  h1 { font-size: 21px; margin: 0 0 8px; }
+  h2 { font-size: 18px; margin: 0 0 4px; color: var(--purple-dark); }
+  h3 { font-size: 15px; margin: 22px 0 2px; color: var(--purple-dark); }
+  p.subtle, .subtle { color: var(--subtle); font-size: 13.5px; }
+  .progreso { display: flex; gap: 6px; margin: 18px 0 22px; }
+  .progreso .paso { flex: 1; height: 6px; border-radius: 4px; background: var(--border); }
+  .progreso .paso.hecho { background: var(--orange); }
+  .progreso .paso.actual { background: var(--purple); }
+  label { display: block; font-size: 13.5px; font-weight: 600; margin: 14px 0 5px; }
+  label .req { color: var(--orange); }
+  input[type=text], input[type=email], select {
+    width: 100%; padding: 11px 12px; border: 1.5px solid var(--border); border-radius: 9px;
+    font-size: 15px; font-family: inherit; background: #fff; color: var(--text);
+  }
+  input:focus, select:focus { outline: none; border-color: var(--purple); }
+  .fila-botones { display: flex; gap: 10px; margin-top: 24px; flex-wrap: wrap; }
+  button {
+    font-family: inherit; font-size: 14.5px; font-weight: 700; border-radius: 999px;
+    padding: 12px 24px; border: none; cursor: pointer;
+  }
+  button.primary { background: var(--purple); color: #fff; }
+  button.primary:hover { background: var(--purple-dark); }
+  button.secondary { background: #fff; color: var(--purple); border: 1.5px solid var(--purple); }
+  button:disabled { opacity: .5; cursor: default; }
+  .msg { padding: 10px 13px; border-radius: 9px; font-size: 13.5px; margin: 12px 0; }
+  .msg.error { background: var(--error-bg); color: var(--error); }
+
+  /* Consentimiento + honeypot */
+  .consentimiento { display: flex; gap: 10px; align-items: flex-start; margin-top: 18px; background: #FAF8FF;
+    border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; }
+  .consentimiento input { margin-top: 3px; }
+  .consentimiento label { margin: 0; font-weight: 400; font-size: 13px; }
+  .campo-trampa { position: absolute; left: -9999px; top: -9999px; opacity: 0; height: 0; overflow: hidden; }
+
+  /* Preguntas por categoría */
+  .bloque-categoria { margin-bottom: 26px; }
+  .bloque-categoria .num-bloque { display: inline-block; font-size: 11.5px; font-weight: 700; letter-spacing: .5px;
+    color: var(--purple); text-transform: uppercase; margin-bottom: 2px; }
+  .bloque-categoria .nombre-categoria { font-size: 16px; font-weight: 700; margin: 0 0 14px; }
+  .pregunta-riesgo { border-top: 1px solid var(--border); padding: 16px 0; }
+  .pregunta-riesgo:first-of-type { border-top: none; padding-top: 4px; }
+  .pregunta-texto { font-size: 14.5px; font-weight: 600; margin-bottom: 10px; }
+  .opciones-riesgo { display: flex; gap: 8px; flex-wrap: wrap; }
+  .op-choice {
+    flex: 1; min-width: 96px; border: 1.5px solid var(--border); border-radius: 9px; background: #fff;
+    color: var(--subtle); font-weight: 600; font-size: 13px; padding: 10px 8px; cursor: pointer; text-align: center;
+    transition: background .12s, border-color .12s, color .12s;
+  }
+  .op-choice.marcada { background: var(--purple); border-color: var(--purple); color: #fff; }
+
+  /* Resultado / semáforo */
+  .semaforo-box { text-align: center; padding: 8px 4px 4px; }
+  .semaforo-luz {
+    display: inline-block; width: 22px; height: 22px; border-radius: 50%; margin-right: 8px; vertical-align: middle;
+  }
+  .semaforo-luz.verde { background: var(--verde-luz); }
+  .semaforo-luz.amarillo { background: var(--amarillo-luz); }
+  .semaforo-luz.rojo { background: var(--rojo-luz); }
+  .semaforo-etiqueta {
+    display: inline-block; font-size: 15px; font-weight: 800; letter-spacing: .3px; text-transform: uppercase;
+    vertical-align: middle;
+  }
+  .semaforo-etiqueta.verde { color: var(--verde); }
+  .semaforo-etiqueta.amarillo { color: var(--amarillo); }
+  .semaforo-etiqueta.rojo { color: var(--rojo); }
+  .semaforo-puntaje { font-size: 13px; color: var(--subtle); margin: 6px 0 0; }
+
+  .categoria-resultado { border: 1.5px solid var(--border); border-radius: 12px; padding: 16px 18px; margin-bottom: 12px; }
+  .categoria-resultado .nombre { font-weight: 700; font-size: 14px; margin-bottom: 6px; }
+  .barra-riesgo { height: 8px; border-radius: 5px; background: var(--border); overflow: hidden; margin-bottom: 4px; }
+  .barra-riesgo .relleno { height: 100%; border-radius: 5px; }
+  .barra-riesgo .relleno.baja { background: var(--verde-luz); }
+  .barra-riesgo .relleno.media { background: var(--amarillo-luz); }
+  .barra-riesgo .relleno.alta { background: var(--rojo-luz); }
+
+  .cta { background: linear-gradient(135deg, var(--purple), var(--purple-dark)); color: #fff; border-radius: 14px;
+    padding: 22px 24px; margin-top: 8px; }
+  .cta h2 { color: #fff; }
+  .cta p { font-size: 13.5px; opacity: .95; }
+  .cta a { color: #fff; font-weight: 700; }
+  .cta .fila-botones a.boton-cta {
+    display: inline-block; text-decoration: none; border-radius: 999px; padding: 12px 22px; font-weight: 700; font-size: 14px;
+  }
+  .cta .boton-cta.solido { background: #fff; color: var(--purple-dark); }
+  .cta .boton-cta.contorno { border: 1.5px solid rgba(255,255,255,.7); color: #fff; }
+
+  footer.pie { text-align: center; font-size: 12px; color: var(--subtle); padding: 10px 16px 34px; }
+  footer.pie .wordmark { font-size: 14px; font-weight: 700; margin-bottom: 6px; }
+  footer.pie a { color: var(--purple); text-decoration: none; }
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="marca">Sintropía <span>Social</span></div>
+  <div class="subt">Pulso de Mercado — ¿qué tan bien conoces a tus clientes y tu competencia?</div>
+</header>
+
+<main>
+  <div id="app" class="card">
+    <p class="subtle">Cargando...</p>
+  </div>
+</main>
+
+<footer class="pie">
+  <div class="wordmark"><span style="color:var(--purple)">Sintropía</span> <span style="color:var(--orange)">Social</span></div>
+  <a href="https://sintropiassociales-del.github.io/">Sintropía Social</a> · <a href="mailto:comunicacion@sintropiasocial.com">comunicacion@sintropiasocial.com</a>
+</footer>
+
+<script>
+var WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbxZbLiOP7QXvrgUIDhhVciVGY-Yval3YBvqBHOpQfK8El2wHXNNBtZvsnkbwMaJUss/exec';
+
+function escapeHtml(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+  });
+}
+
+// timeoutMs es opcional (default 25s) — la cadena de IA + correo que se
+// dispara en segundo plano después de mostrar el resultado usa un margen
+// mucho más largo (ver TIMEOUT_CORREO_IA_MS abajo), porque ya no bloquea
+// nada en pantalla: no importa si tarda varios minutos en resolverse.
+function jsonp(action, params, timeoutMs) {
+  return new Promise(function (resolve) {
+    var cbName = 'cb_' + Date.now() + '_' + Math.floor(Math.random() * 100000);
+    var url = WEB_APP_URL + '?action=' + encodeURIComponent(action) + '&callback=' + cbName;
+    params = params || {};
+    for (var k in params) {
+      if (params[k] !== undefined && params[k] !== null) url += '&' + encodeURIComponent(k) + '=' + encodeURIComponent(params[k]);
+    }
+    var script = document.createElement('script');
+    var cleaned = false;
+    function cleanup() { if (cleaned) return; cleaned = true; delete window[cbName]; if (script.parentNode) script.parentNode.removeChild(script); }
+    window[cbName] = function (data) { cleanup(); resolve(data); };
+    script.onerror = function () { cleanup(); resolve({ ok: false, error: 'No se pudo conectar. Revisa tu conexión a internet e intenta de nuevo.' }); };
+    setTimeout(function () { if (!cleaned) { cleanup(); resolve({ ok: false, error: 'La plataforma tardó demasiado en responder. Intenta de nuevo.' }); } }, timeoutMs || 25000);
+    script.src = url;
+    document.body.appendChild(script);
+  });
+}
+// Variante de jsonp() que manda los parámetros por POST (cuerpo de la
+// solicitud) en vez de la URL — jsonp()/GET tiene un límite práctico de
+// unos cuantos KB en la URL, y "secciones"/"resumenTexto" del correo de
+// resultado pueden superarlo fácilmente. Content-Type text/plain evita que
+// el navegador dispare una verificación (preflight) que Apps Script no
+// sabe responder — mismo patrón que ya usa el panel de administración
+// para subir fotos/adjuntos (ver _subirFotoInstrumento en index.html).
+function jsonpPost(action, params, timeoutMs) {
+  return new Promise(function (resolve) {
+    var timedOut = false;
+    var timer = setTimeout(function () {
+      timedOut = true;
+      resolve({ ok: false, error: 'La plataforma tardó demasiado en responder. Intenta de nuevo.' });
+    }, timeoutMs || 25000);
+    var body = { action: action };
+    params = params || {};
+    for (var k in params) { if (params[k] !== undefined && params[k] !== null) body[k] = params[k]; }
+    fetch(WEB_APP_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify(body)
+    }).then(function (resp) { return resp.json(); }).then(function (data) {
+      if (timedOut) return;
+      clearTimeout(timer);
+      resolve(data);
+    }).catch(function () {
+      if (timedOut) return;
+      clearTimeout(timer);
+      resolve({ ok: false, error: 'No se pudo conectar. Revisa tu conexión a internet e intenta de nuevo.' });
+    });
+  });
+}
+var TIMEOUT_CORREO_IA_MS = 240000; // 4 min — la cadena interpretación IA + PDF + correo va en segundo plano
+
+/* ============================================================
+ * Catálogo del pulso — 5 categorías × 4 preguntas = 20. Dos tipos:
+ *  - "practica": qué tan bien conoces hoy a tu mercado en ese rubro.
+ *    Responder "Sí, con certeza" = 0 puntos de vacío; "No" = 2 (hueco).
+ *  - "exposicion": qué tan expuesto está el negocio a un vacío de
+ *    conocimiento de mercado. Responder "Sí" = 2 puntos (mayor exposición).
+ * Con 20 preguntas × máx. 2 puntos = 40 puntos posibles.
+ * ============================================================ */
+var OPCIONES_PRACTICA = [
+  { etiqueta: 'Sí, con certeza', puntos: 0 },
+  { etiqueta: 'Parcialmente / no estoy seguro', puntos: 1 },
+  { etiqueta: 'No', puntos: 2 }
+];
+var OPCIONES_EXPOSICION = [
+  { etiqueta: 'No', puntos: 0 },
+  { etiqueta: 'Parcialmente', puntos: 1 },
+  { etiqueta: 'Sí', puntos: 2 }
+];
+
+var CATEGORIAS_RIESGO = [
+  {
+    clave: 'clientes', nombre: 'Conocimiento del cliente', tipo: 'practica',
+    items: [
+      '¿Tienes perfiles claros y actualizados de tus clientes o segmentos principales (no solo datos demográficos, sino cómo deciden comprar)?',
+      '¿Sabes qué problema real resuelve tu producto o servicio para cada segmento, en las propias palabras de tus clientes?',
+      '¿Has hablado directamente con clientes (entrevista o encuesta) en los últimos 6 meses?',
+      '¿Sabes por qué un cliente típico te elige a ti y no a otra opción?'
+    ]
+  },
+  {
+    clave: 'competencia', nombre: 'Conocimiento de la competencia', tipo: 'practica',
+    items: [
+      '¿Tienes un mapeo actualizado de tus competidores directos e indirectos?',
+      '¿Sabes qué precios y condiciones ofrece tu competencia hoy?',
+      '¿Monitoreas cambios relevantes de tu competencia (nuevos productos, campañas, movimientos de precio)?',
+      '¿Sabes en qué te diferencias realmente de tu competencia, más allá de "mejor calidad o servicio"?'
+    ]
+  },
+  {
+    clave: 'tendencias', nombre: 'Tendencias y contexto del mercado', tipo: 'practica',
+    items: [
+      '¿Sigues indicadores o tendencias de tu sector que puedan afectar tu demanda?',
+      '¿Sabes qué está cambiando en el comportamiento de compra de tus clientes?',
+      '¿Tienes claro qué tan grande es tu mercado potencial real, no solo tu cartera actual?',
+      '¿Revisas periódicamente si hay nuevos segmentos o nichos que podrías atender?'
+    ]
+  },
+  {
+    clave: 'datos', nombre: 'Uso de datos para decidir', tipo: 'practica',
+    items: [
+      '¿Tus decisiones de precio, producto o promoción se basan en datos de mercado, más que en intuición?',
+      '¿Tienes un lugar centralizado donde se guarda lo que aprendes sobre clientes y mercado (no solo en la cabeza de una persona)?',
+      '¿Mides si tus campañas o lanzamientos funcionaron, comparando contra lo esperado?',
+      '¿Alguien en tu equipo tiene la responsabilidad explícita de dar seguimiento al mercado?'
+    ]
+  },
+  {
+    clave: 'exposicion', nombre: 'Exposición al riesgo de mercado', tipo: 'exposicion',
+    items: [
+      '¿Dependes de un solo cliente o un grupo pequeño de clientes para la mayoría de tus ingresos?',
+      '¿Tu oferta depende de un solo canal de venta o distribución?',
+      '¿Ha bajado tu participación de mercado o tus ventas frente a la competencia en el último año?',
+      '¿Te ha sorprendido un movimiento de la competencia o un cambio del mercado en el último año?'
+    ]
+  }
+];
+
+function _opcionesDe(tipo) { return tipo === 'exposicion' ? OPCIONES_EXPOSICION : OPCIONES_PRACTICA; }
+
+function _semaforo(puntaje) {
+  if (puntaje <= 13) return { clave: 'verde', etiqueta: 'Vacío bajo', claseCss: 'verde' };
+  if (puntaje <= 26) return { clave: 'amarillo', etiqueta: 'Vacío moderado', claseCss: 'amarillo' };
+  return { clave: 'rojo', etiqueta: 'Vacío alto', claseCss: 'rojo' };
+}
+
+function _nivelBarra(sub, max) {
+  var pct = sub / max;
+  if (pct <= 0.33) return 'baja';
+  if (pct <= 0.66) return 'media';
+  return 'alta';
+}
+
+var CATEGORIAS_CRM_OPCIONES = ['Gobierno y Sector Público', 'ONG y Fundaciones', 'Educación', 'Salud y Bienestar',
+  'Universidad', 'Cámara empresarial', 'Empresa privada', 'Retail y Consumo', 'Fintech y Servicios',
+  'Tecnología y Telecom', 'Turismo y Hospitalidad', 'Organismo internacional', 'Otro'];
+
+var state = { paso: 0, datos: null, respuestas: {}, resultado: null, interpretacionIA: null, correoResultadoEnviado: false };
+var app = document.getElementById('app');
+var TOTAL_PASOS = 3; // 0 datos de la empresa · 1 preguntas del pulso · 2 resultado (semáforo)
+
+function progresoHtml() {
+  var html = '<div class="progreso">';
+  for (var i = 0; i < TOTAL_PASOS; i++) {
+    var cls = i < state.paso ? 'hecho' : (i === state.paso ? 'actual' : '');
+    html += '<div class="paso ' + cls + '"></div>';
+  }
+  return html + '</div>';
+}
+
+function render() {
+  if (state.paso === 0) return renderDatos();
+  if (state.paso === 1) return renderPreguntas();
+  return renderResultado();
+}
+
+/* ---- PASO 0: datos de la empresa (antes de la prueba) ---- */
+function renderDatos() {
+  var d = state.datos || {};
+  app.innerHTML =
+    progresoHtml() +
+    '<h1>Pulso rápido de tu mercado</h1>' +
+    '<p class="subtle">20 preguntas breves sobre qué tan bien conoces a tus clientes, tu competencia y las tendencias de tu sector — menos de 4 minutos. Primero necesitamos algunos datos de tu empresa para poder enviarte tu resultado.</p>' +
+    '<div id="secMsg"></div>' +
+    '<form id="datosForm">' +
+      '<label>Nombre completo <span class="req">*</span></label><input type="text" id="dNombre" value="' + escapeHtml(d.nombre || '') + '">' +
+      '<label>Empresa <span class="req">*</span></label><input type="text" id="dOrganizacion" value="' + escapeHtml(d.organizacion || '') + '">' +
+      '<label>Categoría / sector <span class="req">*</span></label>' +
+      '<select id="dCategoria">' +
+        '<option value="">Selecciona una opción</option>' +
+        CATEGORIAS_CRM_OPCIONES.map(function (c) {
+          return '<option' + (d.categoria === c ? ' selected' : '') + '>' + escapeHtml(c) + '</option>';
+        }).join('') +
+      '</select>' +
+      '<label>Correo electrónico <span class="req">*</span></label><input type="email" id="dEmail" placeholder="nombre@tuempresa.com" value="' + escapeHtml(d.email || '') + '">' +
+      '<label>Teléfono (opcional)</label><input type="text" id="dTelefono" value="' + escapeHtml(d.telefono || '') + '">' +
+      '<label>Cargo (opcional)</label><input type="text" id="dCargo" value="' + escapeHtml(d.cargo || '') + '">' +
+      '<input type="text" id="dTrampa" class="campo-trampa" tabindex="-1" autocomplete="off">' +
+      '<div class="consentimiento">' +
+        '<input type="checkbox" id="dConsentimiento"' + (d.consentimiento ? ' checked' : '') + '>' +
+        '<label for="dConsentimiento">Autorizo a Sintropía Social a contactarme para compartirme mi resultado y contarme sobre sus servicios. Puedo pedir que borren mis datos cuando quiera escribiendo a comunicacion@sintropiasocial.com.</label>' +
+      '</div>' +
+    '</form>' +
+    '<div class="fila-botones"><button class="primary" id="btnSiguiente">Continuar al cuestionario →</button></div>';
+
+  document.getElementById('btnSiguiente').onclick = function () {
+    var msgBox = document.getElementById('secMsg');
+    var nombre = document.getElementById('dNombre').value.trim();
+    var organizacion = document.getElementById('dOrganizacion').value.trim();
+    var categoria = document.getElementById('dCategoria').value;
+    var email = document.getElementById('dEmail').value.trim();
+    var consentimiento = document.getElementById('dConsentimiento').checked;
+    if (!nombre || !organizacion) { msgBox.innerHTML = '<div class="msg error">Escribe tu nombre y el de tu empresa.</div>'; return; }
+    if (!categoria) { msgBox.innerHTML = '<div class="msg error">Selecciona una categoría.</div>'; return; }
+    if (!email || email.indexOf('@') === -1) { msgBox.innerHTML = '<div class="msg error">Escribe un correo electrónico válido.</div>'; return; }
+    if (!consentimiento) { msgBox.innerHTML = '<div class="msg error">Necesitamos tu autorización para poder contactarte con tu resultado.</div>'; return; }
+
+    state.datos = {
+      nombre: nombre, organizacion: organizacion, categoria: categoria, email: email,
+      telefono: document.getElementById('dTelefono').value.trim(),
+      cargo: document.getElementById('dCargo').value.trim(),
+      consentimiento: true,
+      sitioWebTrampa: document.getElementById('dTrampa').value
+    };
+    state.paso = 1;
+    render();
+  };
+}
+
+/* ---- PASO 1: 20 preguntas del pulso, agrupadas en 5 categorías ---- */
+function renderPreguntas() {
+  var bloquesHtml = CATEGORIAS_RIESGO.map(function (cat, ci) {
+    var opciones = _opcionesDe(cat.tipo);
+    var itemsHtml = cat.items.map(function (texto, ii) {
+      var name = 'c' + ci + 'i' + ii;
+      var opcionesHtml = opciones.map(function (op, oi) {
+        var marcada = state.respuestas[name] === op.puntos;
+        return '<button type="button" class="op-choice' + (marcada ? ' marcada' : '') + '" data-name="' + name + '" data-puntos="' + op.puntos + '">' + escapeHtml(op.etiqueta) + '</button>';
+      }).join('');
+      return '<div class="pregunta-riesgo" data-name="' + name + '">' +
+        '<div class="pregunta-texto">' + escapeHtml(texto) + '</div>' +
+        '<div class="opciones-riesgo">' + opcionesHtml + '</div>' +
+      '</div>';
+    }).join('');
+    return '<div class="bloque-categoria">' +
+      '<div class="num-bloque">Categoría ' + (ci + 1) + ' de ' + CATEGORIAS_RIESGO.length + '</div>' +
+      '<div class="nombre-categoria">' + escapeHtml(cat.nombre) + '</div>' +
+      itemsHtml +
+    '</div>';
+  }).join('');
+
+  app.innerHTML =
+    progresoHtml() +
+    '<h2>20 preguntas sobre tu mercado</h2>' +
+    '<p class="subtle" style="margin-top:0">Responde con honestidad — no hay respuestas correctas, solo un panorama de dónde estás hoy.</p>' +
+    '<div id="secMsg"></div>' +
+    bloquesHtml +
+    '<div class="fila-botones">' +
+      '<button class="secondary" id="btnAtras">Atrás</button>' +
+      '<button class="primary" id="btnVerResultado">Ver mi semáforo de mercado</button>' +
+    '</div>';
+
+  Array.prototype.forEach.call(app.querySelectorAll('.op-choice'), function (btn) {
+    btn.onclick = function () {
+      var name = btn.getAttribute('data-name');
+      var puntos = Number(btn.getAttribute('data-puntos'));
+      state.respuestas[name] = puntos;
+      var grupo = app.querySelector('.pregunta-riesgo[data-name="' + name + '"]');
+      Array.prototype.forEach.call(grupo.querySelectorAll('.op-choice'), function (b) { b.classList.remove('marcada'); });
+      btn.classList.add('marcada');
+    };
+  });
+
+  document.getElementById('btnAtras').onclick = function () { state.paso = 0; render(); };
+  document.getElementById('btnVerResultado').onclick = async function () {
+    var totalPreguntas = CATEGORIAS_RIESGO.reduce(function (n, c) { return n + c.items.length; }, 0);
+    var respondidas = Object.keys(state.respuestas).length;
+    if (respondidas < totalPreguntas) {
+      document.getElementById('secMsg').innerHTML = '<div class="msg error">Responde las ' + totalPreguntas + ' preguntas antes de continuar (llevas ' + respondidas + ').</div>';
+      return;
+    }
+
+    var categorias = CATEGORIAS_RIESGO.map(function (cat, ci) {
+      var maxCat = cat.items.length * 2;
+      var subtotal = cat.items.reduce(function (s, _t, ii) { return s + (state.respuestas['c' + ci + 'i' + ii] || 0); }, 0);
+      return { nombre: cat.nombre, clave: cat.clave, subtotal: subtotal, max: maxCat, nivel: _nivelBarra(subtotal, maxCat) };
+    });
+    var puntajeTotal = categorias.reduce(function (s, c) { return s + c.subtotal; }, 0);
+    var semaforo = _semaforo(puntajeTotal);
+    var peor = categorias.slice().sort(function (a, b) { return (b.subtotal / b.max) - (a.subtotal / a.max); })[0];
+
+    state.resultado = { categorias: categorias, puntajeTotal: puntajeTotal, semaforo: semaforo, peor: peor };
+
+    var btn = document.getElementById('btnVerResultado');
+    btn.disabled = true; btn.textContent = 'Guardando...';
+    var d = state.datos || {};
+    var resumenNotas = 'Pulso de Mercado: ' + semaforo.etiqueta + ' (' + puntajeTotal + '/40). ' +
+      'Mayor oportunidad: ' + peor.nombre + ' (' + peor.subtotal + '/' + peor.max + '). ' +
+      categorias.map(function (c) { return c.nombre + ': ' + c.subtotal + '/' + c.max; }).join(' — ');
+    await jsonp('capturarClienteDiagnostico', {
+      organizacion: d.organizacion,
+      categoria: d.categoria,
+      ejeInteres: 'Investigación de Mercado',
+      nombreContacto: d.nombre,
+      cargo: d.cargo,
+      correo: d.email,
+      telefono: d.telefono,
+      leadMagnet: 'Pulso de Mercado',
+      consentimiento: 'Sí',
+      notas: resumenNotas,
+      respuestasCompletas: JSON.stringify(state.respuestas),
+      sitioWebTrampa: d.sitioWebTrampa
+    });
+    // El resultado se muestra siempre, incluso si el guardado del lead
+    // falla por algún motivo de red.
+    state.paso = 2;
+    render();
+  };
+}
+
+/* ---- PASO 2: resultado — semáforo + desglose + recomendación + PDF ---- */
+var RECOMENDACION_SEMAFORO = {
+  rojo: {
+    titulo: '¿Quieres conocer a fondo a tu mercado?',
+    texto: 'Tienes vacíos importantes en cómo conoces a tus clientes y tu competencia. Te recomendamos un Pulso guiado de Sintropía Insights — el equipo de Sintropía Social te acompaña a cerrar los huecos más urgentes.',
+    ctaSolido: 'Haz tu cita', ctaContorno: 'Escríbenos'
+  },
+  amarillo: {
+    titulo: '¿Quieres profundizar en tu conocimiento de mercado?',
+    texto: 'Ya tienes bases, pero hay vacíos que vale la pena cerrar. Te recomendamos un Insight Completo de Sintropía Insights, con observación directa de prácticas reales de clientes y competencia.',
+    ctaSolido: 'Agenda una llamada', ctaContorno: 'Escríbenos'
+  },
+  verde: {
+    titulo: '¡Ya conoces bien a tu mercado!',
+    texto: 'Vas bien — ya tienes una base sólida de conocimiento de mercado. Para mantenerla al día frente a un mercado que cambia, te compartimos nuestra Alianza mensual de monitoreo.',
+    ctaSolido: 'Conoce Sintropía Insights', ctaContorno: 'Escríbenos'
+  }
+};
+
+function _pick(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
+
+// Interpretación instantánea basada en reglas (sin IA) — ver misma lógica en
+// muestra_se.html. Se muestra de inmediato al terminar el cuestionario; la
+// interpretación adicional generada con IA llega después, solo por correo.
+var CITAS_PM = {
+  kohli: 'Kohli, A. K., y Jaworski, B. J. (1990). Market orientation: the construct, research propositions, and managerial implications. Journal of Marketing, 54(2), 1-18.',
+  day: 'Day, G. S. (1994). The capabilities of market-driven organizations. Journal of Marketing, 58(4), 37-52.',
+  porter: 'Porter, M. E. (1980). Competitive strategy: techniques for analyzing industries and competitors. Free Press.'
+};
+var RECOMENDACION_CATEGORIA_PM = {
+  clientes: 'Conocer a tu cliente no es tener su ficha demográfica, sino entender cómo decide de verdad: qué compara, con quién consulta, qué le genera duda. Hablar directamente con un puñado de clientes cada trimestre —no una encuesta masiva, sino conversación real— suele revelar más que cualquier reporte comprado.',
+  competencia: 'Según Michael Porter (1980), una estrategia competitiva sólida empieza por entender la estructura real del sector en el que compites, no solo a tus rivales más visibles. Mapear precios, movimientos y diferenciadores de la competencia de forma sistemática —no solo cuando ya perdiste una venta por eso— es la recomendación mínima.',
+  tendencias: 'El mercado cambia aunque tu empresa no lo note: seguir un puñado de indicadores de tu sector, aunque sea de forma sencilla, te permite anticipar en vez de reaccionar cuando ya es tarde.',
+  datos: 'Una organización verdaderamente orientada al mercado, en el sentido de Kohli y Jaworski (1990), no es la que tiene más datos, sino la que genera inteligencia sobre su mercado, la comparte entre su equipo y actúa en consecuencia. Tener un solo lugar donde se guarda lo que aprendes sobre clientes y mercado —no solo en la cabeza de una persona— es el primer paso.',
+  exposicion: 'Según Day (1994), las organizaciones mejor orientadas al mercado desarrollan capacidades de "sentir" el mercado antes de que el riesgo se materialice. Depender de pocos clientes o de un solo canal no es necesariamente un error, pero sí una exposición que conviene conocer y monitorear de forma activa, no descubrir de golpe.'
+};
+function interpretacionReglasPM(d, r) {
+  var citas = {};
+  function usar(c) { citas[c] = true; return c; }
+  var t = '';
+  var aperturas = [
+    { clave: 'kohli', texto: 'Kohli y Jaworski (1990) definieron la "orientación al mercado" de una empresa no como un departamento, sino como una práctica compartida: generar inteligencia sobre clientes y competencia, difundirla entre el equipo, y responder a ella con decisiones concretas. Muchas empresas tienen datos de mercado dispersos, pero pocas convierten esos datos en una práctica sistemática — ahí está la diferencia real.' },
+    { clave: 'porter', texto: 'Michael Porter (1980) mostró que la posición competitiva de una empresa depende de entender la estructura de su sector —clientes, competidores, sustitutos, nuevos entrantes— y no solo su propio producto. Sin ese mapa, cada decisión comercial se toma a ciegas frente a fuerzas que ya están actuando sobre el negocio, se nombren o no.' }
+  ];
+  var apertura = _pick(aperturas); usar(apertura.clave);
+  t += apertura.texto + '\n\n';
+  t += 'Tu Pulso de Mercado salió en ' + r.semaforo.etiqueta.toUpperCase() + ' (' + r.puntajeTotal + ' de 40 puntos de vacío). ';
+  t += 'La categoría con mayor oportunidad de mejora es ' + r.peor.nombre + ' (' + r.peor.subtotal + ' de ' + r.peor.max + ' puntos).\n\n';
+  t += (RECOMENDACION_CATEGORIA_PM[r.peor.clave] || '') + '\n\n';
+  if (r.peor.clave === 'datos' || r.peor.clave === 'clientes') usar('kohli');
+  if (r.peor.clave === 'exposicion') usar('day');
+  if (r.peor.clave === 'competencia') usar('porter');
+  t += 'Este pulso es un primer acercamiento automatizado; una investigación de mercado completa —bajo metodología de Práctica Social, observando lo que tus clientes y tu competencia realmente hacen, no solo lo que dicen— permite convertir estas cinco categorías en decisiones de negocio concretas.\n\n';
+  t += 'Referencias (APA 7ª edición):\n';
+  Object.keys(citas).sort().forEach(function (c) { if (CITAS_PM[c]) t += CITAS_PM[c] + '\n'; });
+  return t;
+}
+
+function renderResultado() {
+  var r = state.resultado;
+  var rec = RECOMENDACION_SEMAFORO[r.semaforo.clave];
+  if (!state.interpretacionReglas) state.interpretacionReglas = interpretacionReglasPM(state.datos || {}, r);
+
+  var categoriasHtml = r.categorias.map(function (c) {
+    var pct = Math.round((c.subtotal / c.max) * 100);
+    return '<div class="categoria-resultado">' +
+      '<div class="nombre">' + escapeHtml(c.nombre) + '</div>' +
+      '<div class="barra-riesgo"><div class="relleno ' + c.nivel + '" style="width:' + pct + '%"></div></div>' +
+      '<p class="subtle" style="margin:0">' + c.subtotal + ' de ' + c.max + ' puntos de vacío</p>' +
+    '</div>';
+  }).join('');
+
+  var interpretacionHtml = (state.interpretacionReglas || '').split('\n\n').filter(function (p) { return p.trim(); })
+    .map(function (p) { return '<p style="margin:0 0 10px">' + escapeHtml(p).replace(/\n/g, '<br>') + '</p>'; }).join('');
+
+  app.innerHTML =
+    progresoHtml() +
+    '<div class="semaforo-box">' +
+      '<span class="semaforo-luz ' + r.semaforo.claseCss + '"></span>' +
+      '<span class="semaforo-etiqueta ' + r.semaforo.claseCss + '">' + r.semaforo.etiqueta + '</span>' +
+      '<p class="semaforo-puntaje">' + r.puntajeTotal + ' de 40 puntos de vacío · tu mayor oportunidad: ' + escapeHtml(r.peor.nombre) + '</p>' +
+    '</div>' +
+    categoriasHtml +
+    '<div class="categoria-resultado" style="border-color:var(--purple)">' +
+      '<div class="nombre" style="color:var(--purple-dark)">¿Qué te conviene hacer?</div>' +
+      interpretacionHtml +
+    '</div>' +
+    '<p class="subtle" style="margin:4px 0 0">A la brevedad te llegará a tu correo una interpretación más completa y recomendaciones concretas para tu empresa. Si quieres que te ayudemos desde Sintropía a profundizar esta investigación de mercado, escríbenos.</p>' +
+    '<div id="correoAviso"></div>' +
+    '<div class="fila-botones">' +
+      '<button class="secondary" id="btnDescargarPdf">Descargar mi resultado en PDF</button>' +
+    '</div>' +
+    '<div class="cta">' +
+      '<h2>' + escapeHtml(rec.titulo) + '</h2>' +
+      '<p>' + escapeHtml(rec.texto) + '</p>' +
+      '<div class="fila-botones">' +
+        '<a class="boton-cta solido" href="https://calendly.com/sintropiassociales/30min" target="_blank" rel="noopener">' + escapeHtml(rec.ctaSolido) + '</a>' +
+        '<a class="boton-cta contorno" href="mailto:comunicacion@sintropiasocial.com">' + escapeHtml(rec.ctaContorno) + '</a>' +
+      '</div>' +
+    '</div>';
+
+  document.getElementById('btnDescargarPdf').onclick = function () { descargarPulsoPdf(); };
+  // El correo se encola de inmediato (no espera a _iniciarCadenaIACorreo) —
+  // ver el porqué en el comentario de _enviarResultadoMuestraCorreo.
+  _enviarResultadoMuestraCorreo();
+  _iniciarCadenaIACorreo();
+}
+
+// Arma los parámetros para generarInterpretacionMuestra — se usan en DOS
+// lugares: en _iniciarCadenaIACorreo (para el PDF descargable del lado del
+// cliente, si la IA alcanza a responder antes de que la persona lo pida) y
+// dentro de _enviarResultadoMuestraCorreo (para que el procesador en
+// segundo plano genere su propia ampliación con IA del lado del servidor).
+function _paramsInterpretacionIA() {
+  var d = state.datos || {}, r = state.resultado;
+  return {
+    muestra: 'PulsoMercado',
+    nombre: d.nombre,
+    email: d.email,
+    categoria: d.categoria,
+    resultados: JSON.stringify(r.categorias.map(function (c) {
+      return { nombre: c.nombre, puntaje: c.subtotal, max: c.max };
+    })),
+    semaforo: r.semaforo.etiqueta,
+    puntajeTotal: r.puntajeTotal,
+    peorCategoria: r.peor.nombre,
+    sitioWebTrampa: d.sitioWebTrampa
+  };
+}
+
+/* ---- Interpretación ampliada con IA — SOLO para el PDF descargable del
+ * lado del cliente (ver descargarPulsoPdf, más abajo, que usa
+ * state.interpretacionIA si ya llegó). Ya NO dispara el correo — ver
+ * _enviarResultadoMuestraCorreo, que se manda de inmediato al ver el
+ * resultado, sin esperar esta respuesta. ---- */
+function _iniciarCadenaIACorreo() {
+  jsonp('generarInterpretacionMuestra', _paramsInterpretacionIA(), TIMEOUT_CORREO_IA_MS).then(function (resp) {
+    if (resp && resp.ok && resp.interpretacion) state.interpretacionIA = resp.interpretacion;
+  });
+}
+
+/* ---- Correo automático con el resultado (PDF adjunto + oferta con IA) ----
+ * Se dispara de inmediato al ver el resultado — antes esperaba a la IA de
+ * _iniciarCadenaIACorreo, pero eso significaba que si la persona cerraba
+ * la ventana antes de esa respuesta, el correo nunca se llegaba a encolar.
+ * Se manda paramsInterpretacionIA (no un texto ya generado) para que el
+ * procesador en segundo plano genere su propia interpretación con IA en
+ * el servidor — el correo sale completo sin importar qué haga la persona
+ * después de ver su resultado. */
+function _enviarResultadoMuestraCorreo() {
+  if (state.correoResultadoEnviado) return;
+  state.correoResultadoEnviado = true;
+  var d = state.datos || {}, r = state.resultado;
+  var secciones = [
+    { titulo: 'Interpretación de tu resultado', parrafos: (state.interpretacionReglas || '').split('\n\n').filter(function (p) { return p.trim(); }) }
+  ].concat(r.categorias.map(function (c) {
+    return { titulo: c.nombre, parrafos: [c.subtotal + ' de ' + c.max + ' puntos de vacío.'] };
+  }));
+  var resumenTexto = 'Pulso de Mercado: ' + r.semaforo.etiqueta + ' (' + r.puntajeTotal + '/40). ' +
+    'Mayor oportunidad: ' + r.peor.nombre + ' (' + r.peor.subtotal + '/' + r.peor.max + ').';
+  jsonpPost('enviarResultadoMuestra', {
+    tipoMuestra: 'PulsoMercado',
+    nombre: d.nombre,
+    correo: d.email,
+    organizacion: d.organizacion,
+    tituloResultado: 'Pulso de Mercado de tu empresa',
+    resumenTexto: resumenTexto,
+    secciones: JSON.stringify(secciones),
+    paramsInterpretacionIA: JSON.stringify(_paramsInterpretacionIA()),
+    sitioWebTrampa: d.sitioWebTrampa
+  }, TIMEOUT_CORREO_IA_MS).then(function (resp) {
+    var aviso = document.getElementById('correoAviso');
+    if (!aviso) return;
+    if (resp && resp.ok) {
+      aviso.innerHTML = '<p class="subtle">Te enviamos una interpretación más completa de este resultado a <b>' + escapeHtml(d.email) + '</b>.</p>';
+    } else {
+      aviso.innerHTML = '<div class="msg error">No pudimos enviarte el correo con tu resultado' +
+        (resp && resp.error ? (': ' + escapeHtml(resp.error)) : ' — intenta de nuevo más tarde') +
+        '. Mientras tanto puedes descargarlo en PDF aquí abajo.</div>';
+    }
+  });
+}
+
+/* ---- Descargable en PDF ---- */
+function descargarPulsoPdf() {
+  if (!window.jspdf || !window.jspdf.jsPDF) {
+    alert('No se pudo cargar el generador de PDF. Revisa tu conexión e intenta de nuevo.');
+    return;
+  }
+  var r = state.resultado, d = state.datos || {};
+  var rec = RECOMENDACION_SEMAFORO[r.semaforo.clave];
+  var doc = new window.jspdf.jsPDF({ unit: 'pt', format: 'letter' });
+  var purple = [99, 30, 235];
+  var coloresLuz = { verde: [30, 132, 73], amarillo: [154, 123, 10], rojo: [192, 57, 43] };
+  var margenIzq = 40, anchoTexto = 532, y;
+
+  doc.setFillColor(purple[0], purple[1], purple[2]);
+  doc.rect(0, 0, 612, 70, 'F');
+  doc.setTextColor(255, 255, 255);
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(16);
+  doc.text('Sintropía Social — Pulso de Mercado', margenIzq, 42);
+
+  y = 100;
+  doc.setTextColor(30, 30, 30);
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(14);
+  doc.text(d.organizacion || 'Tu empresa', margenIzq, y);
+  y += 22;
+
+  var col = coloresLuz[r.semaforo.clave];
+  doc.setFillColor(col[0], col[1], col[2]);
+  doc.circle(margenIzq + 7, y - 5, 6, 'F');
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(12);
+  doc.setTextColor(col[0], col[1], col[2]);
+  doc.text(r.semaforo.etiqueta.toUpperCase() + '   ·   ' + r.puntajeTotal + ' de 40 puntos de vacío', margenIzq + 20, y);
+  y += 24;
+
+  r.categorias.forEach(function (c) {
+    doc.setDrawColor(230, 226, 245); doc.setLineWidth(1);
+    doc.line(margenIzq, y, margenIzq + anchoTexto, y);
+    y += 16;
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(11);
+    doc.setTextColor(30, 30, 30);
+    doc.text(c.nombre + '  —  ' + c.subtotal + '/' + c.max, margenIzq, y);
+    y += 18;
+  });
+
+  if (state.interpretacionIA) {
+    y += 6;
+    doc.setDrawColor(230, 226, 245); doc.line(margenIzq, y, margenIzq + anchoTexto, y);
+    y += 18;
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(11);
+    doc.setTextColor(purple[0], purple[1], purple[2]);
+    doc.text('Interpretación', margenIzq, y);
+    y += 16;
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(10);
+    doc.setTextColor(60, 60, 60);
+    var lineasIa = doc.splitTextToSize(state.interpretacionIA, anchoTexto);
+    doc.text(lineasIa, margenIzq, y);
+    y += lineasIa.length * 13 + 6;
+  }
+
+  // Mismo bloque de recomendación + contacto que ya se muestra en pantalla
+  // y en el correo.
+  y += 8;
+  doc.setDrawColor(230, 226, 245); doc.line(margenIzq, y, margenIzq + anchoTexto, y);
+  y += 20;
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(11);
+  doc.setTextColor(purple[0], purple[1], purple[2]);
+  var lineasTituloRec = doc.splitTextToSize(rec.titulo, anchoTexto);
+  doc.text(lineasTituloRec, margenIzq, y);
+  y += lineasTituloRec.length * 14 + 4;
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(9.5);
+  doc.setTextColor(80, 80, 90);
+  var lineasTextoRec = doc.splitTextToSize(rec.texto, anchoTexto);
+  doc.text(lineasTextoRec, margenIzq, y);
+  y += lineasTextoRec.length * 13 + 10;
+  // Enlace de verdad (clickeable dentro del PDF) en vez de la URL como texto
+  // plano — un PDF no vuelve clickeable una URL solo por escribirla.
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(9.5);
+  doc.setTextColor(99, 30, 235);
+  var etiquetaCitaPM = 'Haz tu cita aquí';
+  doc.textWithLink(etiquetaCitaPM, margenIzq, y, { url: 'https://calendly.com/sintropiassociales/30min' });
+  var anchoCitaPM = doc.getTextWidth(etiquetaCitaPM);
+  doc.setDrawColor(99, 30, 235); doc.setLineWidth(0.4);
+  doc.line(margenIzq, y + 1.5, margenIzq + anchoCitaPM, y + 1.5);
+  doc.setTextColor(107, 107, 120);
+  doc.text(' o escríbenos a comunicacion@sintropiasocial.com.', margenIzq + anchoCitaPM, y);
+  y += 30;
+
+  // Pie de marca, igual en espíritu al pie de los correos (wordmark +
+  // sitio + correo de contacto), para que el PDF se sienta parte del mismo
+  // sistema visual que ya conoce por el correo.
+  if (y > 730) { doc.addPage(); y = 60; }
+  doc.setDrawColor(230, 226, 245); doc.line(margenIzq, y, margenIzq + anchoTexto, y);
+  y += 22;
+  var centroX = margenIzq + anchoTexto / 2;
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(12);
+  doc.setTextColor(purple[0], purple[1], purple[2]);
+  doc.text('Sintropía Social', centroX, y, { align: 'center' });
+  y += 16;
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(9);
+  doc.setTextColor(107, 107, 120);
+  doc.text('sintropiassociales-del.github.io  ·  comunicacion@sintropiasocial.com', centroX, y, { align: 'center' });
+
+  doc.save('pulso-mercado-sintropia.pdf');
+}
+
+render();
+</script>
+</body>
+</html>
