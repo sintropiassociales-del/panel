@@ -115,12 +115,13 @@
   .pregunta-riesgo:first-of-type { border-top: none; padding-top: 4px; }
   .pregunta-texto { font-size: 14.5px; font-weight: 600; margin-bottom: 10px; }
   .opciones-riesgo { display: flex; gap: 8px; flex-wrap: wrap; }
-  .op-choice {
+  .op-choice, .op-negocio {
     flex: 1; min-width: 96px; border: 1.5px solid var(--border); border-radius: 9px; background: #fff;
     color: var(--subtle); font-weight: 600; font-size: 13px; padding: 10px 8px; cursor: pointer; text-align: center;
     transition: background .12s, border-color .12s, color .12s;
   }
-  .op-choice.marcada { background: var(--purple); border-color: var(--purple); color: #fff; }
+  .op-negocio { min-width: 160px; }
+  .op-choice.marcada, .op-negocio.marcada { background: var(--purple); border-color: var(--purple); color: #fff; }
 
   /* Resultado / semáforo */
   .semaforo-box { text-align: center; padding: 8px 4px 4px; }
@@ -315,6 +316,19 @@ var CATEGORIAS_RIESGO = [
 
 function _opcionesDe(tipo) { return tipo === 'exposicion' ? OPCIONES_EXPOSICION : OPCIONES_PRACTICA; }
 
+// Dos preguntas cerradas sobre el negocio (David, oct-2026) — no se
+// califican dentro del semáforo (no son parte de CATEGORIAS_RIESGO), pero
+// dan contexto real al mapa de impacto y a la interpretación con IA (ver
+// giroPM/tipoVentaPM en apiGenerarInterpretacionMuestra, WebApp.gs).
+var OPCIONES_GIRO = [
+  'Comercio (venta de productos)', 'Servicios profesionales', 'Manufactura o producción',
+  'Tecnología o software', 'Alimentos y bebidas', 'Otro'
+];
+var OPCIONES_TIPO_VENTA = [
+  'Venta directa en punto físico', 'Venta en línea (redes sociales o tienda en línea)',
+  'Venta mixta (física y en línea)', 'Venta por mayoreo o distribuidores', 'Otro'
+];
+
 function _semaforo(puntaje) {
   if (puntaje <= 13) return { clave: 'verde', etiqueta: 'Vacío bajo', claseCss: 'verde' };
   if (puntaje <= 26) return { clave: 'amarillo', etiqueta: 'Vacío moderado', claseCss: 'amarillo' };
@@ -333,19 +347,68 @@ var CATEGORIAS_CRM_OPCIONES = ['Gobierno y Sector Público', 'ONG y Fundaciones'
   'Tecnología y Telecom', 'Turismo y Hospitalidad', 'Organismo internacional', 'Otro'];
 
 /* ============================================================
- * Mapa de impacto — NIVELES_ALCANCE/RADIO_KM_NIVEL deben mantenerse
- * sincronizados con la misma constante del lado del servidor
- * (NIVELES_ALCANCE_IMPACTO / RADIO_KM_NIVEL_IMPACTO en WebApp.gs): si se
- * cambia una, cambiar la otra, porque ambas calculan el mismo radio para
- * el mismo nivel/intensidad (aquí para el círculo en vivo con Leaflet, allá
- * para la imagen real que se adjunta al PDF/correo).
+ * Mapa de impacto — deben mantenerse sincronizados con las mismas
+ * constantes del lado del servidor (ESTADO_CENTROS_IMPACTO/
+ * ESTADO_RADIO_KM_IMPACTO/_radioBaseKmImpacto en WebApp.gs): si se cambia
+ * una, cambiar la otra.
+ *
+ * Rediseño (David, oct-2026): el punto de anclaje ya no es un clic libre en
+ * cualquier parte del mundo — es el ESTADO donde opera el negocio (mismo
+ * catálogo de 32 estados y centros aproximados que usa la muestra
+ * Territorio), y el radio de cada nivel ya no es un número parejo para los
+ * cuatro niveles: "Estatal" usa el radio real aproximado DEL ESTADO elegido
+ * (según su superficie real), y "Nacional"/"Internacional" usan radios a
+ * escala de país/continente, para que el círculo responda de verdad al
+ * alcance que la persona dijo tener o querer, en vez de solo "un poco más
+ * grande" sin importar el nivel.
  * ============================================================ */
 var NIVELES_ALCANCE = ['Local', 'Estatal', 'Nacional', 'Internacional'];
-var RADIO_KM_NIVEL = { Local: 10, Estatal: 60, Nacional: 200, Internacional: 500 };
-var CENTRO_MEXICO = [23.6345, -102.5528];
 
-function radioKmImpacto(nivel, intensidad) {
-  var base = RADIO_KM_NIVEL[nivel] || RADIO_KM_NIVEL.Local;
+var ESTADO_CENTROS = {
+  'Aguascalientes': [21.8853, -102.2916], 'Baja California': [32.6245, -115.4523],
+  'Baja California Sur': [24.1426, -110.3128], 'Campeche': [19.8301, -90.5349],
+  'Chiapas': [16.7516, -93.1029], 'Chihuahua': [28.6353, -106.0889],
+  'Ciudad de México': [19.4326, -99.1332], 'Coahuila': [25.4260, -101.0053],
+  'Colima': [19.2433, -103.7247], 'Durango': [24.0277, -104.6532],
+  'Estado de México': [19.2926, -99.6568], 'Guanajuato': [21.0190, -101.2574],
+  'Guerrero': [17.5506, -99.5024], 'Hidalgo': [20.1011, -98.7591],
+  'Jalisco': [20.6597, -103.3496], 'Michoacán': [19.7008, -101.1844],
+  'Morelos': [18.9186, -99.2342], 'Nayarit': [21.5041, -104.8942],
+  'Nuevo León': [25.6866, -100.3161], 'Oaxaca': [17.0732, -96.7266],
+  'Puebla': [19.0414, -98.2063], 'Querétaro': [20.5888, -100.3899],
+  'Quintana Roo': [18.5036, -88.3055], 'San Luis Potosí': [22.1565, -100.9855],
+  'Sinaloa': [24.8091, -107.3940], 'Sonora': [29.0729, -110.9559],
+  'Tabasco': [17.9895, -92.9475], 'Tamaulipas': [23.7369, -99.1411],
+  'Tlaxcala': [19.3182, -98.2375], 'Veracruz': [19.5438, -96.9102],
+  'Yucatán': [20.9674, -89.5926], 'Zacatecas': [22.7709, -102.5832]
+};
+// Radio aproximado (km) de un círculo con la misma superficie real de cada
+// estado (radio = sqrt(área_km² / π)).
+var ESTADO_RADIO_KM = {
+  'Aguascalientes': 42, 'Baja California': 151, 'Baja California Sur': 153, 'Campeche': 135,
+  'Chiapas': 153, 'Chihuahua': 280, 'Ciudad de México': 22, 'Coahuila': 220,
+  'Colima': 42, 'Durango': 198, 'Estado de México': 84, 'Guanajuato': 99,
+  'Guerrero': 142, 'Hidalgo': 81, 'Jalisco': 158, 'Michoacán': 137,
+  'Morelos': 39, 'Nayarit': 94, 'Nuevo León': 143, 'Oaxaca': 173,
+  'Puebla': 104, 'Querétaro': 61, 'Quintana Roo': 119, 'San Luis Potosí': 139,
+  'Sinaloa': 135, 'Sonora': 239, 'Tabasco': 89, 'Tamaulipas': 160,
+  'Tlaxcala': 36, 'Veracruz': 151, 'Yucatán': 112, 'Zacatecas': 155
+};
+var RADIO_KM_ESTATAL_DEFECTO = 120;
+var RADIO_KM_LOCAL = 20;           // escala de ciudad/zona metropolitana
+var RADIO_KM_NACIONAL = 800;       // escala país (México: radio equivalente ≈790km)
+var RADIO_KM_INTERNACIONAL = 2500; // escala multi-país / continental
+var CENTRO_MEXICO = [23.6345, -102.5528]; // fallback antes de elegir estado
+
+function _radioBaseKmImpacto(nivel, estado) {
+  if (nivel === 'Estatal') return ESTADO_RADIO_KM[estado] || RADIO_KM_ESTATAL_DEFECTO;
+  if (nivel === 'Nacional') return RADIO_KM_NACIONAL;
+  if (nivel === 'Internacional') return RADIO_KM_INTERNACIONAL;
+  return RADIO_KM_LOCAL;
+}
+
+function radioKmImpacto(nivel, intensidad, estado) {
+  var base = _radioBaseKmImpacto(nivel, estado);
   var i = Number(intensidad);
   if (!isFinite(i) || i < 1) i = 1;
   if (i > 5) i = 5;
@@ -356,10 +419,13 @@ var state = {
   paso: 0,
   datos: null,
   historia: '',
-  impacto: null, // { lat, lng, tocado, nivelActual, intensidadActual, nivelDeseado, intensidadDeseada }
+  giro: '',
+  tipoVenta: '',
+  impacto: null, // { lat, lng, tocado, estado, nivelActual, intensidadActual, nivelDeseado, intensidadDeseada }
   respuestas: {},
   resultado: null,
   interpretacionIA: null,
+  recomendacionesPM: null,
   correoResultadoEnviado: false,
   mapaPngBase64: null
 };
@@ -448,13 +514,21 @@ function renderDatos() {
  * (Local/Estatal/Nacional/Internacional) con una intensidad 1-5 dentro de
  * ese nivel — para que la persona vea con sus propios ojos la brecha entre
  * dónde está y a dónde quiere llegar, en vez de una pregunta genérica de
- * "¿cuál es tu mercado?". ---- */
+ * "¿cuál es tu mercado?".
+ *
+ * Rediseño (David, oct-2026): el punto de anclaje ya no es un clic libre en
+ * el mapa — es el ESTADO donde opera el negocio (mismo patrón de catálogo
+ * de 32 estados que usa la muestra Territorio), y el radio de cada círculo
+ * ahora responde de verdad al nivel elegido (ver radioKmImpacto arriba), no
+ * solo "un poco más grande" sin importar si es Local, Nacional o
+ * Internacional. ---- */
 function renderMapaImpacto() {
   var imp = state.impacto || {};
+  var estadosOrdenados = Object.keys(ESTADO_CENTROS).sort();
   app.innerHTML =
     progresoHtml() +
     '<h2>Tu mapa de impacto</h2>' +
-    '<p class="subtle" style="margin-top:0">Primero cuéntanos tu alcance — luego da clic en el mapa donde esté el centro de tu operación.</p>' +
+    '<p class="subtle" style="margin-top:0">Cuéntanos tu alcance y desde qué estado opera tu negocio — con eso armamos tu mapa.</p>' +
     '<div id="secMsg"></div>' +
     '<h3 style="margin-top:4px">¿Cuál es tu alcance HOY?</h3>' +
     '<label>Nivel actual <span class="req">*</span></label>' +
@@ -480,8 +554,13 @@ function renderMapaImpacto() {
         return '<button type="button" data-n="' + n + '" class="' + (imp.intensidadDeseada === n ? 'marcada deseado' : '') + '">' + n + '</button>';
       }).join('') +
     '</div>' +
-    '<h3>Ubica el centro de tu operación</h3>' +
-    '<p class="subtle" style="margin-top:0">Cómo se usa: da clic en el mapa donde esté el centro de tu operación o mercado principal. Ahí se dibujan dos círculos del tamaño que elegiste arriba — uno con tu alcance de hoy y otro con el alcance al que quieres llegar.</p>' +
+    '<h3>¿Desde dónde opera tu negocio?</h3>' +
+    '<label>Estado de tu operación principal <span class="req">*</span></label>' +
+    '<select id="iEstado">' +
+      '<option value="">Selecciona tu estado</option>' +
+      estadosOrdenados.map(function (e) { return '<option' + (imp.estado === e ? ' selected' : '') + '>' + e + '</option>'; }).join('') +
+    '</select>' +
+    '<p class="subtle" style="margin-top:0">Cómo se usa: el mapa se ancla en tu estado y dibuja dos círculos del tamaño que elegiste arriba — morado para tu alcance de hoy, naranja para el que quieres lograr. Si tu alcance es Estatal, el círculo usa el tamaño real de tu estado; si es Nacional o Internacional, usa una escala de país o de continente — así el tamaño responde de verdad a lo que marcaste, no solo "un poco más grande".</p>' +
     '<div id="mapaImpacto"></div>' +
     '<div class="mapa-ficha" id="mapaImpactoFicha"></div>' +
     '<div class="leyenda-circulos">' +
@@ -493,11 +572,11 @@ function renderMapaImpacto() {
       '<button class="primary" id="btnSiguiente">Ver mi semáforo de mercado</button>' +
     '</div>';
 
-  var centro = (imp.tocado) ? [imp.lat, imp.lng] : CENTRO_MEXICO;
-  var zoomInicial = imp.tocado ? 6 : 4;
+  var centroInicial = (imp.estado && ESTADO_CENTROS[imp.estado]) ? ESTADO_CENTROS[imp.estado] : CENTRO_MEXICO;
+  var zoomInicial = (imp.estado && ESTADO_CENTROS[imp.estado]) ? 6 : 4;
 
   if (mapaImpactoLeaflet) { mapaImpactoLeaflet.remove(); mapaImpactoLeaflet = null; marcadorImpactoLeaflet = null; circuloActualLeaflet = null; circuloDeseadoLeaflet = null; }
-  mapaImpactoLeaflet = L.map('mapaImpacto').setView(centro, zoomInicial);
+  mapaImpactoLeaflet = L.map('mapaImpacto').setView(centroInicial, zoomInicial);
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     maxZoom: 18,
     attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>'
@@ -505,40 +584,69 @@ function renderMapaImpacto() {
 
   function dibujarCirculos() {
     var ficha = document.getElementById('mapaImpactoFicha');
-    if (!state.impacto || !state.impacto.tocado) {
-      if (ficha) ficha.innerHTML = 'Aún no has dado clic en el mapa — hazlo donde esté el centro de tu operación o mercado principal.';
+    var i2 = state.impacto || {};
+    if (!i2.estado) {
+      if (ficha) ficha.innerHTML = 'Selecciona tu estado para anclar el mapa y dibujar tus círculos de alcance.';
       return;
     }
-    var lat = state.impacto.lat, lng = state.impacto.lng;
+    var lat = i2.lat, lng = i2.lng;
     if (marcadorImpactoLeaflet) marcadorImpactoLeaflet.setLatLng([lat, lng]); else marcadorImpactoLeaflet = L.marker([lat, lng]).addTo(mapaImpactoLeaflet);
 
-    if (state.impacto.nivelDeseado && state.impacto.intensidadDeseada) {
-      var radioDeseadoM = radioKmImpacto(state.impacto.nivelDeseado, state.impacto.intensidadDeseada) * 1000;
+    if (i2.nivelDeseado && i2.intensidadDeseada) {
+      var radioDeseadoM = radioKmImpacto(i2.nivelDeseado, i2.intensidadDeseada, i2.estado) * 1000;
       if (circuloDeseadoLeaflet) { circuloDeseadoLeaflet.setLatLng([lat, lng]); circuloDeseadoLeaflet.setRadius(radioDeseadoM); }
       else circuloDeseadoLeaflet = L.circle([lat, lng], { radius: radioDeseadoM, color: '#FF7929', weight: 2, fillColor: '#FF7929', fillOpacity: 0.18 }).addTo(mapaImpactoLeaflet);
     }
-    if (state.impacto.nivelActual && state.impacto.intensidadActual) {
-      var radioActualM = radioKmImpacto(state.impacto.nivelActual, state.impacto.intensidadActual) * 1000;
+    if (i2.nivelActual && i2.intensidadActual) {
+      var radioActualM = radioKmImpacto(i2.nivelActual, i2.intensidadActual, i2.estado) * 1000;
       if (circuloActualLeaflet) { circuloActualLeaflet.setLatLng([lat, lng]); circuloActualLeaflet.setRadius(radioActualM); }
       else circuloActualLeaflet = L.circle([lat, lng], { radius: radioActualM, color: '#631EEB', weight: 2, fillColor: '#631EEB', fillOpacity: 0.3 }).addTo(mapaImpactoLeaflet);
     }
+    // Encuadra el mapa para que ambos círculos se vean completos — el radio
+    // ya no es un número parejo (puede ir de 20km Local a 2500km
+    // Internacional), así que un zoom fijo se vería mal en los extremos.
+    if (i2.nivelActual && i2.nivelDeseado) {
+      var radioMayorKm = Math.max(
+        radioKmImpacto(i2.nivelActual, i2.intensidadActual, i2.estado),
+        radioKmImpacto(i2.nivelDeseado, i2.intensidadDeseada, i2.estado),
+        5
+      );
+      var spanGrados = (radioMayorKm * 2.6) / 111.32;
+      var zoomAjustado = Math.max(2, Math.min(15, Math.floor(Math.log(360 / spanGrados) / Math.LN2) - 1));
+      mapaImpactoLeaflet.setView([lat, lng], zoomAjustado);
+    }
     if (ficha) {
-      ficha.innerHTML = '<b>Centro marcado</b> — ' + lat.toFixed(3) + ', ' + lng.toFixed(3) +
-        (state.impacto.nivelActual && state.impacto.nivelDeseado ?
-          ('. Hoy: ' + escapeHtml(state.impacto.nivelActual) + ' (intensidad ' + state.impacto.intensidadActual + '/5) · Quieres llegar a: ' + escapeHtml(state.impacto.nivelDeseado) + ' (intensidad ' + state.impacto.intensidadDeseada + '/5).') : '.');
+      ficha.innerHTML = '<b>Zona marcada</b> — ' + escapeHtml(i2.estado) +
+        (i2.nivelActual && i2.nivelDeseado ?
+          ('. Hoy: ' + escapeHtml(i2.nivelActual) + ' (intensidad ' + i2.intensidadActual + '/5) · Quieres llegar a: ' + escapeHtml(i2.nivelDeseado) + ' (intensidad ' + i2.intensidadDeseada + '/5).') : '.');
     }
   }
 
+  // Lanza la petición del mapa real al servidor en cuanto los cinco campos
+  // (estado + ambos pares nivel/intensidad) ya están completos — antes solo
+  // se disparaba hasta dar clic en "Siguiente", lo que le dejaba muy poco
+  // tiempo al servidor para responder antes de que la persona llegara al
+  // botón de descargar PDF (ver _cargarMapaImpactoPng y el await ampliado
+  // en descargarPulsoPdf, más abajo).
   function actualizarImpacto(cambios) {
     state.impacto = Object.assign({}, state.impacto || {}, cambios);
     dibujarCirculos();
+    var i3 = state.impacto;
+    if (i3.estado && i3.nivelActual && i3.intensidadActual && i3.nivelDeseado && i3.intensidadDeseada) {
+      _cargarMapaImpactoPng();
+    }
   }
 
-  mapaImpactoLeaflet.on('click', function (e) { actualizarImpacto({ lat: e.latlng.lat, lng: e.latlng.lng, tocado: true }); });
   dibujarCirculos();
 
   document.getElementById('iNivelActual').onchange = function () { actualizarImpacto({ nivelActual: this.value }); };
   document.getElementById('iNivelDeseado').onchange = function () { actualizarImpacto({ nivelDeseado: this.value }); };
+  document.getElementById('iEstado').onchange = function () {
+    var estadoElegido = this.value;
+    var centroEstado = ESTADO_CENTROS[estadoElegido];
+    if (!centroEstado) { actualizarImpacto({ estado: '', tocado: false }); return; }
+    actualizarImpacto({ estado: estadoElegido, lat: centroEstado[0], lng: centroEstado[1], tocado: true });
+  };
   Array.prototype.forEach.call(document.getElementById('escalaActual').querySelectorAll('button'), function (b) {
     b.onclick = function () {
       Array.prototype.forEach.call(document.getElementById('escalaActual').querySelectorAll('button'), function (x) { x.classList.remove('marcada', 'actual'); });
@@ -560,13 +668,11 @@ function renderMapaImpacto() {
     var imp2 = state.impacto || {};
     if (!imp2.nivelActual || !imp2.intensidadActual) { msgBox.innerHTML = '<div class="msg error">Selecciona tu alcance actual y qué tan consolidada está tu presencia ahí.</div>'; return; }
     if (!imp2.nivelDeseado || !imp2.intensidadDeseada) { msgBox.innerHTML = '<div class="msg error">Selecciona el alcance que quieres lograr y qué tan grande quieres esa presencia.</div>'; return; }
-    if (!imp2.tocado) { msgBox.innerHTML = '<div class="msg error">Da clic en el mapa para marcar el centro de tu operación.</div>'; return; }
+    if (!imp2.estado) { msgBox.innerHTML = '<div class="msg error">Selecciona el estado donde opera tu negocio.</div>'; return; }
 
-    // Arranca la petición del mapa real lo antes posible — para cuando la
-    // persona llegue al botón de descargar PDF, lo más probable es que ya
-    // haya respondido (ver _cargarMapaImpactoPng y el nuevo await en
-    // descargarPulsoPdf, que ya no se conforma con el esquema de respaldo
-    // si la imagen real todavía está en camino).
+    // Por si todavía no se había disparado (ver actualizarImpacto arriba) —
+    // _cargarMapaImpactoPng memoiza, así que llamarla de nuevo aquí no
+    // duplica la solicitud si ya está en curso o ya respondió.
     _cargarMapaImpactoPng();
 
     var categorias = CATEGORIAS_RIESGO.map(function (cat, ci) {
@@ -585,7 +691,8 @@ function renderMapaImpacto() {
     var resumenNotas = 'Pulso de Mercado: ' + semaforo.etiqueta + ' (' + puntajeTotal + '/40). ' +
       'Mayor oportunidad: ' + peor.nombre + ' (' + peor.subtotal + '/' + peor.max + '). ' +
       categorias.map(function (c) { return c.nombre + ': ' + c.subtotal + '/' + c.max; }).join(' — ') + '. ' +
-      'Alcance hoy: ' + (imp2.nivelActual || '—') + ' (' + (imp2.intensidadActual || '—') + '/5) · Alcance deseado: ' + (imp2.nivelDeseado || '—') + ' (' + (imp2.intensidadDeseada || '—') + '/5). ' +
+      'Giro: ' + (state.giro || '—') + ' · Tipo de venta: ' + (state.tipoVenta || '—') + '. ' +
+      'Alcance hoy: ' + (imp2.nivelActual || '—') + ' (' + (imp2.intensidadActual || '—') + '/5) en ' + (imp2.estado || '—') + ' · Alcance deseado: ' + (imp2.nivelDeseado || '—') + ' (' + (imp2.intensidadDeseada || '—') + '/5). ' +
       'Historia local: ' + (state.historia || '—');
     await jsonp('capturarClienteDiagnostico', {
       organizacion: d.organizacion,
@@ -616,6 +723,32 @@ function renderMapaImpacto() {
  * ---- */
 function renderPreguntas() {
   var d = state.datos || {};
+  // Dos preguntas cerradas sobre el negocio, antes de las 20 del pulso —
+  // no se califican, solo dan contexto al mapa de impacto y a la
+  // interpretación con IA (ver OPCIONES_GIRO/OPCIONES_TIPO_VENTA arriba).
+  var negocioHtml =
+    '<div class="bloque-categoria">' +
+      '<div class="num-bloque">Antes de empezar</div>' +
+      '<div class="nombre-categoria">Sobre tu negocio</div>' +
+      '<div class="pregunta-riesgo" data-name="negGiro">' +
+        '<div class="pregunta-texto">¿Cuál es el giro principal de tu negocio? <span class="req">*</span></div>' +
+        '<div class="opciones-riesgo">' +
+          OPCIONES_GIRO.map(function (op) {
+            var marcada = state.giro === op;
+            return '<button type="button" class="op-negocio' + (marcada ? ' marcada' : '') + '" data-campo="giro" data-valor="' + escapeHtml(op) + '">' + escapeHtml(op) + '</button>';
+          }).join('') +
+        '</div>' +
+      '</div>' +
+      '<div class="pregunta-riesgo" data-name="negTipoVenta">' +
+        '<div class="pregunta-texto">¿Cómo vendes principalmente? <span class="req">*</span></div>' +
+        '<div class="opciones-riesgo">' +
+          OPCIONES_TIPO_VENTA.map(function (op) {
+            var marcada = state.tipoVenta === op;
+            return '<button type="button" class="op-negocio' + (marcada ? ' marcada' : '') + '" data-campo="tipoVenta" data-valor="' + escapeHtml(op) + '">' + escapeHtml(op) + '</button>';
+          }).join('') +
+        '</div>' +
+      '</div>' +
+    '</div>';
   var bloquesHtml = CATEGORIAS_RIESGO.map(function (cat, ci) {
     var opciones = _opcionesDe(cat.tipo);
     var itemsHtml = cat.items.map(function (texto, ii) {
@@ -651,6 +784,7 @@ function renderPreguntas() {
     '<h2>20 preguntas sobre tu mercado</h2>' +
     '<p class="subtle" style="margin-top:0">Responde con honestidad — no hay respuestas correctas, solo un panorama de dónde estás hoy.</p>' +
     '<div id="secMsg"></div>' +
+    negocioHtml +
     bloquesHtml +
     historiaHtml +
     '<div class="fila-botones">' +
@@ -668,9 +802,27 @@ function renderPreguntas() {
       btn.classList.add('marcada');
     };
   });
+  Array.prototype.forEach.call(app.querySelectorAll('.op-negocio'), function (btn) {
+    btn.onclick = function () {
+      var campo = btn.getAttribute('data-campo');
+      var valor = btn.getAttribute('data-valor');
+      state[campo] = valor;
+      var grupo = btn.parentNode;
+      Array.prototype.forEach.call(grupo.querySelectorAll('.op-negocio'), function (b) { b.classList.remove('marcada'); });
+      btn.classList.add('marcada');
+    };
+  });
 
   document.getElementById('btnAtras').onclick = function () { state.paso = 0; render(); };
   document.getElementById('btnContinuarMapa').onclick = function () {
+    if (!state.giro) {
+      document.getElementById('secMsg').innerHTML = '<div class="msg error">Selecciona el giro principal de tu negocio.</div>';
+      return;
+    }
+    if (!state.tipoVenta) {
+      document.getElementById('secMsg').innerHTML = '<div class="msg error">Selecciona cómo vendes principalmente.</div>';
+      return;
+    }
     var totalPreguntas = CATEGORIAS_RIESGO.reduce(function (n, c) { return n + c.items.length; }, 0);
     var respondidas = Object.keys(state.respuestas).length;
     if (respondidas < totalPreguntas) {
@@ -727,41 +879,76 @@ var RECOMENDACION_CATEGORIA_PM = {
   datos: 'Una organización verdaderamente orientada al mercado, en el sentido de Kohli y Jaworski (1990), no es la que tiene más datos, sino la que genera inteligencia sobre su mercado, la comparte entre su equipo y actúa en consecuencia. Tener un solo lugar donde se guarda lo que aprendes sobre clientes y mercado —no solo en la cabeza de una persona— es el primer paso.',
   exposicion: 'Según Day (1994), las organizaciones mejor orientadas al mercado desarrollan capacidades de "sentir" el mercado antes de que el riesgo se materialice. Depender de pocos clientes o de un solo canal no es necesariamente un error, pero sí una exposición que conviene conocer y monitorear de forma activa, no descubrir de golpe.'
 };
+// Reducida a EXACTAMENTE tres párrafos (David, oct-2026) — antes incluía
+// también un bloque de referencias APA, que se quita de esta interpretación
+// instantánea para dejarla corta y concreta; las cinco recomendaciones
+// puntuales (ver RECOMENDACIONES_POR_NIVEL_DESEADO/recomendacionesPM, abajo)
+// se muestran y se mandan por separado, no como un cuarto párrafo.
 function interpretacionReglasPM(d, r) {
-  var citas = {};
-  function usar(c) { citas[c] = true; return c; }
   var t = '';
   var aperturas = [
-    { clave: 'kohli', texto: 'Kohli y Jaworski (1990) definieron la "orientación al mercado" de una empresa no como un departamento, sino como una práctica compartida: generar inteligencia sobre clientes y competencia, difundirla entre el equipo, y responder a ella con decisiones concretas. Muchas empresas tienen datos de mercado dispersos, pero pocas convierten esos datos en una práctica sistemática — ahí está la diferencia real.' },
-    { clave: 'porter', texto: 'Michael Porter (1980) mostró que la posición competitiva de una empresa depende de entender la estructura de su sector —clientes, competidores, sustitutos, nuevos entrantes— y no solo su propio producto. Sin ese mapa, cada decisión comercial se toma a ciegas frente a fuerzas que ya están actuando sobre el negocio, se nombren o no.' }
+    'Kohli y Jaworski (1990) definieron la "orientación al mercado" de una empresa no como un departamento, sino como una práctica compartida: generar inteligencia sobre clientes y competencia, difundirla entre el equipo, y responder a ella con decisiones concretas.',
+    'Michael Porter (1980) mostró que la posición competitiva de una empresa depende de entender la estructura de su sector —clientes, competidores, sustitutos, nuevos entrantes— y no solo su propio producto.'
   ];
-  var apertura = _pick(aperturas); usar(apertura.clave);
-  t += apertura.texto + '\n\n';
-  t += 'Tu Pulso de Mercado salió en ' + r.semaforo.etiqueta.toUpperCase() + ' (' + r.puntajeTotal + ' de 40 puntos de vacío). ';
-  t += 'La categoría con mayor oportunidad de mejora es ' + r.peor.nombre + ' (' + r.peor.subtotal + ' de ' + r.peor.max + ' puntos).\n\n';
-  t += (RECOMENDACION_CATEGORIA_PM[r.peor.clave] || '') + '\n\n';
-  if (r.peor.clave === 'datos' || r.peor.clave === 'clientes') usar('kohli');
-  if (r.peor.clave === 'exposicion') usar('day');
-  if (r.peor.clave === 'competencia') usar('porter');
-  // Conecta el vacío detectado con la brecha de alcance que la persona
-  // marcó en su mapa de impacto — sin IA, solo con lo que ya respondió, para
-  // que el payback inmediato (sin esperar el correo) ya muestre por qué
-  // Sintropía mira el mercado distinto a un estudio convencional.
+  t += _pick(aperturas) + '\n\n';
+
+  t += 'Tu Pulso de Mercado salió en ' + r.semaforo.etiqueta.toUpperCase() + ' (' + r.puntajeTotal + ' de 40 puntos de vacío). La categoría con mayor oportunidad de mejora es ' + r.peor.nombre + ' (' + r.peor.subtotal + ' de ' + r.peor.max + ' puntos). ' + (RECOMENDACION_CATEGORIA_PM[r.peor.clave] || '') + '\n\n';
+
+  // Tercer párrafo: conecta el vacío detectado con la brecha de alcance que
+  // la persona marcó en su mapa de impacto (sin IA, solo con lo que ya
+  // respondió) — o, si no hay brecha, cierra invitando a profundizar.
   var imp = state.impacto || {};
   if (imp.nivelActual && imp.nivelDeseado && imp.nivelActual !== imp.nivelDeseado) {
-    usar('bourdieu');
-    t += 'Hoy marcaste tu alcance como ' + imp.nivelActual + ' (intensidad ' + imp.intensidadActual + '/5) y quieres llegar a ' + imp.nivelDeseado + ' (intensidad ' + imp.intensidadDeseada + '/5). Esa brecha no se cierra solo con más esfuerzo de venta: en la línea de lo que Pierre Bourdieu (1980) describe sobre el peso de las disposiciones heredadas del pasado, lo que te funcionó en tu alcance actual —las rutinas, las relaciones de confianza, la forma de vender que ya conoces— no necesariamente te funciona igual en el alcance al que quieres llegar. Cerrar el vacío de ' + r.peor.nombre.toLowerCase() + ' es justo lo que te permite entender esa diferencia antes de intentar el salto.\n\n';
+    t += 'Hoy marcaste tu alcance como ' + imp.nivelActual + ' y quieres llegar a ' + imp.nivelDeseado + '. Esa brecha no se cierra solo con más esfuerzo de venta: como describe Pierre Bourdieu (1980) sobre el peso de las disposiciones heredadas del pasado, lo que te funcionó en tu alcance actual no necesariamente te funciona igual en el que quieres lograr — por eso, además de cerrar el vacío de ' + r.peor.nombre.toLowerCase() + ', te dejamos cinco recomendaciones puntuales pensadas específicamente para ese salto.';
+  } else {
+    t += 'Este pulso es un primer acercamiento automatizado; una investigación de mercado completa —bajo metodología de Práctica Social, observando lo que tus clientes y tu competencia realmente hacen, no solo lo que dicen— permite convertir estas cinco categorías, tu historia local y tu mapa de impacto en decisiones de negocio concretas.';
   }
-  t += 'Este pulso es un primer acercamiento automatizado; una investigación de mercado completa —bajo metodología de Práctica Social, observando lo que tus clientes y tu competencia realmente hacen, no solo lo que dicen— permite convertir estas cinco categorías, tu historia local y tu mapa de impacto en decisiones de negocio concretas.\n\n';
-  t += 'Referencias (APA 7ª edición):\n';
-  Object.keys(citas).sort().forEach(function (c) { if (CITAS_PM[c]) t += CITAS_PM[c] + '\n'; });
   return t;
+}
+
+// Cinco recomendaciones puntuales orientadas al ALCANCE QUE SE DESEA
+// lograr (David: "Las recomendaciones tienen que estar orientadas según el
+// alcance que desea") — no genéricas de conocimiento de mercado, sino
+// propias de lo que implica operar/crecer en ese nivel geográfico.
+var RECOMENDACIONES_POR_NIVEL_DESEADO = {
+  Local: [
+    'Habla directamente con al menos 5 clientes de tu zona este mes para entender cómo deciden comprarte a ti y no a la competencia local.',
+    'Mapea a tus 3-5 competidores más cercanos (mismo barrio o ciudad) y compara precios y horarios cada trimestre.',
+    'Define un canal fijo (WhatsApp, redes, correo) para escuchar quejas y sugerencias de tus clientes actuales, y revísalo cada semana.',
+    'Identifica qué negocio cercano podría convertirse en un aliado de referidos y propónselo este mes.',
+    'Lleva un registro simple de cuántos clientes repiten compra, para saber si tu base local se está consolidando o se está yendo con otro.'
+  ],
+  Estatal: [
+    'Investiga qué tan distinta es la forma de comprar o decidir en al menos otra ciudad de tu estado antes de replicar tu modelo actual tal cual.',
+    'Identifica 2-3 competidores que ya operen en varias ciudades de tu estado y analiza cómo adaptaron su oferta ciudad por ciudad.',
+    'Evalúa tu logística o capacidad de entrega/servicio para cubrir más de una ciudad sin perder calidad.',
+    'Revisa si tu precio y tu mensaje de venta necesitan ajustarse según el poder de compra de cada ciudad de tu estado.',
+    'Construye una lista de contactos o distribuidores en al menos una segunda ciudad del estado como primer paso de expansión.'
+  ],
+  Nacional: [
+    'Compara cómo cambia el comportamiento de compra de tu producto o servicio entre regiones del país antes de estandarizar tu oferta.',
+    'Identifica a los competidores que ya tienen presencia nacional y estudia cómo resolvieron la logística de llegar a todo el país.',
+    'Evalúa qué variantes regulatorias, fiscales o de envío cambian al vender fuera de tu estado de origen.',
+    'Define un canal de venta escalable (en línea, distribuidores regionales, franquicia) que no dependa de tu presencia física en cada ciudad.',
+    'Prueba tu mensaje de marca con clientes de al menos dos regiones distintas del país antes de lanzarlo a todas.'
+  ],
+  Internacional: [
+    'Investiga las diferencias culturales, de idioma o de hábito de compra del país al que quieres llegar antes de traducir literalmente tu oferta actual.',
+    'Identifica los requisitos legales, arancelarios o de certificación para exportar o vender tu producto o servicio en ese mercado.',
+    'Mapea a la competencia local ya establecida en ese país para entender qué expectativa de precio y calidad ya tiene ese mercado.',
+    'Evalúa si necesitas un socio, distribuidor o representante local para entrar, en vez de operar a distancia desde México.',
+    'Empieza con un piloto acotado (una ciudad, un canal, un cliente ancla) en ese mercado internacional antes de comprometer una expansión completa.'
+  ]
+};
+function recomendacionesPM(nivelDeseado) {
+  return RECOMENDACIONES_POR_NIVEL_DESEADO[nivelDeseado] || RECOMENDACIONES_POR_NIVEL_DESEADO.Local;
 }
 
 function renderResultado() {
   var r = state.resultado;
   var rec = RECOMENDACION_SEMAFORO[r.semaforo.clave];
   if (!state.interpretacionReglas) state.interpretacionReglas = interpretacionReglasPM(state.datos || {}, r);
+  if (!state.recomendacionesPM) state.recomendacionesPM = recomendacionesPM((state.impacto || {}).nivelDeseado);
   var imp = state.impacto || {};
 
   var categoriasHtml = r.categorias.map(function (c) {
@@ -775,6 +962,12 @@ function renderResultado() {
 
   var interpretacionHtml = (state.interpretacionReglas || '').split('\n\n').filter(function (p) { return p.trim(); })
     .map(function (p) { return '<p style="margin:0 0 10px">' + escapeHtml(p).replace(/\n/g, '<br>') + '</p>'; }).join('');
+
+  var recomendacionesHtml = (state.recomendacionesPM || []).length ?
+    ('<div class="nombre" style="color:var(--purple-dark);margin-top:12px">Tus 5 recomendaciones</div>' +
+    '<ol style="margin:6px 0 0;padding-left:20px">' +
+      state.recomendacionesPM.map(function (rec) { return '<li style="margin-bottom:6px;font-size:13.5px">' + escapeHtml(rec) + '</li>'; }).join('') +
+    '</ol>') : '';
 
   app.innerHTML =
     progresoHtml() +
@@ -795,6 +988,7 @@ function renderResultado() {
     '<div class="categoria-resultado" style="border-color:var(--purple)">' +
       '<div class="nombre" style="color:var(--purple-dark)">¿Qué te conviene hacer?</div>' +
       interpretacionHtml +
+      recomendacionesHtml +
     '</div>' +
     '<p class="subtle" style="margin:4px 0 0">A la brevedad te llegará a tu correo una interpretación más completa y recomendaciones concretas para tu empresa. Si quieres que te ayudemos desde Sintropía a profundizar esta investigación de mercado, escríbenos.</p>' +
     '<div id="correoAviso"></div>' +
@@ -818,13 +1012,13 @@ function renderResultado() {
       attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>'
     }).addTo(mapaImpactoRecapLeaflet);
     L.marker([imp.lat, imp.lng]).addTo(mapaImpactoRecapLeaflet);
-    if (imp.nivelDeseado) L.circle([imp.lat, imp.lng], { radius: radioKmImpacto(imp.nivelDeseado, imp.intensidadDeseada) * 1000, color: '#FF7929', weight: 2, fillColor: '#FF7929', fillOpacity: 0.18 }).addTo(mapaImpactoRecapLeaflet);
-    if (imp.nivelActual) L.circle([imp.lat, imp.lng], { radius: radioKmImpacto(imp.nivelActual, imp.intensidadActual) * 1000, color: '#631EEB', weight: 2, fillColor: '#631EEB', fillOpacity: 0.3 }).addTo(mapaImpactoRecapLeaflet);
+    if (imp.nivelDeseado) L.circle([imp.lat, imp.lng], { radius: radioKmImpacto(imp.nivelDeseado, imp.intensidadDeseada, imp.estado) * 1000, color: '#FF7929', weight: 2, fillColor: '#FF7929', fillOpacity: 0.18 }).addTo(mapaImpactoRecapLeaflet);
+    if (imp.nivelActual) L.circle([imp.lat, imp.lng], { radius: radioKmImpacto(imp.nivelActual, imp.intensidadActual, imp.estado) * 1000, color: '#631EEB', weight: 2, fillColor: '#631EEB', fillOpacity: 0.3 }).addTo(mapaImpactoRecapLeaflet);
     // Zoom calculado a mano (en vez de fitBounds+getBounds sobre un círculo
     // todavía no agregado al mapa, que en algunos navegadores truena) a
     // partir del radio mayor de los dos círculos, para que ambos queden
     // visibles completos.
-    var radioMayorKmRecap = Math.max(radioKmImpacto(imp.nivelActual, imp.intensidadActual), radioKmImpacto(imp.nivelDeseado, imp.intensidadDeseada), 5);
+    var radioMayorKmRecap = Math.max(radioKmImpacto(imp.nivelActual, imp.intensidadActual, imp.estado), radioKmImpacto(imp.nivelDeseado, imp.intensidadDeseada, imp.estado), 5);
     var spanGradosRecap = (radioMayorKmRecap * 2.6) / 111.32;
     var zoomRecap = Math.max(2, Math.min(15, Math.floor(Math.log(360 / spanGradosRecap) / Math.LN2) - 1));
     mapaImpactoRecapLeaflet.setView([imp.lat, imp.lng], zoomRecap);
@@ -859,6 +1053,9 @@ function _paramsInterpretacionIA() {
     historiaLocal: state.historia,
     nivelActual: imp.nivelActual,
     nivelDeseado: imp.nivelDeseado,
+    giro: state.giro,
+    tipoVenta: state.tipoVenta,
+    estado: imp.estado,
     sitioWebTrampa: d.sitioWebTrampa
   };
 }
@@ -893,6 +1090,7 @@ function _cargarMapaImpactoPng() {
     lat: imp.lat, lng: imp.lng,
     nivelActual: imp.nivelActual, intensidadActual: imp.intensidadActual,
     nivelDeseado: imp.nivelDeseado, intensidadDeseada: imp.intensidadDeseada,
+    estado: imp.estado,
     email: d.email,
     sitioWebTrampa: d.sitioWebTrampa
   }).then(function (resp) {
@@ -915,6 +1113,7 @@ function _enviarResultadoMuestraCorreo() {
   var d = state.datos || {}, r = state.resultado, imp = state.impacto || {};
   var secciones = [
     { titulo: 'Interpretación de tu resultado', parrafos: (state.interpretacionReglas || '').split('\n\n').filter(function (p) { return p.trim(); }) },
+    { titulo: 'Tus 5 recomendaciones', parrafos: (state.recomendacionesPM || []).map(function (rec, idx) { return (idx + 1) + '. ' + rec; }) },
     { titulo: 'Tu reflexión histórica', parrafos: [state.historia || ''] }
   ].concat(r.categorias.map(function (c) {
     return { titulo: c.nombre, parrafos: [c.subtotal + ' de ' + c.max + ' puntos de vacío.'] };
@@ -923,7 +1122,7 @@ function _enviarResultadoMuestraCorreo() {
     'Mayor oportunidad: ' + r.peor.nombre + ' (' + r.peor.subtotal + '/' + r.peor.max + '). ' +
     'Alcance hoy: ' + (imp.nivelActual || '—') + ' · Alcance deseado: ' + (imp.nivelDeseado || '—') + '.';
   var mapaImpactoCorreo = imp.tocado ?
-    JSON.stringify({ lat: imp.lat, lng: imp.lng, nivelActual: imp.nivelActual, intensidadActual: imp.intensidadActual, nivelDeseado: imp.nivelDeseado, intensidadDeseada: imp.intensidadDeseada }) : '';
+    JSON.stringify({ lat: imp.lat, lng: imp.lng, nivelActual: imp.nivelActual, intensidadActual: imp.intensidadActual, nivelDeseado: imp.nivelDeseado, intensidadDeseada: imp.intensidadDeseada, estado: imp.estado }) : '';
   jsonpPost('enviarResultadoMuestra', {
     tipoMuestra: 'PulsoMercado',
     nombre: d.nombre,
@@ -958,8 +1157,8 @@ function _dibujarMapaImpactoEsquematico(doc, x, y, ancho, alto, imp) {
   doc.roundedRect(x, y, ancho, alto, 8, 8, 'FD');
   var cx = x + ancho / 2, cyBase = y + alto / 2;
   var radioMayorPt = Math.min(ancho, alto) / 2 - 14;
-  var radioActualRel = radioKmImpacto(imp.nivelActual, imp.intensidadActual);
-  var radioDeseadoRel = radioKmImpacto(imp.nivelDeseado, imp.intensidadDeseada);
+  var radioActualRel = radioKmImpacto(imp.nivelActual, imp.intensidadActual, imp.estado);
+  var radioDeseadoRel = radioKmImpacto(imp.nivelDeseado, imp.intensidadDeseada, imp.estado);
   var escalaPt = radioMayorPt / Math.max(radioActualRel, radioDeseadoRel, 1);
   doc.setDrawColor(255, 121, 41); doc.setFillColor(255, 121, 41);
   doc.circle(cx, cyBase, Math.max(radioDeseadoRel * escalaPt, 4), 'FD');
@@ -975,19 +1174,29 @@ async function descargarPulsoPdf() {
     alert('No se pudo cargar el generador de PDF. Revisa tu conexión e intenta de nuevo.');
     return;
   }
-  // Si la persona marcó el mapa pero la imagen real del servidor todavía no
-  // llega (ver _cargarMapaImpactoPng), vale la pena esperar unos segundos
-  // antes de resignarse al esquema de respaldo — antes el PDF caía
-  // de inmediato al esquema (solo dos círculos sin mapa real detrás) casi
-  // siempre, porque la persona suele dar clic en "Descargar PDF" segundos
-  // después de ver su resultado, antes de que el servidor responda.
+  // Si la persona marcó su estado pero la imagen real del servidor todavía
+  // no llega (ver _cargarMapaImpactoPng — ahora se dispara desde que los 5
+  // campos del mapa quedan completos, no solo al dar clic en "Siguiente"),
+  // vale la pena esperar antes de resignarse al esquema de respaldo. Un
+  // primer intento de 10s no fue suficiente en producción (cold start de
+  // Apps Script, o red lenta) — si para entonces no llegó, se intenta UNA
+  // vez más (reiniciando la memoización) con una ventana más corta antes de
+  // caer al esquema. Esto reemplaza la espera única de 6s que David reportó
+  // insuficiente.
   var btnPdf = document.getElementById('btnDescargarPdf');
   if ((state.impacto || {}).tocado && !state.mapaPngBase64) {
     if (btnPdf) { btnPdf.disabled = true; btnPdf.textContent = 'Preparando tu mapa...'; }
     await Promise.race([
       _cargarMapaImpactoPng(),
-      new Promise(function (resolve) { setTimeout(resolve, 6000); })
+      new Promise(function (resolve) { setTimeout(resolve, 10000); })
     ]);
+    if (!state.mapaPngBase64) {
+      _promesaMapaImpactoPng = null;
+      await Promise.race([
+        _cargarMapaImpactoPng(),
+        new Promise(function (resolve) { setTimeout(resolve, 8000); })
+      ]);
+    }
     if (btnPdf) { btnPdf.disabled = false; btnPdf.textContent = 'Descargar mi resultado en PDF'; }
   }
   var r = state.resultado, d = state.datos || {}, imp = state.impacto || {};
@@ -1109,6 +1318,22 @@ async function descargarPulsoPdf() {
       doc.text(lineas, margenIzq, y);
       y += lineas.length * 13 + 8;
     });
+    if ((state.recomendacionesPM || []).length) {
+      y += 4;
+      if (y > 700) { doc.addPage(); y = 60; }
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(10.5);
+      doc.setTextColor(purple[0], purple[1], purple[2]);
+      doc.text('Tus 5 recomendaciones', margenIzq, y);
+      y += 15;
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(10);
+      doc.setTextColor(60, 60, 60);
+      state.recomendacionesPM.forEach(function (recTexto, idx) {
+        var lineasRec = doc.splitTextToSize((idx + 1) + '. ' + recTexto, anchoTexto);
+        if (y + lineasRec.length * 13 > 740) { doc.addPage(); y = 60; }
+        doc.text(lineasRec, margenIzq, y);
+        y += lineasRec.length * 13 + 6;
+      });
+    }
   }
 
   if (state.interpretacionIA) {
