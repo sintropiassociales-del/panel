@@ -364,7 +364,7 @@ var state = {
   mapaPngBase64: null
 };
 var app = document.getElementById('app');
-var TOTAL_PASOS = 5; // 0 datos · 1 historia · 2 mapa de impacto · 3 preguntas · 4 resultado
+var TOTAL_PASOS = 4; // 0 datos · 1 preguntas (termina con la reflexión histórica) · 2 mapa de impacto · 3 resultado
 var mapaImpactoLeaflet = null, marcadorImpactoLeaflet = null, circuloActualLeaflet = null, circuloDeseadoLeaflet = null;
 var mapaImpactoRecapLeaflet = null;
 
@@ -378,10 +378,14 @@ function progresoHtml() {
 }
 
 function render() {
+  // Con el cuestionario de 20 preguntas + historia antes del mapa, la
+  // persona siempre da clic en "Continuar" al fondo de una página larga —
+  // sin esto, la siguiente pantalla (p. ej. el mapa) se dibuja fuera de la
+  // vista, con el scroll todavía abajo.
+  window.scrollTo(0, 0);
   if (state.paso === 0) return renderDatos();
-  if (state.paso === 1) return renderHistoria();
+  if (state.paso === 1) return renderPreguntas();
   if (state.paso === 2) return renderMapaImpacto();
-  if (state.paso === 3) return renderPreguntas();
   return renderResultado();
 }
 
@@ -391,7 +395,7 @@ function renderDatos() {
   app.innerHTML =
     progresoHtml() +
     '<h1>Pulso rápido de tu mercado</h1>' +
-    '<p class="subtle">Una reflexión histórica breve, tu mapa de impacto y 20 preguntas sobre qué tan bien conoces a tus clientes, tu competencia y las tendencias de tu sector — unos 7 minutos en total. Primero necesitamos algunos datos de tu empresa para poder enviarte tu resultado.</p>' +
+    '<p class="subtle">20 preguntas sobre qué tan bien conoces a tus clientes, tu competencia y las tendencias de tu sector, una breve reflexión histórica y tu mapa de impacto — unos 7 minutos en total. Primero necesitamos algunos datos de tu empresa para poder enviarte tu resultado.</p>' +
     '<div id="secMsg"></div>' +
     '<form id="datosForm">' +
       '<label>Nombre completo <span class="req">*</span></label><input type="text" id="dNombre" value="' + escapeHtml(d.nombre || '') + '">' +
@@ -438,41 +442,6 @@ function renderDatos() {
   };
 }
 
-/* ---- PASO 1: componente histórico — por qué el mercado decide lo que
- * decide hoy no se entiende solo mirando el presente; hay una
- * transformación local detrás que condiciona la decisión de compra actual.
- * No es una pregunta genérica de encuesta: es la pieza que distingue a
- * Sintropía Social (metodología de Práctica Social) de un estudio de
- * mercado convencional, y la misma lógica que usa el instrumento real
- * INS-MER-01 internamente (ver generarDocumentoMER01 en WebApp.gs). ---- */
-function renderHistoria() {
-  var d = state.datos || {};
-  app.innerHTML =
-    progresoHtml() +
-    '<h2>La historia detrás de tu mercado</h2>' +
-    '<div class="marco-teorico">' +
-      '<b>¿Por qué preguntamos esto?</b> Elegir no es solo una decisión del presente. Lo que hoy parece "lógico" comprar, vender o preferir en tu localidad — el canal que usan tus clientes, el precio que consideran justo, a quién le compran por costumbre — tiene detrás una historia local: cómo se hacían las cosas antes, qué cambió y por qué. La metodología de Práctica Social de Sintropía Social parte de esa idea (en la línea de lo que Pierre Bourdieu llamaba <i>habitus</i>: disposiciones del pasado que siguen operando, muchas veces sin que nadie las note, en las decisiones de hoy). Entender esa historia es lo que nos permite leer tu mercado de forma distinta a un estudio de mercado convencional — no solo qué hace tu cliente, sino por qué le hace sentido hacerlo así.' +
-    '</div>' +
-    '<div id="secMsg"></div>' +
-    '<label>Piensa en tu producto o servicio principal. ¿Cómo se compraba, vendía o usaba algo parecido en tu localidad hace 10 o 20 años, qué cambió desde entonces, y cómo sigue influyendo ese cambio en las decisiones de tus clientes hoy? <span class="req">*</span></label>' +
-    '<textarea id="hTexto" placeholder="Ej. Antes se compraba de fiado y en persona en el mercado local — había que conocer al vendedor para que te diera crédito. Hoy pagamos por transferencia y casi no nos conocemos, pero muchos clientes siguen pidiendo hablar por teléfono antes de pagar, como si necesitaran esa misma confianza de antes aunque ya no haya fiado de por medio.">' + escapeHtml(d.historiaGuardada || '') + '</textarea>' +
-    '<p class="subtle" style="margin-top:6px">No hay respuesta "correcta" — mientras más concreta y local, mejor interpretación podemos darte.</p>' +
-    '<div class="fila-botones">' +
-      '<button class="secondary" id="btnAtras">Atrás</button>' +
-      '<button class="primary" id="btnSiguiente">Continuar al mapa de impacto →</button>' +
-    '</div>';
-
-  document.getElementById('btnAtras').onclick = function () { state.paso = 0; render(); };
-  document.getElementById('btnSiguiente').onclick = function () {
-    var texto = document.getElementById('hTexto').value.trim();
-    if (!texto) { document.getElementById('secMsg').innerHTML = '<div class="msg error">Cuéntanos, aunque sea brevemente, cómo ha cambiado tu producto o servicio en tu localidad.</div>'; return; }
-    state.historia = texto;
-    if (state.datos) state.datos.historiaGuardada = texto;
-    state.paso = 2;
-    render();
-  };
-}
-
 /* ---- PASO 2: mapa de impacto — dos círculos translúcidos sobre el mismo
  * punto: morado = tu alcance HOY, naranja = el alcance que quieres LOGRAR.
  * El tamaño de cada círculo combina el nivel geográfico elegido
@@ -505,13 +474,14 @@ function renderMapaImpacto() {
       '<option value="">Selecciona</option>' +
       NIVELES_ALCANCE.map(function (n) { return '<option' + (imp.nivelDeseado === n ? ' selected' : '') + '>' + n + '</option>'; }).join('') +
     '</select>' +
-    '<label>¿Qué tan grande quieres que sea esa presencia? (1 = apenas iniciar ahí, 5 = dominarlo) <span class="req">*</span></label>' +
+    '<label>¿Qué tan grande quieres que sea esa presencia? (1 = explorando, 5 = dominarlo) <span class="req">*</span></label>' +
     '<div class="escala-intensidad" id="escalaDeseada">' +
       [1, 2, 3, 4, 5].map(function (n) {
         return '<button type="button" data-n="' + n + '" class="' + (imp.intensidadDeseada === n ? 'marcada deseado' : '') + '">' + n + '</button>';
       }).join('') +
     '</div>' +
     '<h3>Ubica el centro de tu operación</h3>' +
+    '<p class="subtle" style="margin-top:0">Cómo se usa: da clic en el mapa donde esté el centro de tu operación o mercado principal. Ahí se dibujan dos círculos del tamaño que elegiste arriba — uno con tu alcance de hoy y otro con el alcance al que quieres llegar.</p>' +
     '<div id="mapaImpacto"></div>' +
     '<div class="mapa-ficha" id="mapaImpactoFicha"></div>' +
     '<div class="leyenda-circulos">' +
@@ -520,7 +490,7 @@ function renderMapaImpacto() {
     '</div>' +
     '<div class="fila-botones">' +
       '<button class="secondary" id="btnAtras">Atrás</button>' +
-      '<button class="primary" id="btnSiguiente">Continuar a las preguntas →</button>' +
+      '<button class="primary" id="btnSiguiente">Ver mi semáforo de mercado</button>' +
     '</div>';
 
   var centro = (imp.tocado) ? [imp.lat, imp.lng] : CENTRO_MEXICO;
@@ -585,19 +555,67 @@ function renderMapaImpacto() {
   });
 
   document.getElementById('btnAtras').onclick = function () { state.paso = 1; render(); };
-  document.getElementById('btnSiguiente').onclick = function () {
+  document.getElementById('btnSiguiente').onclick = async function () {
     var msgBox = document.getElementById('secMsg');
     var imp2 = state.impacto || {};
     if (!imp2.nivelActual || !imp2.intensidadActual) { msgBox.innerHTML = '<div class="msg error">Selecciona tu alcance actual y qué tan consolidada está tu presencia ahí.</div>'; return; }
     if (!imp2.nivelDeseado || !imp2.intensidadDeseada) { msgBox.innerHTML = '<div class="msg error">Selecciona el alcance que quieres lograr y qué tan grande quieres esa presencia.</div>'; return; }
     if (!imp2.tocado) { msgBox.innerHTML = '<div class="msg error">Da clic en el mapa para marcar el centro de tu operación.</div>'; return; }
+
+    // Arranca la petición del mapa real lo antes posible — para cuando la
+    // persona llegue al botón de descargar PDF, lo más probable es que ya
+    // haya respondido (ver _cargarMapaImpactoPng y el nuevo await en
+    // descargarPulsoPdf, que ya no se conforma con el esquema de respaldo
+    // si la imagen real todavía está en camino).
+    _cargarMapaImpactoPng();
+
+    var categorias = CATEGORIAS_RIESGO.map(function (cat, ci) {
+      var maxCat = cat.items.length * 2;
+      var subtotal = cat.items.reduce(function (s, _t, ii) { return s + (state.respuestas['c' + ci + 'i' + ii] || 0); }, 0);
+      return { nombre: cat.nombre, clave: cat.clave, subtotal: subtotal, max: maxCat, nivel: _nivelBarra(subtotal, maxCat) };
+    });
+    var puntajeTotal = categorias.reduce(function (s, c) { return s + c.subtotal; }, 0);
+    var semaforo = _semaforo(puntajeTotal);
+    var peor = categorias.slice().sort(function (a, b) { return (b.subtotal / b.max) - (a.subtotal / a.max); })[0];
+    state.resultado = { categorias: categorias, puntajeTotal: puntajeTotal, semaforo: semaforo, peor: peor };
+
+    var btn = document.getElementById('btnSiguiente');
+    btn.disabled = true; btn.textContent = 'Guardando...';
+    var d = state.datos || {};
+    var resumenNotas = 'Pulso de Mercado: ' + semaforo.etiqueta + ' (' + puntajeTotal + '/40). ' +
+      'Mayor oportunidad: ' + peor.nombre + ' (' + peor.subtotal + '/' + peor.max + '). ' +
+      categorias.map(function (c) { return c.nombre + ': ' + c.subtotal + '/' + c.max; }).join(' — ') + '. ' +
+      'Alcance hoy: ' + (imp2.nivelActual || '—') + ' (' + (imp2.intensidadActual || '—') + '/5) · Alcance deseado: ' + (imp2.nivelDeseado || '—') + ' (' + (imp2.intensidadDeseada || '—') + '/5). ' +
+      'Historia local: ' + (state.historia || '—');
+    await jsonp('capturarClienteDiagnostico', {
+      organizacion: d.organizacion,
+      categoria: d.categoria,
+      ejeInteres: 'Investigación de Mercado',
+      nombreContacto: d.nombre,
+      cargo: d.cargo,
+      correo: d.email,
+      telefono: d.telefono,
+      leadMagnet: 'Pulso de Mercado',
+      consentimiento: 'Sí',
+      notas: resumenNotas,
+      respuestasCompletas: JSON.stringify(state.respuestas),
+      sitioWebTrampa: d.sitioWebTrampa
+    });
+    // El resultado se muestra siempre, incluso si el guardado del lead
+    // falla por algún motivo de red.
     state.paso = 3;
     render();
   };
 }
 
-/* ---- PASO 3: 20 preguntas del pulso, agrupadas en 5 categorías ---- */
+/* ---- PASO 1: 20 preguntas del pulso agrupadas en 5 categorías, y al final
+ * de este mismo paso la reflexión histórica (componente histórico de la
+ * metodología de Práctica Social: por qué el mercado decide lo que decide
+ * hoy no se entiende solo mirando el presente — ver generarDocumentoMER01
+ * en WebApp.gs, que usa la misma lógica en el instrumento real INS-MER-01).
+ * ---- */
 function renderPreguntas() {
+  var d = state.datos || {};
   var bloquesHtml = CATEGORIAS_RIESGO.map(function (cat, ci) {
     var opciones = _opcionesDe(cat.tipo);
     var itemsHtml = cat.items.map(function (texto, ii) {
@@ -618,15 +636,26 @@ function renderPreguntas() {
     '</div>';
   }).join('');
 
+  var historiaHtml =
+    '<div class="bloque-categoria">' +
+      '<div class="num-bloque">Antes de tu mapa de impacto</div>' +
+      '<div class="nombre-categoria">La historia detrás de tu mercado</div>' +
+      '<div class="marco-teorico">La metodología de Práctica Social de Sintropía Social parte de la idea que Pierre Bourdieu llamaba <i>habitus</i>: disposiciones del pasado que siguen operando, muchas veces sin que nadie las note, en las decisiones de hoy. Entender esa historia es lo que nos permite leer tu mercado de forma distinta a un estudio de mercado convencional.</div>' +
+      '<label>Piensa en tu producto o servicio principal. ¿Cómo se compraba, vendía o usaba algo parecido años atrás? <span class="req">*</span></label>' +
+      '<textarea id="hTexto" placeholder="Ej. Antes era distinto — y eso todavía pesa en cómo deciden hoy.">' + escapeHtml(d.historiaGuardada || '') + '</textarea>' +
+      '<p class="subtle" style="margin-top:6px">Si no sabes, está bien — intenta el ejercicio. Entre más concreto, mejor interpretación podemos darte.</p>' +
+    '</div>';
+
   app.innerHTML =
     progresoHtml() +
     '<h2>20 preguntas sobre tu mercado</h2>' +
     '<p class="subtle" style="margin-top:0">Responde con honestidad — no hay respuestas correctas, solo un panorama de dónde estás hoy.</p>' +
     '<div id="secMsg"></div>' +
     bloquesHtml +
+    historiaHtml +
     '<div class="fila-botones">' +
       '<button class="secondary" id="btnAtras">Atrás</button>' +
-      '<button class="primary" id="btnVerResultado">Ver mi semáforo de mercado</button>' +
+      '<button class="primary" id="btnContinuarMapa">Continuar al mapa de impacto →</button>' +
     '</div>';
 
   Array.prototype.forEach.call(app.querySelectorAll('.op-choice'), function (btn) {
@@ -640,57 +669,27 @@ function renderPreguntas() {
     };
   });
 
-  document.getElementById('btnAtras').onclick = function () { state.paso = 2; render(); };
-  document.getElementById('btnVerResultado').onclick = async function () {
+  document.getElementById('btnAtras').onclick = function () { state.paso = 0; render(); };
+  document.getElementById('btnContinuarMapa').onclick = function () {
     var totalPreguntas = CATEGORIAS_RIESGO.reduce(function (n, c) { return n + c.items.length; }, 0);
     var respondidas = Object.keys(state.respuestas).length;
     if (respondidas < totalPreguntas) {
       document.getElementById('secMsg').innerHTML = '<div class="msg error">Responde las ' + totalPreguntas + ' preguntas antes de continuar (llevas ' + respondidas + ').</div>';
       return;
     }
-
-    var categorias = CATEGORIAS_RIESGO.map(function (cat, ci) {
-      var maxCat = cat.items.length * 2;
-      var subtotal = cat.items.reduce(function (s, _t, ii) { return s + (state.respuestas['c' + ci + 'i' + ii] || 0); }, 0);
-      return { nombre: cat.nombre, clave: cat.clave, subtotal: subtotal, max: maxCat, nivel: _nivelBarra(subtotal, maxCat) };
-    });
-    var puntajeTotal = categorias.reduce(function (s, c) { return s + c.subtotal; }, 0);
-    var semaforo = _semaforo(puntajeTotal);
-    var peor = categorias.slice().sort(function (a, b) { return (b.subtotal / b.max) - (a.subtotal / a.max); })[0];
-
-    state.resultado = { categorias: categorias, puntajeTotal: puntajeTotal, semaforo: semaforo, peor: peor };
-
-    var btn = document.getElementById('btnVerResultado');
-    btn.disabled = true; btn.textContent = 'Guardando...';
-    var d = state.datos || {};
-    var imp = state.impacto || {};
-    var resumenNotas = 'Pulso de Mercado: ' + semaforo.etiqueta + ' (' + puntajeTotal + '/40). ' +
-      'Mayor oportunidad: ' + peor.nombre + ' (' + peor.subtotal + '/' + peor.max + '). ' +
-      categorias.map(function (c) { return c.nombre + ': ' + c.subtotal + '/' + c.max; }).join(' — ') + '. ' +
-      'Alcance hoy: ' + (imp.nivelActual || '—') + ' (' + (imp.intensidadActual || '—') + '/5) · Alcance deseado: ' + (imp.nivelDeseado || '—') + ' (' + (imp.intensidadDeseada || '—') + '/5). ' +
-      'Historia local: ' + (state.historia || '—');
-    await jsonp('capturarClienteDiagnostico', {
-      organizacion: d.organizacion,
-      categoria: d.categoria,
-      ejeInteres: 'Investigación de Mercado',
-      nombreContacto: d.nombre,
-      cargo: d.cargo,
-      correo: d.email,
-      telefono: d.telefono,
-      leadMagnet: 'Pulso de Mercado',
-      consentimiento: 'Sí',
-      notas: resumenNotas,
-      respuestasCompletas: JSON.stringify(state.respuestas),
-      sitioWebTrampa: d.sitioWebTrampa
-    });
-    // El resultado se muestra siempre, incluso si el guardado del lead
-    // falla por algún motivo de red.
-    state.paso = 4;
+    var texto = document.getElementById('hTexto').value.trim();
+    if (!texto) {
+      document.getElementById('secMsg').innerHTML = '<div class="msg error">Cuéntanos, aunque sea brevemente, cómo era antes.</div>';
+      return;
+    }
+    state.historia = texto;
+    if (state.datos) state.datos.historiaGuardada = texto;
+    state.paso = 2;
     render();
   };
 }
 
-/* ---- PASO 4: resultado — semáforo + historia + mapa de impacto +
+/* ---- PASO 3: resultado — semáforo + historia + mapa de impacto +
  * desglose + recomendación + PDF ---- */
 var RECOMENDACION_SEMAFORO = {
   rojo: {
@@ -875,15 +874,22 @@ function _iniciarCadenaIACorreo() {
   });
 }
 
-/* ---- Imagen real del mapa de impacto para el PDF: se pide al servidor en
- * cuanto se muestra el resultado (para que ya esté lista cuando la persona
- * dé clic en "Descargar PDF"). Si falla o tarda, el PDF usa como respaldo
- * dos círculos dibujados directamente con jsPDF (ver descargarPulsoPdf). */
+/* ---- Imagen real del mapa de impacto para el PDF: se pide al servidor lo
+ * antes posible — ya desde el botón "Ver mi semáforo de mercado" del paso
+ * del mapa (ver renderMapaImpacto), y de nuevo aquí por si no se llamó
+ * antes — para que esté lista cuando la persona dé clic en "Descargar PDF".
+ * _promesaMapaImpactoPng memoiza la solicitud en curso: si descargarPulsoPdf
+ * llega antes de que responda, puede esperar esta MISMA promesa en vez de
+ * conformarse de inmediato con el esquema de respaldo (ver más abajo). Si
+ * de plano falla o tarda demasiado, el PDF cae al esquema de dos círculos
+ * dibujados directamente con jsPDF (ver descargarPulsoPdf). */
+var _promesaMapaImpactoPng = null;
 function _cargarMapaImpactoPng() {
   var imp = state.impacto || {};
-  if (!imp.tocado || state.mapaPngBase64) return;
+  if (!imp.tocado || state.mapaPngBase64) return Promise.resolve();
+  if (_promesaMapaImpactoPng) return _promesaMapaImpactoPng;
   var d = state.datos || {};
-  jsonp('obtenerMapaImpactoPng', {
+  _promesaMapaImpactoPng = jsonp('obtenerMapaImpactoPng', {
     lat: imp.lat, lng: imp.lng,
     nivelActual: imp.nivelActual, intensidadActual: imp.intensidadActual,
     nivelDeseado: imp.nivelDeseado, intensidadDeseada: imp.intensidadDeseada,
@@ -892,6 +898,7 @@ function _cargarMapaImpactoPng() {
   }).then(function (resp) {
     if (resp && resp.ok && resp.imagenBase64) state.mapaPngBase64 = resp.imagenBase64;
   });
+  return _promesaMapaImpactoPng;
 }
 
 /* ---- Correo automático con el resultado (PDF adjunto + oferta con IA) ----
@@ -963,10 +970,25 @@ function _dibujarMapaImpactoEsquematico(doc, x, y, ancho, alto, imp) {
 }
 
 /* ---- Descargable en PDF ---- */
-function descargarPulsoPdf() {
+async function descargarPulsoPdf() {
   if (!window.jspdf || !window.jspdf.jsPDF) {
     alert('No se pudo cargar el generador de PDF. Revisa tu conexión e intenta de nuevo.');
     return;
+  }
+  // Si la persona marcó el mapa pero la imagen real del servidor todavía no
+  // llega (ver _cargarMapaImpactoPng), vale la pena esperar unos segundos
+  // antes de resignarse al esquema de respaldo — antes el PDF caía
+  // de inmediato al esquema (solo dos círculos sin mapa real detrás) casi
+  // siempre, porque la persona suele dar clic en "Descargar PDF" segundos
+  // después de ver su resultado, antes de que el servidor responda.
+  var btnPdf = document.getElementById('btnDescargarPdf');
+  if ((state.impacto || {}).tocado && !state.mapaPngBase64) {
+    if (btnPdf) { btnPdf.disabled = true; btnPdf.textContent = 'Preparando tu mapa...'; }
+    await Promise.race([
+      _cargarMapaImpactoPng(),
+      new Promise(function (resolve) { setTimeout(resolve, 6000); })
+    ]);
+    if (btnPdf) { btnPdf.disabled = false; btnPdf.textContent = 'Descargar mi resultado en PDF'; }
   }
   var r = state.resultado, d = state.datos || {}, imp = state.impacto || {};
   var rec = RECOMENDACION_SEMAFORO[r.semaforo.clave];
@@ -1005,25 +1027,13 @@ function descargarPulsoPdf() {
     y += 18;
   });
 
-  // Tu reflexión histórica — la persona la ve reflejada en su propio PDF,
-  // no solo en pantalla.
-  if (state.historia) {
-    y += 6;
-    doc.setDrawColor(230, 226, 245); doc.line(margenIzq, y, margenIzq + anchoTexto, y);
-    y += 18;
-    doc.setFont('helvetica', 'bold'); doc.setFontSize(11);
-    doc.setTextColor(purple[0], purple[1], purple[2]);
-    doc.text('Tu reflexión histórica', margenIzq, y);
-    y += 16;
-    doc.setFont('helvetica', 'normal'); doc.setFontSize(10);
-    doc.setTextColor(60, 60, 60);
-    var lineasHistoria = doc.splitTextToSize(state.historia, anchoTexto);
-    doc.text(lineasHistoria, margenIzq, y);
-    y += lineasHistoria.length * 13 + 6;
-  }
-
-  // Mapa de impacto — imagen real si ya llegó (ver _cargarMapaImpactoPng),
-  // si no, dos círculos esquemáticos (mismo patrón que el mapa territorial).
+  // Mapa de impacto — ANTES de la historia, en el mismo orden que ya se ve
+  // en pantalla (ver renderResultado). Imagen real si ya llegó (ver
+  // _cargarMapaImpactoPng, y el await de arriba que ahora le da tiempo de
+  // responder); si de plano no llegó, dos círculos esquemáticos (mismo
+  // patrón que el mapa territorial), marcados como tales para que no se
+  // confundan con el mapa real.
+  var usoEsquemaMapa = false;
   if (imp.tocado) {
     var altoMapaPdf = 190;
     if (y + altoMapaPdf + 34 > 730) { doc.addPage(); y = 60; }
@@ -1040,15 +1050,65 @@ function descargarPulsoPdf() {
         var escala = Math.min((anchoTexto - margenInterno * 2) / imgW, (altoMapaPdf - margenInterno * 2) / imgH);
         var wFinal = imgW * escala, hFinal = imgH * escala;
         doc.addImage(state.mapaPngBase64, 'PNG', margenIzq + (anchoTexto - wFinal) / 2, y + (altoMapaPdf - hFinal) / 2, wFinal, hFinal);
-      } catch (eImg) { _dibujarMapaImpactoEsquematico(doc, margenIzq, y, anchoTexto, altoMapaPdf, imp); }
+      } catch (eImg) { _dibujarMapaImpactoEsquematico(doc, margenIzq, y, anchoTexto, altoMapaPdf, imp); usoEsquemaMapa = true; }
     } else {
       _dibujarMapaImpactoEsquematico(doc, margenIzq, y, anchoTexto, altoMapaPdf, imp);
+      usoEsquemaMapa = true;
     }
     y += altoMapaPdf + 10;
     doc.setFont('helvetica', 'normal'); doc.setFontSize(9);
     doc.setTextColor(107, 107, 120);
     doc.text('Morado = tu alcance hoy (' + (imp.nivelActual || '—') + ') · Naranja = el alcance que quieres lograr (' + (imp.nivelDeseado || '—') + ')', margenIzq, y);
-    y += 20;
+    y += 16;
+    if (usoEsquemaMapa) {
+      doc.setFont('helvetica', 'italic'); doc.setFontSize(8.5);
+      doc.setTextColor(140, 140, 150);
+      doc.text('Esquema simplificado (sin mapa real de fondo) — tu mapa con ubicación real te llega por correo.', margenIzq, y);
+      y += 14;
+    }
+    y += 4;
+  }
+
+  // Tu reflexión histórica — la persona la ve reflejada en su propio PDF,
+  // no solo en pantalla.
+  if (state.historia) {
+    if (y > 700) { doc.addPage(); y = 60; }
+    doc.setDrawColor(230, 226, 245); doc.line(margenIzq, y, margenIzq + anchoTexto, y);
+    y += 18;
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(11);
+    doc.setTextColor(purple[0], purple[1], purple[2]);
+    doc.text('Tu reflexión histórica', margenIzq, y);
+    y += 16;
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(10);
+    doc.setTextColor(60, 60, 60);
+    var lineasHistoria = doc.splitTextToSize(state.historia, anchoTexto);
+    if (y + lineasHistoria.length * 13 > 740) { doc.addPage(); y = 60; }
+    doc.text(lineasHistoria, margenIzq, y);
+    y += lineasHistoria.length * 13 + 10;
+  }
+
+  // "¿Qué te conviene hacer?" — interpretación instantánea basada en
+  // reglas, SIEMPRE disponible de inmediato (ver interpretacionReglasPM), a
+  // diferencia de la interpretación ampliada de IA de abajo, que puede
+  // tardar. Antes faltaba por completo en el PDF descargable: si la
+  // persona lo bajaba antes de que la IA respondiera, se quedaba sin esta
+  // sección — el PDF se veía parcial.
+  if (state.interpretacionReglas) {
+    if (y > 650) { doc.addPage(); y = 60; }
+    doc.setDrawColor(230, 226, 245); doc.line(margenIzq, y, margenIzq + anchoTexto, y);
+    y += 18;
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(11);
+    doc.setTextColor(purple[0], purple[1], purple[2]);
+    doc.text('¿Qué te conviene hacer?', margenIzq, y);
+    y += 16;
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(10);
+    doc.setTextColor(60, 60, 60);
+    state.interpretacionReglas.split('\n\n').filter(function (p) { return p.trim(); }).forEach(function (parrafo) {
+      var lineas = doc.splitTextToSize(parrafo, anchoTexto);
+      if (y + lineas.length * 13 > 740) { doc.addPage(); y = 60; }
+      doc.text(lineas, margenIzq, y);
+      y += lineas.length * 13 + 8;
+    });
   }
 
   if (state.interpretacionIA) {
@@ -1058,11 +1118,12 @@ function descargarPulsoPdf() {
     y += 18;
     doc.setFont('helvetica', 'bold'); doc.setFontSize(11);
     doc.setTextColor(purple[0], purple[1], purple[2]);
-    doc.text('Interpretación', margenIzq, y);
+    doc.text('Interpretación ampliada de nuestro equipo', margenIzq, y);
     y += 16;
     doc.setFont('helvetica', 'normal'); doc.setFontSize(10);
     doc.setTextColor(60, 60, 60);
     var lineasIa = doc.splitTextToSize(state.interpretacionIA, anchoTexto);
+    if (y + lineasIa.length * 13 > 740) { doc.addPage(); y = 60; }
     doc.text(lineasIa, margenIzq, y);
     y += lineasIa.length * 13 + 6;
   }
