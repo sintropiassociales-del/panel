@@ -105,6 +105,8 @@
   .leyenda-punto { width: 13px; height: 13px; border-radius: 50%; display: inline-block; }
   .leyenda-punto.actual { background: rgba(99,30,235,.55); border: 1.5px solid var(--purple); }
   .leyenda-punto.deseado { background: rgba(255,121,41,.35); border: 1.5px solid var(--orange); }
+  .fila-lugar { display: flex; gap: 8px; margin: 8px 0; flex-wrap: wrap; }
+  .fila-lugar select, .fila-lugar input { flex: 1; min-width: 140px; margin: 0; }
 
   /* Preguntas por categoría */
   .bloque-categoria { margin-bottom: 26px; }
@@ -347,22 +349,33 @@ var CATEGORIAS_CRM_OPCIONES = ['Gobierno y Sector Público', 'ONG y Fundaciones'
   'Tecnología y Telecom', 'Turismo y Hospitalidad', 'Organismo internacional', 'Otro'];
 
 /* ============================================================
- * Mapa de impacto — deben mantenerse sincronizados con las mismas
- * constantes del lado del servidor (ESTADO_CENTROS_IMPACTO/
- * ESTADO_RADIO_KM_IMPACTO/_radioBaseKmImpacto en WebApp.gs): si se cambia
- * una, cambiar la otra.
+ * Mapa de impacto (segundo rediseño, oct-2026) — ya no es un solo punto con
+ * un círculo por nivel: ahora cada lado (tu alcance HOY y el alcance al que
+ * quieres LLEGAR) puede marcar VARIOS lugares reales, según el nivel que
+ * elija para ese lado:
+ *   - Local: uno o varios MUNICIPIOS (de los estados que elija).
+ *   - Estatal: uno o varios ESTADOS de México.
+ *   - Nacional: no se puntea nada — "nacional" ya significa todo México.
+ *   - Internacional: uno o varios PAÍSES (o "Otro" con texto libre si no
+ *     está en el catálogo — ese no se puede dibujar en el mapa porque no
+ *     conocemos su coordenada, pero sí se guarda como dato).
+ * "¿Desde dónde opera tu negocio?" quedó fusionada con "tu alcance HOY":
+ * los lugares que se marcan ahí SON el alcance actual.
  *
- * Rediseño (David, oct-2026): el punto de anclaje ya no es un clic libre en
- * cualquier parte del mundo — es el ESTADO donde opera el negocio (mismo
- * catálogo de 32 estados y centros aproximados que usa la muestra
- * Territorio), y el radio de cada nivel ya no es un número parejo para los
- * cuatro niveles: "Estatal" usa el radio real aproximado DEL ESTADO elegido
- * (según su superficie real), y "Nacional"/"Internacional" usan radios a
- * escala de país/continente, para que el círculo responda de verdad al
- * alcance que la persona dijo tener o querer, en vez de solo "un poco más
- * grande" sin importar el nivel.
+ * No tenemos coordenadas reales por municipio (solo nombres, ver
+ * ESTADOS_MUNICIPIOS) — cada municipio elegido se dibuja como un punto
+ * aproximado cerca del centro de su estado (desplazado de forma
+ * determinística según el nombre, para separar visualmente varios
+ * municipios del mismo estado), nunca su ubicación exacta. El nombre real
+ * siempre se guarda en los datos/PDF/correo.
+ *
+ * Deben mantenerse sincronizados con WebApp.gs los catálogos ESTADO_CENTROS
+ * y ESTADO_RADIO_KM (el servidor ya no necesita duplicar ESTADOS_MUNICIPIOS
+ * ni PAIS_CENTROS: el cliente resuelve cada lugar a {lat,lng,radioKm} antes
+ * de mandarlo, el servidor solo dibuja los puntos que recibe).
  * ============================================================ */
 var NIVELES_ALCANCE = ['Local', 'Estatal', 'Nacional', 'Internacional'];
+var MAX_LUGARES_POR_LADO = 4;
 
 var ESTADO_CENTROS = {
   'Aguascalientes': [21.8853, -102.2916], 'Baja California': [32.6245, -115.4523],
@@ -394,25 +407,127 @@ var ESTADO_RADIO_KM = {
   'Sinaloa': 135, 'Sonora': 239, 'Tabasco': 89, 'Tamaulipas': 160,
   'Tlaxcala': 36, 'Veracruz': 151, 'Yucatán': 112, 'Zacatecas': 155
 };
+// Municipios reales por estado (mismo catálogo que usa la muestra
+// Territorio) — solo para llenar el selector de municipio; el punto que se
+// dibuja en el mapa es aproximado (ver _offsetMunicipio), no la ubicación
+// exacta del municipio.
+var ESTADOS_MUNICIPIOS = {"Aguascalientes":["Aguascalientes","Asientos","Calvillo","Cosío","El Llano","Jesús María","Pabellón de Arteaga","Rincón de Romos","San Francisco de los Romo","San José de Gracia","Tepezalá"],"Baja California":["Ensenada","Mexicali","Playas de Rosarito","San Felipe","San Quintín","Tecate","Tijuana"],"Baja California Sur":["Comondú","La Paz","Loreto","Los Cabos","Mulegé"],"Campeche":["Calakmul","Calkiní","Campeche","Candelaria","Carmen","Champotón","Dzitbalché","Escárcega","Hecelchakán","Hopelchén","Palizada","Seybaplaya","Tenabo"],"Chiapas":["Acacoyagua","Acala","Acapetahua","Aldama","Altamirano","Amatenango de la Frontera","Amatenango del Valle","Amatán","Arriaga","Bejucal de Ocampo","Bella Vista","Benemérito de las Américas","Berriozábal","Bochil","Cacahoatán","Capitán Luis Ángel Vidal","Catazajá","Chalchihuitán","Chamula","Chanal","Chapultenango","Chenalhó","Chiapa de Corzo","Chiapilla","Chicoasén","Chicomuselo","Chilón","Cintalapa de Figueroa","Coapilla","Comitán de Domínguez","Copainalá","El Bosque","El Parral","El Porvenir","Emiliano Zapata","Escuintla","Francisco León","Frontera Comalapa","Frontera Hidalgo","Honduras de la Sierra","Huehuetán","Huitiupán","Huixtla","Huixtán","Ixhuatán","Ixtacomitán","Ixtapa","Ixtapangajoya","Jiquipilas","Jitotol","Juárez","La Concordia","La Grandeza","La Independencia","La Libertad","La Trinitaria","Larráinzar","Las Margaritas","Las Rosas","Mapastepec","Maravilla Tenejapa","Marqués de Comillas","Mazapa de Madero","Mazatán","Metapa","Mezcalapa","Mitontic","Montecristo de Guerrero","Motozintla","Nicolás Ruíz","Ocosingo","Ocotepec","Ocozocoautla de Espinosa","Ostuacán","Osumacinta","Oxchuc","Palenque","Pantelhó","Pantepec","Pichucalco","Pijijiapan","Pueblo Nuevo Solistahuacán","Rayón","Reforma","Rincón Chamula San Pedro","Sabanilla","Salto de Agua","San Andrés Duraznal","San Cristóbal de las Casas","San Fernando","San Juan Cancuc","San Lucas","Santiago el Pinar","Siltepec","Simojovel","Sitalá","Socoltenango","Solosuchiapa","Soyaló","Suchiapa","Suchiate","Sunuapa","Tapachula","Tapalapa","Tapilula","Tecpatán","Tenejapa","Teopisca","Tila","Tonalá","Totolapa","Tumbalá","Tuxtla Chico","Tuxtla Gutiérrez","Tuzantán","Tzimol","Unión Juárez","Venustiano Carranza","Villa Comaltitlán","Villa Corzo","Villaflores","Yajalón","Zinacantán","Ángel Albino Corzo"],"Chihuahua":["Ahumada","Aldama","Allende","Aquiles Serdán","Ascensión","Bachíniva","Balleza","Batopilas de Manuel Gómez Morín","Bocoyna","Buenaventura","Camargo","Carichí","Casas Grandes","Chihuahua","Chínipas","Coronado","Coyame del Sotol","Cuauhtémoc","Cusihuiriachi","Delicias","Dr. Belisario Domínguez","El Tule","Galeana","Gran Morelos","Guachochi","Guadalupe","Guadalupe y Calvo","Guazapares","Guerrero","Gómez Farías","Hidalgo del Parral","Huejotitán","Ignacio Zaragoza","Janos","Jiménez","Julimes","Juárez","La Cruz","López","Madera","Maguarichi","Manuel Benavides","Matachí","Matamoros","Meoqui","Morelos","Moris","Namiquipa","Nonoava","Nuevo Casas Grandes","Ocampo","Ojinaga","Praxedis G. Guerrero","Riva Palacio","Rosales","San Francisco de Borja","San Francisco de Conchos","San Francisco del Oro","Santa Bárbara","Santa Isabel","Satevó","Saucillo","Temósachic","Urique","Uruachi","Valle de Zaragoza","Valle del Rosario"],"Ciudad de México":["Azcapotzalco","Benito Juárez","Coyoacán","Cuajimalpa de Morelos","Cuauhtémoc","Gustavo A. Madero","Iztacalco","Iztapalapa","La Magdalena Contreras","Miguel Hidalgo","Milpa Alta","Tlalpan","Tláhuac","Venustiano Carranza","Xochimilco","Álvaro Obregón"],"Coahuila":["Abasolo","Acuña","Allende","Arteaga","Candela","Castaños","Cuatro Ciénegas","Escobedo","Francisco I. Madero","Frontera","General Cepeda","Guerrero","Hidalgo","Jiménez","Juárez","Lamadrid","Matamoros","Monclova","Morelos","Múzquiz","Nadadores","Nava","Ocampo","Parras","Piedras Negras","Progreso","Ramos Arizpe","Sabinas","Sacramento","Saltillo","San Buenaventura","San Juan de Sabinas","San Pedro","Sierra Mojada","Torreón","Viesca","Villa Unión","Zaragoza"],"Colima":["Armería","Colima","Comala","Coquimatlán","Cuauhtémoc","Ixtlahuacán","Manzanillo","Minatitlán","Tecomán","Villa de Álvarez"],"Durango":["Canatlán","Canelas","Coneto de Comonfort","Cuencamé","Durango","El Oro","General Simón Bolívar","Guadalupe Victoria","Guanaceví","Gómez Palacio","Hidalgo","Indé","Lerdo","Mapimí","Mezquital","Nazas","Nombre de Dios","Nuevo Ideal","Ocampo","Otáez","Peñón Blanco","Poanas","Pueblo Nuevo","Pánuco de Coronado","Rodeo","San Bernardo","San Dimas","San Juan de Guadalupe","San Juan del Río","San Luis del Cordero","San Pedro del Gallo","Santa Clara","Santiago Papasquiaro","Súchil","Tamazula","Tepehuanes","Tlahualilo","Topia","Vicente Guerrero"],"Estado de México":["Acambay de Ruíz Castañeda","Acolman","Aculco","Almoloya de Alquisiras","Almoloya de Juárez","Almoloya del Río","Amanalco","Amatepec","Amecameca","Apaxco","Atenco","Atizapán","Atizapán de Zaragoza","Atlacomulco","Atlautla","Axapusco","Ayapango","Calimaya","Capulhuac","Chalco","Chapa de Mota","Chapultepec","Chiautla","Chicoloapan","Chiconcuac","Chimalhuacán","Coacalco de Berriozábal","Coatepec Harinas","Cocotitlán","Coyotepec","Cuautitlán","Cuautitlán Izcalli","Donato Guerra","Ecatepec de Morelos","Ecatzingo","El Oro","Huehuetoca","Hueypoxtla","Huixquilucan","Isidro Fabela","Ixtapaluca","Ixtapan de la Sal","Ixtapan del Oro","Ixtlahuaca","Jaltenco","Jilotepec","Jilotzingo","Jiquipilco","Jocotitlán","Joquicingo","Juchitepec","La Paz","Lerma","Luvianos","Malinalco","Melchor Ocampo","Metepec","Mexicaltzingo","Morelos","Naucalpan de Juárez","Nextlalpan","Nezahualcóyotl","Nicolás Romero","Nopaltepec","Ocoyoacac","Ocuilan","Otumba","Otzoloapan","Otzolotepec","Ozumba","Papalotla","Polotitlán","Rayón","San Antonio la Isla","San Felipe del Progreso","San José del Rincón","San Martín de las Pirámides","San Mateo Atenco","San Simón de Guerrero","Santo Tomás","Soyaniquilpan de Juárez","Sultepec","Tecámac","Tejupilco","Temamatla","Temascalapa","Temascalcingo","Temascaltepec","Temoaya","Tenancingo","Tenango del Aire","Tenango del Valle","Teoloyucan","Teotihuacán","Tepetlaoxtoc","Tepetlixpa","Tepotzotlán","Tequixquiac","Texcaltitlán","Texcalyacac","Texcoco","Tezoyuca","Tianguistenco","Timilpan","Tlalmanalco","Tlalnepantla de Baz","Tlatlaya","Toluca","Tonanitla","Tonatico","Tultepec","Tultitlán","Valle de Bravo","Valle de Chalco Solidaridad","Villa Guerrero","Villa Victoria","Villa de Allende","Villa del Carbón","Xalatlaco","Xonacatlán","Zacazonapan","Zacualpan","Zinacantepec","Zumpahuacán","Zumpango"],"Guanajuato":["Abasolo","Acámbaro","Apaseo el Alto","Apaseo el Grande","Atarjea","Celaya","Comonfort","Coroneo","Cortazar","Cuerámaro","Doctor Mora","Dolores Hidalgo Cuna de la Independencia Nacional","Guanajuato","Huanímaro","Irapuato","Jaral del Progreso","Jerécuaro","León","Manuel Doblado","Moroleón","Ocampo","Pueblo Nuevo","Purísima del Rincón","Pénjamo","Romita","Salamanca","Salvatierra","San Diego de la Unión","San Felipe","San Francisco del Rincón","San José de Iturbide","San Luis de la Paz","San Miguel de Allende","Santa Catarina","Santa Cruz de Juventino Rosas","Santiago Maravatío","Silao de la Victoria","Tarandacuao","Tarimoro","Tierra Blanca","Uriangato","Valle de Santiago","Victoria","Villagrán","Xichú","Yuriria"],"Guerrero":["Acapulco de Juárez","Acatepec","Ahuacuotzingo","Ajuchitlán del Progreso","Alcozauca de Guerrero","Alpoyeca","Apaxtla de Castrejón","Arcelia","Atenango del Río","Atlamajalcingo del Monte","Atlixtac","Atoyac de Álvarez","Ayutla de los Libres","Azoyú","Benito Juárez","Buenavista de Cuéllar","Chilapa de Álvarez","Chilpancingo de los Bravo","Coahuayutla de José María Izazaga","Cochoapa el Grande","Cocula","Copala","Copalillo","Copanatoyac","Coyuca de Benítez","Coyuca de Catalán","Cuajinicuilapa","Cualác","Cuautepec","Cuetzala del Progreso","Cutzamala de Pinzón","Eduardo Neri","Florencio Villarreal","General Canuto A. Neri","General Heliodoro Castillo","Huamuxtitlán","Huitzuco de los Figueroa","Iguala de la Independencia","Igualapa","Iliatenco","Ixcateopan de Cuauhtémoc","José Joaquín de Herrera","Juan R. Escudero","Juchitán","La Unión de Isidoro Montes de Oca","Las Vigas","Leonardo Bravo","Malinaltepec","Marquelia","Metlatónoc","Mochitlán","Mártir de Cuilapan","Olinalá","Ometepec","Pedro Ascencio Alquisiras","Petatlán","Pilcaya","Pungarabato","Quechultenango","San Luis Acatlán","San Marcos","San Miguel Totolapan","San Nicolás","Santa Cruz del Rincón","Taxco de Alarcón","Tecoanapa","Teloloapan","Tepecoacuilco de Trujano","Tetipac","Tixtla de Guerrero","Tlacoachistlahuaca","Tlacoapa","Tlalchapa","Tlalixtaquilla de Maldonado","Tlapa de Comonfort","Tlapehuala","Técpan de Galeana","Xalpatláhuac","Xochihuehuetlán","Xochistlahuaca","Zapotitlán Tablas","Zihuatanejo de Azueta","Zirándaro","Zitlala","Ñuu Savi"],"Hidalgo":["Acatlán","Acaxochitlán","Actopan","Agua Blanca de Iturbide","Ajacuba","Alfajayucan","Almoloya","Apan","Atitalaquia","Atlapexco","Atotonilco de Tula","Atotonilco el Grande","Calnali","Cardonal","Chapantongo","Chapulhuacán","Chilcuautla","Cuautepec de Hinojosa","El Arenal","Eloxochitlán","Emiliano Zapata","Epazoyucan","Francisco I. Madero","Huasca de Ocampo","Huautla","Huazalingo","Huehuetla","Huejutla de Reyes","Huichapan","Ixmiquilpan","Jacala de Ledezma","Jaltocán","Juárez Hidalgo","La Misión","Lolotla","Metepec","Metztitlán","Mineral de la Reforma","Mineral del Chico","Mineral del Monte","Mixquiahuala de Juárez","Molango de Escamilla","Nicolás Flores","Nopala de Villagrán","Omitlán de Juárez","Pachuca de Soto","Pacula","Pisaflores","Progreso de Obregón","San Agustín Metzquititlán","San Agustín Tlaxiaca","San Bartolo Tutotepec","San Felipe Orizatlán","San Salvador","Santiago Tulantepec de Lugo Guerrero","Santiago de Anaya","Singuilucan","Tasquillo","Tecozautla","Tenango de Doria","Tepeapulco","Tepehuacán de Guerrero","Tepeji del Río de Ocampo","Tepetitlán","Tetepango","Tezontepec de Aldama","Tianguistengo","Tizayuca","Tlahuelilpan","Tlahuiltepa","Tlanalapa","Tlanchinol","Tlaxcoapan","Tolcayuca","Tula de Allende","Tulancingo de Bravo","Villa de Tezontepec","Xochiatipan","Xochicoatlán","Yahualica","Zacualtipán de Ángeles","Zapotlán de Juárez","Zempoala","Zimapán"],"Jalisco":["Acatic","Acatlán de Juárez","Ahualulco de Mercado","Amacueca","Amatitán","Ameca","Arandas","Atemajac de Brizuela","Atengo","Atenguillo","Atotonilco el Alto","Atoyac","Autlán de Navarro","Ayotlán","Ayutla","Bolaños","Cabo Corrientes","Casimiro Castillo","Cañadas de Obregón","Chapala","Chimaltitán","Chiquilistlán","Cihuatlán","Cocula","Colotlán","Concepción de Buenos Aires","Cuautitlán de García Barragán","Cuautla","Cuquío","Degollado","Ejutla","El Arenal","El Grullo","El Limón","El Salto","Encarnación de Díaz","Etzatlán","Guachinango","Guadalajara","Gómez Farías","Hostotipaquillo","Huejuquilla el Alto","Huejúcar","Ixtlahuacán de los Membrillos","Ixtlahuacán del Río","Jalostotitlán","Jamay","Jesús María","Jilotlán de los Dolores","Jocotepec","Juanacatlán","Juchitlán","La Barca","La Huerta","La Manzanilla de la Paz","Lagos de Moreno","Magdalena","Mascota","Mazamitla","Mexticacán","Mezquitic","Mixtlán","Ocotlán","Ojuelos de Jalisco","Pihuamo","Poncitlán","Puerto Vallarta","Quitupan","San Cristóbal de la Barranca","San Diego de Alejandría","San Gabriel","San Ignacio Cerro Gordo","San Juan de los Lagos","San Juanito de Escobedo","San Julián","San Marcos","San Martín Hidalgo","San Martín de Bolaños","San Miguel el Alto","San Pedro Tlaquepaque","San Sebastián del Oeste","Santa María de los Ángeles","Santa María del Oro","Sayula","Tala","Talpa de Allende","Tamazula de Gordiano","Tapalpa","Tecalitlán","Techaluta de Montenegro","Tecolotlán","Tenamaxtlán","Teocaltiche","Teocuitatlán de Corona","Tepatitlán de Morelos","Tequila","Teuchitlán","Tizapán el Alto","Tlajomulco de Zúñiga","Tolimán","Tomatlán","Tonalá","Tonaya","Tonila","Totatiche","Tototlán","Tuxcacuesco","Tuxcueca","Tuxpan","Unión de San Antonio","Unión de Tula","Valle de Guadalupe","Valle de Juárez","Villa Corona","Villa Guerrero","Villa Hidalgo","Villa Purificación","Yahualica de González Gallo","Zacoalco de Torres","Zapopan","Zapotiltic","Zapotitlán de Vadillo","Zapotlanejo","Zapotlán del Rey","Zapotlán el Grande"],"Michoacán":["Acuitzio","Aguililla","Angamacutiro","Angangueo","Apatzingán","Aporo","Aquila","Ario","Arteaga","Briseñas","Buenavista","Carácuaro","Charapan","Charo","Chavinda","Cherán","Chilchota","Chinicuila","Chucándiro","Churintzio","Churumuco","Coahuayana","Coalcomán de Vázquez Pallares","Coeneo","Cojumatlán de Régules","Contepec","Copándaro","Cotija","Cuitzeo","Ecuandureo","Epitacio Huerta","Erongarícuaro","Gabriel Zamora","Hidalgo","Huandacareo","Huaniqueo","Huetamo","Huiramba","Indaparapeo","Irimbo","Ixtlán","Jacona","Jiménez","Jiquilpan","José Sixto Verduzco","Jungapeo","Juárez","La Huacana","La Piedad","Lagunillas","Los Reyes","Lázaro Cárdenas","Madero","Maravatío","Marcos Castellanos","Morelia","Morelos","Múgica","Nahuatzen","Nocupétaro","Nuevo Parangaricutiro","Nuevo Urecho","Numarán","Ocampo","Pajacuarán","Panindícuaro","Paracho","Parácuaro","Penjamillo","Peribán","Puruándiro","Purépero","Pátzcuaro","Queréndaro","Quiroga","Sahuayo","Salvador Escalante","San Lucas","Santa Ana Maya","Senguio","Susupuato","Tacámbaro","Tancítaro","Tangamandapio","Tangancícuaro","Tanhuato","Taretan","Tarímbaro","Tepalcatepec","Tingambato","Tingüindín","Tiquicheo de Nicolás Romero","Tlalpujahua","Tlazazalca","Tocumbo","Tumbiscatío","Turicato","Tuxpan","Tuzantla","Tzintzuntzan","Tzitzio","Uruapan","Venustiano Carranza","Villamar","Vista Hermosa","Yurécuaro","Zacapu","Zamora","Zinapécuaro","Zináparo","Ziracuaretiro","Zitácuaro","Álvaro Obregón"],"Morelos":["Amacuzac","Atlatlahucan","Axochiapan","Ayala","Coatetelco","Coatlán del Río","Cuautla","Cuernavaca","Emiliano Zapata","Hueyapan","Huitzilac","Jantetelco","Jiutepec","Jojutla","Jonacatepec de Leandro Valle","Mazatepec","Miacatlán","Ocuituco","Puente de Ixtla","Temixco","Temoac","Tepalcingo","Tepoztlán","Tetecala","Tetela del Volcán","Tlalnepantla","Tlaltizapán de Zapata","Tlaquiltenango","Tlayacapan","Totolapan","Xochitepec","Xoxocotla","Yautepec","Yecapixtla","Zacatepec","Zacualpan de Amilpas"],"Nayarit":["Acaponeta","Ahuacatlán","Amatlán de Cañas","Bahía de Banderas","Compostela","Del Nayar","Huajicori","Ixtlán del Río","Jala","La Yesca","Rosamorada","Ruíz","San Blas","San Pedro Lagunillas","Santa María del Oro","Santiago Ixcuintla","Tecuala","Tepic","Tuxpan","Xalisco"],"Nuevo León":["Abasolo","Agualeguas","Allende","Anáhuac","Apodaca","Aramberri","Bustamante","Cadereyta Jiménez","Cerralvo","China","Ciénega de Flores","Doctor Arroyo","Doctor Coss","Doctor González","El Carmen","Galeana","García","General Bravo","General Escobedo","General Terán","General Treviño","General Zaragoza","General Zuazua","Guadalupe","Hidalgo","Higueras","Hualahuises","Iturbide","Juárez","Lampazos de Naranjo","Linares","Los Aldamas","Los Herreras","Los Ramones","Marín","Melchor Ocampo","Mier y Noriega","Mina","Montemorelos","Monterrey","Parás","Pesquería","Rayones","Sabinas Hidalgo","Salinas Victoria","San Nicolás de los Garza","San Pedro Garza García","Santa Catarina","Santiago","Vallecillo","Villaldama"],"Oaxaca":["Abejones","Acatlán de Pérez Figueroa","Asunción Cacalotepec","Asunción Cuyotepeji","Asunción Ixtaltepec","Asunción Nochixtlán","Asunción Ocotlán","Asunción Tlacolulita","Ayoquezco de Aldama","Ayotzintepec","Calihualá","Candelaria Loxicha","Capulálpam de Méndez","Chahuites","Chalcatongo de Hidalgo","Chiquihuitlán de Benito Juárez","Ciudad Ixtepec","Ciénega de Zimatlán","Coatecas Altas","Coicoyán de las Flores","Concepción Buenavista","Concepción Pápalo","Constancia del Rosario","Cosolapa","Cosoltepec","Cuilápam de Guerrero","Cuyamecalco Villa de Zaragoza","El Barrio de la Soledad","El Espinal","Eloxochitlán de Flores Magón","Fresnillo de Trujano","Guadalupe Etla","Guadalupe de Ramírez","Guelatao de Juárez","Guevea de Humboldt","Heroica Ciudad de Ejutla de Crespo","Heroica Ciudad de Huajuapan de León","Heroica Ciudad de Juchitán de Zaragoza","Heroica Ciudad de Miahuatlán de Porfirio Díaz","Heroica Ciudad de Tlaxiaco","Heroica Villa Tezoatlán de Segura y Luna, Cuna de la Independencia de Oaxaca","Heroica Villa de San Blas Atempa","Heroico San Martín de los Cansecos","Huautepec","Huautla de Jiménez","Ixpantepec Nieves","Ixtlán de Juárez","La Compañía","La Pe","La Reforma","La Trinidad Vista Hermosa","Loma Bonita","Magdalena Apasco","Magdalena Jaltepec","Magdalena Mixtepec","Magdalena Ocotlán","Magdalena Peñasco","Magdalena Teitipac","Magdalena Tequisistlán","Magdalena Tlacotepec","Magdalena Yodocono de Porfirio Díaz","Magdalena Zahuatlán","Mariscala de Juárez","Matías Romero Avendaño","Mazatlán Villa de Flores","Mesones Hidalgo","Mixistlán de la Reforma","Monjas","Mártires de Tacubaya","Natividad","Nazareno Etla","Nejapa de Madero","Nuevo Zoquiápam","Oaxaca de Juárez","Ocotlán de Morelos","Pinotepa de Don Luis","Pluma Hidalgo","Putla Villa de Guerrero","Reforma de Pineda","Reyes Etla","Rojas de Cuauhtémoc","Salina Cruz","San Agustín Amatengo","San Agustín Atenango","San Agustín Chayuco","San Agustín Etla","San Agustín Loxicha","San Agustín Tlacotepec","San Agustín Yatareni","San Agustín de las Juntas","San Andrés Cabecera Nueva","San Andrés Dinicuiti","San Andrés Huaxpaltepec","San Andrés Huayápam","San Andrés Ixtlahuaca","San Andrés Lagunas","San Andrés Nuxiño","San Andrés Paxtlán","San Andrés Sinaxtla","San Andrés Solaga","San Andrés Teotilálpam","San Andrés Tepetlapa","San Andrés Yaá","San Andrés Zabache","San Andrés Zautla","San Antonino Castillo Velasco","San Antonino Monte Verde","San Antonino el Alto","San Antonio Acutla","San Antonio Huitepec","San Antonio Nanahuatípam","San Antonio Sinicahua","San Antonio Tepetlapa","San Antonio de la Cal","San Baltazar Chichicápam","San Baltazar Loxicha","San Baltazar Yatzachi el Bajo","San Bartolo Coyotepec","San Bartolo Soyaltepec","San Bartolo Yautepec","San Bartolomé Ayautla","San Bartolomé Loxicha","San Bartolomé Quialana","San Bartolomé Yucuañe","San Bartolomé Zoogocho","San Bernardo Mixtepec","San Carlos Yautepec","San Cristóbal Amatlán","San Cristóbal Amoltepec","San Cristóbal Lachirioag","San Cristóbal Suchixtlahuaca","San Dionisio Ocotepec","San Dionisio Ocotlán","San Dionisio del Mar","San Esteban Atatlahuca","San Felipe Jalapa de Díaz","San Felipe Tejalápam","San Felipe Usila","San Francisco Cahuacuá","San Francisco Cajonos","San Francisco Chapulapa","San Francisco Chindúa","San Francisco Huehuetlán","San Francisco Ixhuatán","San Francisco Jaltepetongo","San Francisco Lachigoló","San Francisco Logueche","San Francisco Nuxaño","San Francisco Ozolotepec","San Francisco Sola","San Francisco Telixtlahuaca","San Francisco Teopan","San Francisco Tlapancingo","San Francisco del Mar","San Gabriel Mixtepec","San Ildefonso Amatlán","San Ildefonso Sola","San Ildefonso Villa Alta","San Jacinto Amilpas","San Jacinto Tlacotepec","San Jerónimo Coatlán","San Jerónimo Silacayoapilla","San Jerónimo Sosola","San Jerónimo Taviche","San Jerónimo Tecóatl","San Jerónimo Tlacochahuaya","San Jorge Nuchita","San José Ayuquila","San José Chiltepec","San José Estancia Grande","San José Independencia","San José Lachiguiri","San José Tenango","San José del Peñasco","San José del Progreso","San Juan Achiutla","San Juan Atepec","San Juan Bautista Atatlahuca","San Juan Bautista Coixtlahuaca","San Juan Bautista Cuicatlán","San Juan Bautista Guelache","San Juan Bautista Jayacatlán","San Juan Bautista Lo de Soto","San Juan Bautista Suchitepec","San Juan Bautista Tlachichilco","San Juan Bautista Tlacoatzintepec","San Juan Bautista Tuxtepec","San Juan Bautista Valle Nacional","San Juan Cacahuatepec","San Juan Chicomezúchil","San Juan Chilateca","San Juan Cieneguilla","San Juan Coatzóspam","San Juan Colorado","San Juan Comaltepec","San Juan Cotzocón","San Juan Diuxi","San Juan Evangelista Analco","San Juan Guelavía","San Juan Guichicovi","San Juan Ihualtepec","San Juan Juquila Mixes","San Juan Juquila Vijanos","San Juan Lachao","San Juan Lachigalla","San Juan Lajarcia","San Juan Lalana","San Juan Mazatlán","San Juan Mixtepec","San Juan Mixtepec","San Juan Ozolotepec","San Juan Petlapa","San Juan Quiahije","San Juan Quiotepec","San Juan Sayultepec","San Juan Tabaá","San Juan Tamazola","San Juan Teita","San Juan Teitipac","San Juan Tepeuxila","San Juan Teposcolula","San Juan Yaeé","San Juan Yatzona","San Juan Yucuita","San Juan de los Cués","San Juan del Estado","San Juan del Río","San Juan Ñumí","San Lorenzo","San Lorenzo Albarradas","San Lorenzo Cacaotepec","San Lorenzo Cuaunecuiltitla","San Lorenzo Texmelúcan","San Lorenzo Victoria","San Lucas Camotlán","San Lucas Ojitlán","San Lucas Quiaviní","San Lucas Zoquiápam","San Luis Amatlán","San Marcial Ozolotepec","San Marcos Arteaga","San Martín Huamelúlpam","San Martín Itunyoso","San Martín Lachilá","San Martín Peras","San Martín Tilcajete","San Martín Toxpalan","San Martín Zacatepec","San Mateo Cajonos","San Mateo Etlatongo","San Mateo Nejápam","San Mateo Peñasco","San Mateo Piñas","San Mateo Río Hondo","San Mateo Sindihui","San Mateo Tlapiltepec","San Mateo Yoloxochitlán","San Mateo Yucutindoo","San Mateo del Mar","San Melchor Betaza","San Miguel Achiutla","San Miguel Ahuehuetitlán","San Miguel Aloápam","San Miguel Amatitlán","San Miguel Amatlán","San Miguel Chicahua","San Miguel Chimalapa","San Miguel Coatlán","San Miguel Ejutla","San Miguel Huautla","San Miguel Mixtepec","San Miguel Panixtlahuaca","San Miguel Peras","San Miguel Piedras","San Miguel Quetzaltepec","San Miguel Santa Flor","San Miguel Soyaltepec","San Miguel Suchixtepec","San Miguel Tecomatlán","San Miguel Tenango","San Miguel Tequixtepec","San Miguel Tilquiápam","San Miguel Tlacamama","San Miguel Tlacotepec","San Miguel Tulancingo","San Miguel Yotao","San Miguel del Puerto","San Miguel del Río","San Miguel el Grande","San Nicolás","San Nicolás Hidalgo","San Pablo Coatlán","San Pablo Cuatro Venados","San Pablo Etla","San Pablo Huitzo","San Pablo Huixtepec","San Pablo Macuiltianguis","San Pablo Tijaltepec","San Pablo Villa de Mitla","San Pablo Yaganiza","San Pedro Amuzgos","San Pedro Apóstol","San Pedro Atoyac","San Pedro Cajonos","San Pedro Comitancillo","San Pedro Coxcaltepec Cántaros","San Pedro Huamelula","San Pedro Huilotepec","San Pedro Ixcatlán","San Pedro Ixtlahuaca","San Pedro Jaltepetongo","San Pedro Jicayán","San Pedro Jocotipac","San Pedro Juchatengo","San Pedro Mixtepec","San Pedro Mixtepec","San Pedro Molinos","San Pedro Mártir","San Pedro Mártir Quiechapa","San Pedro Mártir Yucuxaco","San Pedro Nopala","San Pedro Ocopetatillo","San Pedro Ocotepec","San Pedro Pochutla","San Pedro Quiatoni","San Pedro Sochiápam","San Pedro Tapanatepec","San Pedro Taviche","San Pedro Teozacoalco","San Pedro Teutila","San Pedro Tidaá","San Pedro Topiltepec","San Pedro Totolápam","San Pedro Yaneri","San Pedro Yucunama","San Pedro Yólox","San Pedro el Alto","San Pedro y San Pablo Ayutla","San Pedro y San Pablo Teposcolula","San Pedro y San Pablo Tequixtepec","San Raymundo Jalpan","San Sebastián Abasolo","San Sebastián Coatlán","San Sebastián Ixcapa","San Sebastián Nicananduta","San Sebastián Río Hondo","San Sebastián Tecomaxtlahuaca","San Sebastián Teitipac","San Sebastián Tutla","San Simón Almolongas","San Simón Zahuatlán","San Vicente Coatlán","San Vicente Lachixío","San Vicente Nuñú","Santa Ana","Santa Ana Ateixtlahuaca","Santa Ana Cuauhtémoc","Santa Ana Tavela","Santa Ana Tlapacoyan","Santa Ana Yareni","Santa Ana Zegache","Santa Ana del Valle","Santa Catalina Quierí","Santa Catarina Cuixtla","Santa Catarina Ixtepeji","Santa Catarina Juquila","Santa Catarina Lachatao","Santa Catarina Loxicha","Santa Catarina Mechoacán","Santa Catarina Minas","Santa Catarina Quiané","Santa Catarina Quioquitani","Santa Catarina Tayata","Santa Catarina Ticuá","Santa Catarina Yosonotú","Santa Catarina Zapoquila","Santa Cruz Acatepec","Santa Cruz Amilpas","Santa Cruz Itundujia","Santa Cruz Mixtepec","Santa Cruz Nundaco","Santa Cruz Papalutla","Santa Cruz Tacache de Mina","Santa Cruz Tacahua","Santa Cruz Tayata","Santa Cruz Xitla","Santa Cruz Xoxocotlán","Santa Cruz Zenzontepec","Santa Cruz de Bravo","Santa Gertrudis","Santa Inés Yatzeche","Santa Inés de Zaragoza","Santa Inés del Monte","Santa Lucía Miahuatlán","Santa Lucía Monteverde","Santa Lucía Ocotlán","Santa Lucía del Camino","Santa Magdalena Jicotlán","Santa María Alotepec","Santa María Apazco","Santa María Atzompa","Santa María Camotlán","Santa María Chachoápam","Santa María Chilchotla","Santa María Chimalapa","Santa María Colotepec","Santa María Cortijo","Santa María Coyotepec","Santa María Ecatepec","Santa María Guelacé","Santa María Guienagati","Santa María Huatulco","Santa María Huazolotitlán","Santa María Ipalapa","Santa María Ixcatlán","Santa María Jacatepec","Santa María Jalapa del Marqués","Santa María Jaltianguis","Santa María Lachixío","Santa María Mixtequilla","Santa María Nativitas","Santa María Nduayaco","Santa María Ozolotepec","Santa María Petapa","Santa María Peñoles","Santa María Pápalo","Santa María Quiegolani","Santa María Sola","Santa María Tataltepec","Santa María Tecomavaca","Santa María Temaxcalapa","Santa María Temaxcaltepec","Santa María Teopoxco","Santa María Tepantlali","Santa María Texcatitlán","Santa María Tlahuitoltepec","Santa María Tlalixtac","Santa María Tonameca","Santa María Totolapilla","Santa María Xadani","Santa María Yalina","Santa María Yavesía","Santa María Yolotepec","Santa María Yosoyúa","Santa María Yucuhiti","Santa María Zacatepec","Santa María Zaniza","Santa María Zoquitlán","Santa María del Rosario","Santa María del Tule","Santa María la Asunción","Santiago Amoltepec","Santiago Apoala","Santiago Apóstol","Santiago Astata","Santiago Atitlán","Santiago Ayuquililla","Santiago Cacaloxtepec","Santiago Camotlán","Santiago Choápam","Santiago Comaltepec","Santiago Huajolotitlán","Santiago Huauclilla","Santiago Ihuitlán Plumas","Santiago Ixcuintepec","Santiago Ixtayutla","Santiago Jamiltepec","Santiago Jocotepec","Santiago Juxtlahuaca","Santiago Lachiguiri","Santiago Lalopa","Santiago Laollaga","Santiago Laxopa","Santiago Llano Grande","Santiago Matatlán","Santiago Miltepec","Santiago Minas","Santiago Nacaltepec","Santiago Nejapilla","Santiago Niltepec","Santiago Nundiche","Santiago Nuyoó","Santiago Pinotepa Nacional","Santiago Suchilquitongo","Santiago Tamazola","Santiago Tapextla","Santiago Tenango","Santiago Tepetlapa","Santiago Tetepec","Santiago Texcalcingo","Santiago Textitlán","Santiago Tilantongo","Santiago Tillo","Santiago Tlazoyaltepec","Santiago Xanica","Santiago Xiacuí","Santiago Yaitepec","Santiago Yaveo","Santiago Yolomécatl","Santiago Yosondúa","Santiago Yucuyachi","Santiago Zacatepec","Santiago Zoochila","Santiago del Río","Santo Domingo Albarradas","Santo Domingo Armenta","Santo Domingo Chihuitán","Santo Domingo Ingenio","Santo Domingo Ixcatlán","Santo Domingo Nuxaá","Santo Domingo Ozolotepec","Santo Domingo Petapa","Santo Domingo Roayaga","Santo Domingo Tehuantepec","Santo Domingo Teojomulco","Santo Domingo Tepuxtepec","Santo Domingo Tlatayápam","Santo Domingo Tomaltepec","Santo Domingo Tonaltepec","Santo Domingo Tonalá","Santo Domingo Xagacía","Santo Domingo Yanhuitlán","Santo Domingo Yodohino","Santo Domingo Zanatepec","Santo Domingo de Morelos","Santo Tomás Jalieza","Santo Tomás Mazaltepec","Santo Tomás Ocotepec","Santo Tomás Tamazulapan","Santos Reyes Nopala","Santos Reyes Pápalo","Santos Reyes Tepejillo","Santos Reyes Yucuná","Silacayoápam","Sitio de Xitlapehua","Soledad Etla","Tamazulápam del Espíritu Santo","Tanetze de Zaragoza","Taniche","Tataltepec de Valdés","Teococuilco de Marcos Pérez","Teotitlán de Flores Magón","Teotitlán del Valle","Teotongo","Tepelmeme Villa de Morelos","Tlacolula de Matamoros","Tlacotepec Plumas","Tlalixtac de Cabrera","Totontepec Villa de Morelos","Trinidad Zaachila","Unión Hidalgo","Valerio Trujano","Villa Díaz Ordaz","Villa Hidalgo Yalálag","Villa Sola de Vega","Villa Talea de Castro","Villa Tejúpam de la Unión","Villa de Chilapa de Díaz","Villa de Etla","Villa de Santiago Chazumba","Villa de Tamazulápam del Progreso","Villa de Tututepec","Villa de Zaachila","Yaxe","Yogana","Yutanduchi de Guerrero","Zapotitlán Lagunas","Zapotitlán Palmas","Zimatlán de Álvarez","Ánimas Trujano"],"Puebla":["Acajete","Acateno","Acatlán","Acatzingo","Acteopan","Ahuacatlán","Ahuatlán","Ahuazotepec","Ahuehuetitla","Ajalpan","Albino Zertuche","Aljojuca","Altepexi","Amixtlán","Amozoc","Aquixtla","Atempan","Atexcal","Atlequizayan","Atlixco","Atoyatempan","Atzala","Atzitzihuacán","Atzitzintla","Axutla","Ayotoxco de Guerrero","Calpan","Caltepec","Camocuautla","Caxhuacan","Cañada Morelos","Chalchicomula de Sesma","Chapulco","Chiautla","Chiautzingo","Chichiquila","Chiconcuautla","Chietla","Chigmecatitlán","Chignahuapan","Chignautla","Chila","Chila de la Sal","Chilchotla","Chinantla","Coatepec","Coatzingo","Cohetzala","Cohuecan","Coronango","Coxcatlán","Coyomeapan","Coyotepec","Cuapiaxtla de Madero","Cuautempan","Cuautinchán","Cuautlancingo","Cuayuca de Andrade","Cuetzalan del Progreso","Cuyoaco","Domingo Arenas","Eloxochitlán","Epatlán","Esperanza","Francisco Z. Mena","General Felipe Ángeles","Guadalupe","Guadalupe Victoria","Hermenegildo Galeana","Honey","Huaquechula","Huatlatlauca","Huauchinango","Huehuetla","Huehuetlán el Chico","Huehuetlán el Grande","Huejotzingo","Hueyapan","Hueytamalco","Hueytlalpan","Huitzilan de Serdán","Huitziltepec","Ixcamilpa de Guerrero","Ixcaquixtla","Ixtacamaxtitlán","Ixtepec","Izúcar de Matamoros","Jalpan","Jolalpan","Jonotla","Jopala","Juan C. Bonilla","Juan Galindo","Juan N. Méndez","La Magdalena Tlatlauquitepec","Lafragua","Libres","Los Reyes de Juárez","Mazapiltepec de Juárez","Mixtla","Molcaxac","Naupan","Nauzontla","Nealtican","Nicolás Bravo","Nopalucan","Ocotepec","Ocoyucan","Olintla","Oriental","Pahuatlán","Palmar de Bravo","Pantepec","Petlalcingo","Piaxtla","Puebla","Quecholac","Quimixtlán","Rafael Lara Grajales","San Andrés Cholula","San Antonio Cañada","San Diego la Mesa Tochimiltzingo","San Felipe Teotlalcingo","San Felipe Tepatlán","San Gabriel Chilac","San Gregorio Atzompa","San Jerónimo Tecuanipan","San Jerónimo Xayacatlán","San José Chiapa","San José Miahuatlán","San Juan Atenco","San Juan Atzompa","San Martín Texmelucan","San Martín Totoltepec","San Matías Tlalancaleca","San Miguel Ixitlán","San Miguel Xoxtla","San Nicolás Buenos Aires","San Nicolás de los Ranchos","San Pablo Anicano","San Pedro Cholula","San Pedro Yeloixtlahuaca","San Salvador Huixcolotla","San Salvador el Seco","San Salvador el Verde","San Sebastián Tlacotepec","Santa Catarina Tlaltempan","Santa Inés Ahuatempan","Santa Isabel Cholula","Santiago Miahuatlán","Santo Tomás Hueyotlipan","Soltepec","Tecali de Herrera","Tecamachalco","Tecomatlán","Tehuacán","Tehuitzingo","Tenampulco","Teopantlán","Teotlalco","Tepanco de López","Tepango de Rodríguez","Tepatlaxco de Hidalgo","Tepeaca","Tepemaxalco","Tepeojuma","Tepetzintla","Tepexco","Tepexi de Rodríguez","Tepeyahualco","Tepeyahualco de Cuauhtémoc","Tetela de Ocampo","Teteles de Ávila Castillo","Teziutlán","Tianguismanalco","Tilapa","Tlachichuca","Tlacotepec de Benito Juárez","Tlacuilotepec","Tlahuapan","Tlaltenango","Tlanepantla","Tlaola","Tlapacoya","Tlapanalá","Tlatlauquitepec","Tlaxco","Tochimilco","Tochtepec","Totoltepec de Guerrero","Tulcingo","Tuzamapan de Galeana","Tzicatlacoyan","Venustiano Carranza","Vicente Guerrero","Xayacatlán de Bravo","Xicotepec","Xicotlán","Xiutetelco","Xochiapulco","Xochiltepec","Xochitlán Todos Santos","Xochitlán de Vicente Suárez","Yaonáhuac","Yehualtepec","Zacapala","Zacapoaxtla","Zacatlán","Zapotitlán","Zapotitlán de Méndez","Zaragoza","Zautla","Zihuateutla","Zinacatepec","Zongozotla","Zoquiapan","Zoquitlán"],"Querétaro":["Amealco de Bonfil","Arroyo Seco","Cadereyta de Montes","Colón","Corregidora","El Marqués","Ezequiel Montes","Huimilpan","Jalpan de Serra","Landa de Matamoros","Pedro Escobedo","Peñamiller","Pinal de Amoles","Querétaro","San Joaquín","San Juan del Río","Tequisquiapan","Tolimán"],"Quintana Roo":["Bacalar","Benito Juárez","Cozumel","Felipe Carrillo Puerto","Isla Mujeres","José María Morelos","Lázaro Cárdenas","Othón P. Blanco","Playa del Carmen","Puerto Morelos","Tulum"],"San Luis Potosí":["Ahualulco del Sonido 13","Alaquines","Aquismón","Armadillo de los Infante","Axtla de Terrazas","Catorce","Cedral","Cerritos","Cerro de San Pedro","Charcas","Ciudad Fernández","Ciudad Valles","Ciudad del Maíz","Coxcatlán","Cárdenas","Ebano","El Naranjo","Guadalcázar","Huehuetlán","Lagunillas","Matehuala","Matlapa","Mexquitic de Carmona","Moctezuma","Rayón","Rioverde","Salinas","San Antonio","San Ciro de Acosta","San Luis Potosí","San Martín Chalchicuautla","San Nicolás Tolentino","San Vicente Tancuayalab","Santa Catarina","Santa María del Río","Santo Domingo","Soledad de Graciano Sánchez","Tamasopo","Tamazunchale","Tampacán","Tampamolón Corona","Tamuín","Tancanhuitz","Tanlajás","Tanquián de Escobedo","Tierra Nueva","Vanegas","Venado","Villa Hidalgo","Villa Juárez","Villa de Arista","Villa de Arriaga","Villa de Guadalupe","Villa de Pozos","Villa de Ramos","Villa de Reyes","Villa de la Paz","Xilitla","Zaragoza"],"Sinaloa":["Ahome","Angostura","Badiraguato","Choix","Concordia","Cosalá","Culiacán","El Fuerte","Eldorado","Elota","Escuinapa","Guasave","Juan José Ríos","Mazatlán","Mocorito","Navolato","Rosario","Salvador Alvarado","San Ignacio","Sinaloa"],"Sonora":["Aconchi","Agua Prieta","Altar","Arivechi","Arizpe","Atil","Bacadéhuachi","Bacanora","Bacerac","Bacoachi","Banámichi","Bavispe","Baviácora","Benito Juárez","Benjamín Hill","Bácum","Caborca","Cajeme","Cananea","Carbó","Cucurpe","Cumpas","Divisaderos","Empalme","Etchojoa","Fronteras","General Plutarco Elías Calles","Granados","Guaymas","Hermosillo","Huachinera","Huatabampo","Huásabas","Huépac","Imuris","La Colorada","Magdalena","Mazatán","Moctezuma","Naco","Nacozari de García","Navojoa","Nogales","Nácori Chico","Opodepe","Oquitoa","Pitiquito","Puerto Peñasco","Quiriego","Rayón","Rosario","Sahuaripa","San Felipe de Jesús","San Ignacio Río Muerto","San Javier","San Luis Río Colorado","San Miguel de Horcasitas","San Pedro de la Cueva","Santa Ana","Santa Cruz","Soyopa","Suaqui Grande","Sáric","Tepache","Trincheras","Tubutama","Ures","Villa Hidalgo","Villa Pesqueira","Yécora","Álamos","Ónavas"],"Tabasco":["Balancán","Centla","Centro","Comalcalco","Cunduacán","Cárdenas","Emiliano Zapata","Huimanguillo","Jalapa","Jalpa de Méndez","Jonuta","Macuspana","Nacajuca","Paraíso","Tacotalpa","Teapa","Tenosique"],"Tamaulipas":["Abasolo","Aldama","Altamira","Antiguo Morelos","Burgos","Bustamante","Camargo","Casas","Ciudad Madero","Cruillas","El Mante","González","Guerrero","Gustavo Díaz Ordaz","Gómez Farías","Güémez","Hidalgo","Jaumave","Jiménez","Llera","Mainero","Matamoros","Mier","Miguel Alemán","Miquihuana","Méndez","Nuevo Laredo","Nuevo Morelos","Ocampo","Padilla","Palmillas","Reynosa","Río Bravo","San Carlos","San Fernando","San Nicolás","Soto la Marina","Tampico","Tula","Valle Hermoso","Victoria","Villagrán","Xicoténcatl"],"Tlaxcala":["Acuamanala de Miguel Hidalgo","Amaxac de Guerrero","Apetatitlán de Antonio Carvajal","Apizaco","Atlangatepec","Atltzayanca","Benito Juárez","Calpulalpan","Chiautempan","Contla de Juan Cuamatzi","Cuapiaxtla","Cuaxomulco","El Carmen Tequexquitla","Emiliano Zapata","Españita","Huamantla","Hueyotlipan","Ixtacuixtla de Mariano Matamoros","Ixtenco","La Magdalena Tlaltelulco","Lázaro Cárdenas","Mazatecochco de José María Morelos","Muñoz de Domingo Arenas","Nanacamilpa de Mariano Arista","Natívitas","Panotla","Papalotla de Xicohténcatl","San Damián Texóloc","San Francisco Tetlanohcan","San Jerónimo Zacualpan","San José Teacalco","San Juan Huactzinco","San Lorenzo Axocomanitla","San Lucas Tecopilco","San Pablo del Monte","Sanctórum de Lázaro Cárdenas","Santa Ana Nopalucan","Santa Apolonia Teacalco","Santa Catarina Ayometla","Santa Cruz Quilehtla","Santa Cruz Tlaxcala","Santa Isabel Xiloxoxtla","Tenancingo","Teolocholco","Tepetitla de Lardizábal","Tepeyanco","Terrenate","Tetla de la Solidaridad","Tetlatlahuca","Tlaxcala","Tlaxco","Tocatlán","Totolac","Tzompantepec","Xaloztoc","Xaltocan","Xicohtzinco","Yauhquemehcan","Zacatelco","Ziltlaltépec de Trinidad Sánchez Santos"],"Veracruz":["Acajete","Acatlán","Acayucan","Actopan","Acula","Acultzingo","Agua Dulce","Alpatláhuac","Alto Lucero de Gutiérrez Barrios","Altotonga","Alvarado","Amatitlán","Amatlán de los Reyes","Angel R. Cabada","Apazapan","Aquila","Astacinga","Atlahuilco","Atoyac","Atzacan","Atzalan","Ayahualulco","Banderilla","Benito Juárez","Boca del Río","Calcahualco","Camarón de Tejeda","Camerino Z. Mendoza","Carlos A. Carrillo","Carrillo Puerto","Castillo de Teayo","Catemaco","Cazones de Herrera","Cerro Azul","Chacaltianguis","Chalma","Chiconamel","Chiconquiaco","Chicontepec","Chinameca","Chinampa de Gorostiza","Chocamán","Chontla","Chumatlán","Citlaltépetl","Coacoatzintla","Coahuitlán","Coatepec","Coatzacoalcos","Coatzintla","Coetzala","Colipa","Comapa","Cosamaloapan de Carpio","Cosautlán de Carvajal","Coscomatepec","Cosoleacaque","Cotaxtla","Coxquihui","Coyutla","Cuichapa","Cuitláhuac","Córdoba","El Higo","Emiliano Zapata","Espinal","Filomeno Mata","Fortín","Gutiérrez Zamora","Hidalgotitlán","Huatusco","Huayacocotla","Hueyapan de Ocampo","Huiloapan de Cuauhtémoc","Ignacio de la Llave","Ilamatlán","Isla","Ixcatepec","Ixhuacán de los Reyes","Ixhuatlancillo","Ixhuatlán de Madero","Ixhuatlán del Café","Ixhuatlán del Sureste","Ixmatlahuacan","Ixtaczoquitlán","Jalacingo","Jalcomulco","Jamapa","Jesús Carranza","Jilotepec","José Azueta","Juan Rodríguez Clara","Juchique de Ferrer","Jáltipan","La Antigua","La Perla","Landero y Coss","Las Choapas","Las Minas","Las Vigas de Ramírez","Lerdo de Tejada","Los Reyes","Magdalena","Maltrata","Manlio Fabio Altamirano","Mariano Escobedo","Martínez de la Torre","Mecatlán","Mecayapan","Medellín de Bravo","Miahuatlán","Minatitlán","Misantla","Mixtla de Altamirano","Moloacán","Nanchital de Lázaro Cárdenas del Río","Naolinco","Naranjal","Naranjos Amatlán","Nautla","Nogales","Oluta","Omealca","Orizaba","Otatitlán","Oteapan","Ozuluama de Mascareñas","Pajapan","Papantla","Paso de Ovejas","Paso del Macho","Perote","Platón Sánchez","Playa Vicente","Poza Rica de Hidalgo","Pueblo Viejo","Puente Nacional","Pánuco","Rafael Delgado","Rafael Lucio","Río Blanco","Saltabarranca","San Andrés Tenejapan","San Andrés Tuxtla","San Juan Evangelista","San Rafael","Santiago Sochiapan","Santiago Tuxtla","Sayula de Alemán","Sochiapa","Soconusco","Soledad Atzompa","Soledad de Doblado","Soteapan","Tamalín","Tamiahua","Tampico Alto","Tancoco","Tantima","Tantoyuca","Tatahuicapan de Juárez","Tatatila","Tecolutla","Tehuipango","Tempoal","Tenampa","Tenochtitlán","Teocelo","Tepatlaxco","Tepetlán","Tepetzintla","Tequila","Texcatepec","Texhuacán","Texistepec","Tezonapa","Tierra Blanca","Tihuatlán","Tlachichilco","Tlacojalpan","Tlacolulan","Tlacotalpan","Tlacotepec de Mejía","Tlalixcoyan","Tlalnelhuayocan","Tlaltetela","Tlapacoyan","Tlaquilpa","Tlilapan","Tomatlán","Tonayán","Totutla","Tres Valles","Tuxpan","Tuxtilla","Ursulo Galván","Uxpanapa","Vega de Alatorre","Veracruz","Villa Aldama","Xalapa","Xico","Xoxocotla","Yanga","Yecuatla","Zacualpan","Zaragoza","Zentla","Zongolica","Zontecomatlán de López y Fuentes","Zozocolco de Hidalgo","Álamo Temapache"],"Yucatán":["Abalá","Acanceh","Akil","Baca","Bokobá","Buctzotz","Cacalchén","Calotmul","Cansahcab","Cantamayec","Celestún","Cenotillo","Chacsinkín","Chankom","Chapab","Chemax","Chichimilá","Chicxulub Pueblo","Chikindzonot","Chocholá","Chumayel","Conkal","Cuncunul","Cuzamá","Dzan","Dzemul","Dzidzantún","Dzilam González","Dzilam de Bravo","Dzitás","Dzoncauich","Espita","Halachó","Hocabá","Hoctún","Homún","Huhí","Hunucmá","Ixil","Izamal","Kanasín","Kantunil","Kaua","Kinchil","Kopomá","Mama","Maní","Maxcanú","Mayapán","Mocochá","Motul","Muna","Muxupip","Mérida","Opichén","Oxkutzcab","Panabá","Peto","Progreso","Quintana Roo","Río Lagartos","Sacalum","Samahil","San Felipe","Sanahcat","Santa Elena","Seyé","Sinanché","Sotuta","Sucilá","Sudzal","Suma","Tahdziú","Tahmek","Teabo","Tecoh","Tekal de Venegas","Tekantó","Tekax","Tekit","Tekom","Telchac Pueblo","Telchac Puerto","Temax","Temozón","Tepakán","Tetiz","Teya","Ticul","Timucuy","Tinum","Tixcacalcupul","Tixkokob","Tixméhuac","Tixpéhual","Tizimín","Tunkás","Tzucacab","Uayma","Ucú","Umán","Valladolid","Xocchel","Yaxcabá","Yaxkukul","Yobaín"],"Zacatecas":["Apozol","Apulco","Atolinga","Benito Juárez","Calera","Cañitas de Felipe Pescador","Chalchihuites","Concepción del Oro","Cuauhtémoc","El Plateado de Joaquín Amaro","El Salvador","Fresnillo","Genaro Codina","General Enrique Estrada","General Francisco R. Murguía","General Pánfilo Natera","Guadalupe","Huanusco","Jalpa","Jerez","Jiménez del Teul","Juan Aldama","Juchipila","Loreto","Luis Moya","Mazapil","Melchor Ocampo","Mezquital del Oro","Miguel Auza","Momax","Monte Escobedo","Morelos","Moyahua de Estrada","Nochistlán de Mejía","Noria de Ángeles","Ojocaliente","Pinos","Pánuco","Río Grande","Sain Alto","Santa María de la Paz","Sombrerete","Susticacán","Tabasco","Tepechitlán","Tepetongo","Teúl de González Ortega","Tlaltenango de Sánchez Román","Trancoso","Trinidad García de la Cadena","Valparaíso","Vetagrande","Villa García","Villa González Ortega","Villa Hidalgo","Villa de Cos","Villanueva","Zacatecas"]};
+// Catálogo curado de países alcanzables para una PyME mexicana (no es
+// exhaustivo a cada microestado soberano) — quien no encuentre el suyo
+// puede elegir "Otro" y escribirlo a mano.
+var PAIS_CENTROS = {"Estados Unidos":[38.9072,-77.0369],"Canadá":[45.4215,-75.6972],"Guatemala":[14.6349,-90.5069],"Belice":[17.1899,-88.4976],"Honduras":[14.0723,-87.1921],"El Salvador":[13.6929,-89.2182],"Nicaragua":[12.115,-86.2362],"Costa Rica":[9.9281,-84.0907],"Panamá":[8.9824,-79.5199],"Cuba":[23.1136,-82.3666],"Jamaica":[18.0179,-76.8099],"Haití":[18.5944,-72.3074],"República Dominicana":[18.4861,-69.9312],"Bahamas":[25.0343,-77.3963],"Trinidad y Tobago":[10.6596,-61.5019],"Barbados":[13.1939,-59.5432],"Puerto Rico":[18.4655,-66.1057],"Colombia":[4.711,-74.0721],"Venezuela":[10.4806,-66.9036],"Ecuador":[-0.1807,-78.4678],"Perú":[-12.0464,-77.0428],"Bolivia":[-16.4897,-68.1193],"Chile":[-33.4489,-70.6693],"Argentina":[-34.6037,-58.3816],"Uruguay":[-34.9011,-56.1645],"Paraguay":[-25.2637,-57.5759],"Brasil":[-15.7939,-47.8828],"Guyana":[6.8013,-58.1551],"Surinam":[5.852,-55.2038],"España":[40.4168,-3.7038],"Portugal":[38.7223,-9.1393],"Francia":[48.8566,2.3522],"Reino Unido":[51.5074,-0.1278],"Irlanda":[53.3498,-6.2603],"Alemania":[52.52,13.405],"Países Bajos":[52.3676,4.9041],"Bélgica":[50.8503,4.3517],"Luxemburgo":[49.6116,6.1319],"Suiza":[46.948,7.4474],"Austria":[48.2082,16.3738],"Italia":[41.9028,12.4964],"Suecia":[59.3293,18.0686],"Noruega":[59.9139,10.7522],"Dinamarca":[55.6761,12.5683],"Finlandia":[60.1699,24.9384],"Islandia":[64.1466,-21.9426],"Polonia":[52.2297,21.0122],"República Checa":[50.0755,14.4378],"Eslovaquia":[48.1486,17.1077],"Hungría":[47.4979,19.0402],"Rumania":[44.4268,26.1025],"Bulgaria":[42.6977,23.3219],"Grecia":[37.9838,23.7275],"Croacia":[45.815,15.9819],"Eslovenia":[46.0569,14.5058],"Serbia":[44.7866,20.4489],"Bosnia y Herzegovina":[43.8563,18.4131],"Montenegro":[42.4304,19.2594],"Macedonia del Norte":[41.9981,21.4254],"Albania":[41.3275,19.8187],"Ucrania":[50.4501,30.5234],"Rusia":[55.7558,37.6173],"Bielorrusia":[53.9006,27.559],"Lituania":[54.6872,25.2797],"Letonia":[56.9496,24.1052],"Estonia":[59.437,24.7536],"Moldavia":[47.0105,28.8638],"Georgia":[41.7151,44.8271],"Armenia":[40.1792,44.4991],"Azerbaiyán":[40.4093,49.8671],"Chipre":[35.1856,33.3823],"Malta":[35.8997,14.5146],"Turquía":[39.9334,32.8597],"Israel":[31.7683,35.2137],"Líbano":[33.8938,35.5018],"Jordania":[31.9454,35.9284],"Arabia Saudita":[24.7136,46.6753],"Emiratos Árabes Unidos":[24.4539,54.3773],"Catar":[25.2854,51.531],"Kuwait":[29.3759,47.9774],"Baréin":[26.2285,50.586],"Omán":[23.588,58.3829],"Irak":[33.3152,44.3661],"Irán":[35.6892,51.389],"Afganistán":[34.5553,69.2075],"Pakistán":[33.6844,73.0479],"India":[28.6139,77.209],"Bangladés":[23.8103,90.4125],"Sri Lanka":[6.9271,79.8612],"Nepal":[27.7172,85.324],"China":[39.9042,116.4074],"Japón":[35.6762,139.6503],"Corea del Sur":[37.5665,126.978],"Corea del Norte":[39.0392,125.7625],"Mongolia":[47.8864,106.9057],"Taiwán":[25.033,121.5654],"Hong Kong":[22.3193,114.1694],"Vietnam":[21.0278,105.8342],"Tailandia":[13.7563,100.5018],"Filipinas":[14.5995,120.9842],"Malasia":[3.139,101.6869],"Singapur":[1.3521,103.8198],"Indonesia":[-6.2088,106.8456],"Camboya":[11.5564,104.9282],"Laos":[17.9757,102.6331],"Myanmar":[19.7633,96.0785],"Kazajistán":[51.1694,71.4491],"Uzbekistán":[41.2995,69.2401],"Marruecos":[34.0209,-6.8417],"Argelia":[36.7538,3.0588],"Túnez":[36.8065,10.1815],"Egipto":[30.0444,31.2357],"Etiopía":[9.032,38.7469],"Kenia":[-1.2921,36.8219],"Tanzania":[-6.163,35.7516],"Uganda":[0.3476,32.5825],"Nigeria":[9.0765,7.3986],"Ghana":[5.6037,-0.187],"Senegal":[14.7167,-17.4677],"Camerún":[3.848,11.5021],"Sudáfrica":[-25.7479,28.2293],"Namibia":[-22.5609,17.0658],"Botsuana":[-24.6282,25.9231],"Zimbabue":[-17.8292,31.0522],"Mozambique":[-25.9692,32.5732],"Angola":[-8.839,13.2894],"República Democrática del Congo":[-4.4419,15.2663],"Madagascar":[-18.8792,47.5079],"Australia":[-35.2809,149.13],"Nueva Zelanda":[-41.2865,174.7762]};
 var RADIO_KM_ESTATAL_DEFECTO = 120;
-var RADIO_KM_LOCAL = 20;           // escala de ciudad/zona metropolitana
-var RADIO_KM_NACIONAL = 800;       // escala país (México: radio equivalente ≈790km)
-var RADIO_KM_INTERNACIONAL = 2500; // escala multi-país / continental
-var CENTRO_MEXICO = [23.6345, -102.5528]; // fallback antes de elegir estado
+var RADIO_KM_LOCAL = 20;      // escala de ciudad/zona metropolitana (por municipio)
+var RADIO_KM_NACIONAL = 800;  // escala país completo (México: radio equivalente ≈790km)
+var RADIO_KM_PAIS = 350;      // escala de UN país concreto (ya no "el mundo": cada punto internacional es un país puntual)
+var CENTRO_MEXICO = [23.6345, -102.5528];
 
-function _radioBaseKmImpacto(nivel, estado) {
-  if (nivel === 'Estatal') return ESTADO_RADIO_KM[estado] || RADIO_KM_ESTATAL_DEFECTO;
+function _radioBaseKmLugar(nivel, estadoParaRadio) {
+  if (nivel === 'Estatal') return ESTADO_RADIO_KM[estadoParaRadio] || RADIO_KM_ESTATAL_DEFECTO;
   if (nivel === 'Nacional') return RADIO_KM_NACIONAL;
-  if (nivel === 'Internacional') return RADIO_KM_INTERNACIONAL;
+  if (nivel === 'Internacional') return RADIO_KM_PAIS;
   return RADIO_KM_LOCAL;
 }
-
-function radioKmImpacto(nivel, intensidad, estado) {
-  var base = _radioBaseKmImpacto(nivel, estado);
+function radioKmLugar(nivel, intensidad, estadoParaRadio) {
+  var base = _radioBaseKmLugar(nivel, estadoParaRadio);
   var i = Number(intensidad);
   if (!isFinite(i) || i < 1) i = 1;
   if (i > 5) i = 5;
   return base * (i / 5);
+}
+
+// Offset determinístico (mismo texto -> mismo punto siempre) para separar
+// visualmente varios municipios de un mismo estado — no tenemos coordenadas
+// reales por municipio, solo del estado; esto es una aproximación honesta,
+// no un intento de simular precisión que no existe.
+function _hashTexto(s) {
+  var h = 0;
+  s = String(s || '');
+  for (var i = 0; i < s.length; i++) { h = ((h << 5) - h + s.charCodeAt(i)) | 0; }
+  return Math.abs(h);
+}
+function _offsetMunicipio(centroEstado, municipio) {
+  var h = _hashTexto(municipio);
+  var angulo = (h % 360) * Math.PI / 180;
+  var radioKmOffset = 12 + (h % 23); // 12–35km del centro del estado
+  var latRad = centroEstado[0] * Math.PI / 180;
+  var dLat = (radioKmOffset / 111.32) * Math.cos(angulo);
+  var dLng = (radioKmOffset / (111.32 * Math.max(Math.cos(latRad), 0.2))) * Math.sin(angulo);
+  return [centroEstado[0] + dLat, centroEstado[1] + dLng];
+}
+
+function _nuevaSeleccionVacia(nivel) {
+  if (nivel === 'Local') return { estado: '', municipio: '' };
+  if (nivel === 'Estatal') return { estado: '' };
+  if (nivel === 'Internacional') return { pais: '', otro: '' };
+  return {};
+}
+function _nuevoLado() { return { nivel: '', intensidad: null, cantidadLugares: 1, lugares: [] }; }
+
+// Resuelve UNA selección de lugar (según el nivel) a {lat, lng, etiqueta} —
+// o null si todavía está incompleta. "Nacional" no pasa por aquí: se
+// resuelve aparte, como un único punto sintético en el centro de México
+// (ver _lugaresResueltos).
+function _resolverLugar(nivel, sel) {
+  sel = sel || {};
+  if (nivel === 'Local') {
+    if (!sel.estado || !sel.municipio) return null;
+    var centroEstado = ESTADO_CENTROS[sel.estado];
+    if (!centroEstado) return null;
+    var pto = _offsetMunicipio(centroEstado, sel.municipio);
+    return { lat: pto[0], lng: pto[1], etiqueta: sel.municipio + ', ' + sel.estado, estadoParaRadio: null };
+  }
+  if (nivel === 'Estatal') {
+    if (!sel.estado) return null;
+    var centro = ESTADO_CENTROS[sel.estado];
+    if (!centro) return null;
+    return { lat: centro[0], lng: centro[1], etiqueta: sel.estado, estadoParaRadio: sel.estado };
+  }
+  if (nivel === 'Internacional') {
+    if (!sel.pais) return null;
+    if (sel.pais === 'Otro') {
+      var texto = String(sel.otro || '').trim();
+      if (!texto) return null;
+      return { lat: null, lng: null, etiqueta: texto, estadoParaRadio: null };
+    }
+    var centroPais = PAIS_CENTROS[sel.pais];
+    if (!centroPais) return null;
+    return { lat: centroPais[0], lng: centroPais[1], etiqueta: sel.pais, estadoParaRadio: null };
+  }
+  return null;
+}
+
+// Lugares YA RESUELTOS (con lat/lng + radioKm) de un lado ("actual" o
+// "deseado") — para Nacional siempre es un único punto sintético (todo
+// México); para los demás niveles, resuelve cada selección y descarta las
+// incompletas o sin coordenada conocida (p. ej. un país "Otro").
+function _lugaresResueltos(lado) {
+  var l = (state.impacto && state.impacto[lado]) || {};
+  if (l.nivel === 'Nacional') {
+    return [{ lat: CENTRO_MEXICO[0], lng: CENTRO_MEXICO[1], etiqueta: 'México (alcance nacional)', radioKm: radioKmLugar('Nacional', l.intensidad) }];
+  }
+  return (l.lugares || []).map(function (sel) {
+    var r = _resolverLugar(l.nivel, sel);
+    if (!r || r.lat == null || r.lng == null) return null;
+    return { lat: r.lat, lng: r.lng, etiqueta: r.etiqueta, radioKm: radioKmLugar(l.nivel, l.intensidad, r.estadoParaRadio) };
+  }).filter(function (x) { return x; });
+}
+
+// Nombres SIN coordenada (países "Otro") — no se pueden dibujar en el mapa,
+// pero sí se muestran en texto y se guardan en los datos.
+function _lugaresSinCoordenada(lado) {
+  var l = (state.impacto && state.impacto[lado]) || {};
+  if (l.nivel !== 'Internacional') return [];
+  return (l.lugares || []).map(function (sel) { return _resolverLugar(l.nivel, sel); })
+    .filter(function (r) { return r && r.etiqueta && (r.lat == null || r.lng == null); })
+    .map(function (r) { return r.etiqueta; });
+}
+
+// Texto combinado (puntedos + sin coordenada) para fichas, notas del lead y
+// el prompt de interpretación con IA.
+function _lugaresTexto(lado) {
+  var todos = _lugaresResueltos(lado).map(function (p) { return p.etiqueta; }).concat(_lugaresSinCoordenada(lado));
+  return todos.length ? todos.join(', ') : '—';
 }
 
 var state = {
@@ -421,7 +536,7 @@ var state = {
   historia: '',
   giro: '',
   tipoVenta: '',
-  impacto: null, // { lat, lng, tocado, estado, nivelActual, intensidadActual, nivelDeseado, intensidadDeseada }
+  impacto: { actual: _nuevoLado(), deseado: _nuevoLado() }, // cada lado: { nivel, intensidad, cantidadLugares, lugares:[...] } — ver _nuevoLado/_resolverLugar arriba
   respuestas: {},
   resultado: null,
   interpretacionIA: null,
@@ -431,7 +546,7 @@ var state = {
 };
 var app = document.getElementById('app');
 var TOTAL_PASOS = 4; // 0 datos · 1 preguntas (termina con la reflexión histórica) · 2 mapa de impacto · 3 resultado
-var mapaImpactoLeaflet = null, marcadorImpactoLeaflet = null, circuloActualLeaflet = null, circuloDeseadoLeaflet = null;
+var mapaImpactoLeaflet = null, capasImpactoLeaflet = [];
 var mapaImpactoRecapLeaflet = null;
 
 function progresoHtml() {
@@ -508,59 +623,295 @@ function renderDatos() {
   };
 }
 
-/* ---- PASO 2: mapa de impacto — dos círculos translúcidos sobre el mismo
- * punto: morado = tu alcance HOY, naranja = el alcance que quieres LOGRAR.
- * El tamaño de cada círculo combina el nivel geográfico elegido
- * (Local/Estatal/Nacional/Internacional) con una intensidad 1-5 dentro de
- * ese nivel — para que la persona vea con sus propios ojos la brecha entre
- * dónde está y a dónde quiere llegar, en vez de una pregunta genérica de
- * "¿cuál es tu mercado?".
+/* ---- PASO 2: mapa de impacto — ya no es un único punto con un círculo por
+ * nivel: ahora cada lado (HOY / META) puede marcar VARIOS lugares a la vez,
+ * y el tipo de lugar que se marca cambia según el nivel elegido — Local =
+ * municipio(s) dentro de un estado, Estatal = estado(s) completos, Nacional
+ * = México entero (no hay nada que puntear), Internacional = país(es). La
+ * pregunta "¿Desde dónde opera tu negocio?" ya no se pregunta aparte — es
+ * exactamente el alcance de HOY (ver _bloqueAlcance('actual', ...) abajo),
+ * por indicación de David.
  *
- * Rediseño (David, oct-2026): el punto de anclaje ya no es un clic libre en
- * el mapa — es el ESTADO donde opera el negocio (mismo patrón de catálogo
- * de 32 estados que usa la muestra Territorio), y el radio de cada círculo
- * ahora responde de verdad al nivel elegido (ver radioKmImpacto arriba), no
- * solo "un poco más grande" sin importar si es Local, Nacional o
- * Internacional. ---- */
-function renderMapaImpacto() {
-  var imp = state.impacto || {};
+ * Arquitectura (oct-2026): el CLIENTE resuelve cada selección a
+ * coordenadas reales usando sus propios catálogos (ESTADO_CENTROS,
+ * ESTADOS_MUNICIPIOS, PAIS_CENTROS — ver arriba) antes de mandar nada al
+ * servidor; el servidor (WebApp.gs) solo recibe puntos ya resueltos
+ * {lat,lng,radioKm,etiqueta} y los dibuja — igual que ya hace la muestra
+ * Territorio con sus "actores". Los municipios no tienen coordenada real
+ * conocida, así que se dibujan como un punto aproximado cerca del centro
+ * de su estado (ver _offsetMunicipio) — el nombre real siempre se guarda
+ * en los datos/PDF/correo, el mapa es solo una referencia visual honesta,
+ * no una geolocalización exacta. La intensidad 1-5 no desaparece: se
+ * combina con cada punto marcado (círculo más grande o más chico sobre
+ * ese mismo punto), tal como pidió David. ---- */
+
+// Texto del tipo de lugar que corresponde a cada nivel — se usa en la
+// pregunta de cantidad, placeholders y mensajes de validación.
+function _etiquetaTipoLugar(nivel) {
+  if (nivel === 'Local') return 'municipio';
+  if (nivel === 'Estatal') return 'estado';
+  if (nivel === 'Internacional') return 'país';
+  return 'lugar';
+}
+
+// Cuenta cuántas selecciones de un lado ya están completas (resuelven a
+// algo válido, con o sin coordenada — p. ej. un país "Otro" cuenta aunque
+// no se pueda dibujar). Nacional siempre cuenta como 1 (México completo).
+function _cantidadLugaresCompletos(ladoKey) {
+  var lado = state.impacto[ladoKey];
+  if (lado.nivel === 'Nacional') return 1;
+  return (lado.lugares || []).filter(function (sel) { return _resolverLugar(lado.nivel, sel) !== null; }).length;
+}
+
+// ¿Hay algo que mostrar en el mapa de impacto, en cualquiera de los dos
+// lados? Reemplaza la vieja bandera imp.tocado (de un solo punto) — ahora
+// depende de si ya se resolvió al menos un lugar CON coordenada real.
+function _hayMapaImpacto() {
+  return _lugaresResueltos('actual').length > 0 || _lugaresResueltos('deseado').length > 0;
+}
+
+// ¿Ya está "listo" un lado para mandarse al servidor (prefetch del PNG)? —
+// nivel + intensidad elegidos, y al menos un lugar completo (o Nacional,
+// que no necesita puntear nada). Se usa para decidir CUÁNDO disparar el
+// prefetch — no basta con que YA haya algo que mostrar en un lado, porque
+// _cargarMapaImpactoPng memoiza su resultado: si se dispara con un lado
+// todavía incompleto (p. ej. antes de elegir el alcance deseado), el PNG
+// que llegue se queda pegado a esa versión incompleta para siempre.
+function _ladoListoParaMapa(ladoKey) {
+  var lado = state.impacto[ladoKey];
+  if (!lado.nivel || !lado.intensidad) return false;
+  if (lado.nivel === 'Nacional') return true;
+  return _cantidadLugaresCompletos(ladoKey) > 0;
+}
+
+// Arma el HTML de un lado completo (nivel + intensidad + cantidad de
+// lugares + los selectores de cada lugar). ladoKey es 'actual' o 'deseado'.
+function _bloqueAlcance(ladoKey, tituloBloque, textoIntensidad) {
+  var lado = state.impacto[ladoKey];
+  var claseColor = ladoKey === 'actual' ? 'actual' : 'deseado';
+  return (
+    '<h3>' + tituloBloque + '</h3>' +
+    '<label>Nivel ' + (ladoKey === 'actual' ? 'actual' : 'deseado') + ' <span class="req">*</span></label>' +
+    '<select id="iNivel-' + ladoKey + '">' +
+      '<option value="">Selecciona</option>' +
+      NIVELES_ALCANCE.map(function (n) { return '<option' + (lado.nivel === n ? ' selected' : '') + '>' + n + '</option>'; }).join('') +
+    '</select>' +
+    '<label>' + textoIntensidad + ' <span class="req">*</span></label>' +
+    '<div class="escala-intensidad" id="escala-' + ladoKey + '">' +
+      [1, 2, 3, 4, 5].map(function (n) {
+        return '<button type="button" data-n="' + n + '" class="' + (lado.intensidad === n ? 'marcada ' + claseColor : '') + '">' + n + '</button>';
+      }).join('') +
+    '</div>' +
+    '<div id="cantidadYLugares-' + ladoKey + '">' + _htmlCantidadYLugares(ladoKey) + '</div>'
+  );
+}
+
+// HTML de "¿cuántos lugares quieres marcar?" + los selectores de cada uno —
+// vacío si el nivel todavía no se eligió, o si es Nacional (no hay nada que
+// puntear: siempre es México completo).
+function _htmlCantidadYLugares(ladoKey) {
+  var lado = state.impacto[ladoKey];
+  if (!lado.nivel || lado.nivel === 'Nacional') return '';
+  var tipoLugar = _etiquetaTipoLugar(lado.nivel);
+  var opciones = [];
+  for (var n = 1; n <= MAX_LUGARES_POR_LADO; n++) opciones.push(n);
+  return (
+    '<label>¿Cuántos ' + tipoLugar + 's quieres marcar? (hasta ' + MAX_LUGARES_POR_LADO + ')</label>' +
+    '<select id="cantidad-' + ladoKey + '">' +
+      opciones.map(function (n) {
+        return '<option value="' + n + '"' + ((lado.cantidadLugares || 1) === n ? ' selected' : '') + '>' + n + '</option>';
+      }).join('') +
+    '</select>' +
+    '<div id="lugares-' + ladoKey + '">' + _htmlLugaresPickers(ladoKey) + '</div>'
+  );
+}
+
+// HTML de cada fila de selección de lugar — cambia según el nivel: Local
+// pide estado + municipio (el municipio depende del estado elegido en esa
+// misma fila); Estatal solo pide estado; Internacional pide país, con un
+// campo de texto libre si elige "Otro" (país fuera del catálogo).
+function _htmlLugaresPickers(ladoKey) {
+  var lado = state.impacto[ladoKey];
   var estadosOrdenados = Object.keys(ESTADO_CENTROS).sort();
+  var paisesOrdenados = Object.keys(PAIS_CENTROS).sort();
+  return (lado.lugares || []).map(function (sel, i) {
+    if (lado.nivel === 'Local') {
+      var municipios = (sel.estado && ESTADOS_MUNICIPIOS[sel.estado]) ? ESTADOS_MUNICIPIOS[sel.estado].slice().sort() : [];
+      return '<div class="fila-lugar">' +
+        '<select data-lado="' + ladoKey + '" data-i="' + i + '" data-campo="estado">' +
+          '<option value="">Estado</option>' +
+          estadosOrdenados.map(function (e) { return '<option' + (sel.estado === e ? ' selected' : '') + '>' + e + '</option>'; }).join('') +
+        '</select>' +
+        '<select data-lado="' + ladoKey + '" data-i="' + i + '" data-campo="municipio"' + (!sel.estado ? ' disabled' : '') + '>' +
+          '<option value="">' + (sel.estado ? 'Municipio' : 'Elige primero el estado') + '</option>' +
+          municipios.map(function (m) { return '<option' + (sel.municipio === m ? ' selected' : '') + '>' + m + '</option>'; }).join('') +
+        '</select>' +
+      '</div>';
+    }
+    if (lado.nivel === 'Estatal') {
+      return '<div class="fila-lugar">' +
+        '<select data-lado="' + ladoKey + '" data-i="' + i + '" data-campo="estado">' +
+          '<option value="">Estado</option>' +
+          estadosOrdenados.map(function (e) { return '<option' + (sel.estado === e ? ' selected' : '') + '>' + e + '</option>'; }).join('') +
+        '</select>' +
+      '</div>';
+    }
+    if (lado.nivel === 'Internacional') {
+      return '<div class="fila-lugar">' +
+        '<select data-lado="' + ladoKey + '" data-i="' + i + '" data-campo="pais">' +
+          '<option value="">País</option>' +
+          paisesOrdenados.map(function (p) { return '<option' + (sel.pais === p ? ' selected' : '') + '>' + p + '</option>'; }).join('') +
+          '<option value="Otro"' + (sel.pais === 'Otro' ? ' selected' : '') + '>Otro (no está en la lista)</option>' +
+        '</select>' +
+        (sel.pais === 'Otro' ? '<input type="text" data-lado="' + ladoKey + '" data-i="' + i + '" data-campo="otro" placeholder="¿Qué país?" value="' + escapeHtml(sel.otro || '') + '">' : '') +
+      '</div>';
+    }
+    return '';
+  }).join('');
+}
+
+// Ajusta el arreglo de lugares de un lado al nuevo total elegido (1 a
+// MAX_LUGARES_POR_LADO), agregando selecciones vacías o recortando sobrantes.
+function _ajustarCantidadLugares(ladoKey, n) {
+  var lado = state.impacto[ladoKey];
+  n = Math.max(1, Math.min(MAX_LUGARES_POR_LADO, Number(n) || 1));
+  lado.cantidadLugares = n;
+  while (lado.lugares.length < n) lado.lugares.push(_nuevaSeleccionVacia(lado.nivel));
+  while (lado.lugares.length > n) lado.lugares.pop();
+}
+
+// Re-dibuja SOLO el mapa compartido (círculos+puntos de ambos lados) y la
+// ficha de texto — nunca toca los formularios, así que se puede llamar
+// después de cualquier cambio sin perder el foco de un campo de texto
+// (p. ej. mientras se escribe el nombre de un país "Otro"). El encuadre usa
+// fitBounds en vez de un zoom calculado a mano — mucho más robusto cuando
+// los puntos pueden estar en cualquier parte del mundo, no solo cerca de un
+// único estado.
+function _redibujarMapaImpacto() {
+  if (!mapaImpactoLeaflet) return;
+  capasImpactoLeaflet.forEach(function (capa) { mapaImpactoLeaflet.removeLayer(capa); });
+  capasImpactoLeaflet = [];
+
+  var lugaresActual = _lugaresResueltos('actual');
+  var lugaresDeseado = _lugaresResueltos('deseado');
+
+  function dibujarLado(lugares, colorHex, opacidad) {
+    lugares.forEach(function (l) {
+      var punto = L.circleMarker([l.lat, l.lng], { radius: 6, color: colorHex, weight: 2, fillColor: colorHex, fillOpacity: 0.95 });
+      punto.bindTooltip(escapeHtml(l.etiqueta));
+      var circulo = L.circle([l.lat, l.lng], { radius: Math.max(l.radioKm, 1) * 1000, color: colorHex, weight: 2, fillColor: colorHex, fillOpacity: opacidad });
+      punto.addTo(mapaImpactoLeaflet); circulo.addTo(mapaImpactoLeaflet);
+      capasImpactoLeaflet.push(punto, circulo);
+    });
+  }
+  dibujarLado(lugaresActual, '#631EEB', 0.18);
+  dibujarLado(lugaresDeseado, '#FF7929', 0.18);
+
+  var todosLosPuntos = lugaresActual.concat(lugaresDeseado).map(function (l) { return [l.lat, l.lng]; });
+  if (todosLosPuntos.length === 1) {
+    mapaImpactoLeaflet.setView(todosLosPuntos[0], 6);
+  } else if (todosLosPuntos.length > 1) {
+    mapaImpactoLeaflet.fitBounds(L.latLngBounds(todosLosPuntos), { padding: [34, 34], maxZoom: 12 });
+  } else {
+    mapaImpactoLeaflet.setView(CENTRO_MEXICO, 4);
+  }
+
+  var ficha = document.getElementById('mapaImpactoFicha');
+  if (ficha) {
+    var imp = state.impacto;
+    var hayAlgoQueMostrar = lugaresActual.length || lugaresDeseado.length || _lugaresSinCoordenada('actual').length || _lugaresSinCoordenada('deseado').length;
+    ficha.innerHTML = hayAlgoQueMostrar ?
+      ('<b>Hoy</b> — ' + escapeHtml(imp.actual.nivel || '—') + (imp.actual.intensidad ? ' (intensidad ' + imp.actual.intensidad + '/5)' : '') + ': ' + escapeHtml(_lugaresTexto('actual')) +
+      '<br><b>Meta</b> — ' + escapeHtml(imp.deseado.nivel || '—') + (imp.deseado.intensidad ? ' (intensidad ' + imp.deseado.intensidad + '/5)' : '') + ': ' + escapeHtml(_lugaresTexto('deseado'))) :
+      'Elige tu alcance y marca al menos un lugar de cada lado para dibujar tu mapa.';
+  }
+
+  // Dispara la petición del mapa real al servidor en cuanto AMBOS lados ya
+  // están completos (no solo cuando ya hay algo que mostrar) — ver
+  // _ladoListoParaMapa y _cargarMapaImpactoPng, más abajo.
+  if (_ladoListoParaMapa('actual') && _ladoListoParaMapa('deseado')) _cargarMapaImpactoPng();
+}
+
+// Vuelve a dibujar la sección "¿cuántos lugares...? + sus selectores" de un
+// lado (cuando cambia el nivel o la cantidad) y la vuelve a conectar.
+function _actualizarCantidadYLugares(ladoKey) {
+  var cont = document.getElementById('cantidadYLugares-' + ladoKey);
+  if (cont) cont.innerHTML = _htmlCantidadYLugares(ladoKey);
+  _wireCantidadYLugares(ladoKey);
+  _redibujarMapaImpacto();
+}
+
+function _wireCantidadYLugares(ladoKey) {
+  var selCantidad = document.getElementById('cantidad-' + ladoKey);
+  if (selCantidad) {
+    selCantidad.onchange = function () {
+      _ajustarCantidadLugares(ladoKey, this.value);
+      var contLugares = document.getElementById('lugares-' + ladoKey);
+      if (contLugares) contLugares.innerHTML = _htmlLugaresPickers(ladoKey);
+      _wireLugaresPickers(ladoKey);
+      _redibujarMapaImpacto();
+    };
+  }
+  _wireLugaresPickers(ladoKey);
+}
+
+// Conecta los selectores/input de texto de cada fila de lugar. Un cambio
+// "estructural" (estado en Local, que cambia el catálogo de municipios; o
+// país, que puede mostrar/ocultar el campo "Otro") vuelve a dibujar las
+// filas; el resto (municipio final, texto libre de "Otro") solo actualiza
+// el estado y redibuja el mapa, sin tocar el formulario (para no perder el
+// foco mientras se escribe).
+function _wireLugaresPickers(ladoKey) {
+  var cont = document.getElementById('lugares-' + ladoKey);
+  if (!cont) return;
+  Array.prototype.forEach.call(cont.querySelectorAll('select, input'), function (el) {
+    var campo = el.getAttribute('data-campo');
+    var i = Number(el.getAttribute('data-i'));
+    var esEstructural = campo === 'pais' || (campo === 'estado' && state.impacto[ladoKey].nivel === 'Local');
+    var handler = function () {
+      var lado = state.impacto[ladoKey];
+      if (!lado.lugares[i]) lado.lugares[i] = _nuevaSeleccionVacia(lado.nivel);
+      lado.lugares[i][campo] = this.value;
+      if (campo === 'estado' && lado.nivel === 'Local') lado.lugares[i].municipio = '';
+      if (campo === 'pais' && this.value !== 'Otro') lado.lugares[i].otro = '';
+      if (esEstructural) {
+        cont.innerHTML = _htmlLugaresPickers(ladoKey);
+        _wireLugaresPickers(ladoKey);
+      }
+      _redibujarMapaImpacto();
+    };
+    if (el.tagName === 'SELECT') el.onchange = handler; else el.oninput = handler;
+  });
+}
+
+// Conecta el nivel y la escala de intensidad de un lado completo.
+function _wireAlcance(ladoKey) {
+  document.getElementById('iNivel-' + ladoKey).onchange = function () {
+    var lado = state.impacto[ladoKey];
+    lado.nivel = this.value;
+    lado.cantidadLugares = 1;
+    lado.lugares = (lado.nivel && lado.nivel !== 'Nacional') ? [_nuevaSeleccionVacia(lado.nivel)] : [];
+    _actualizarCantidadYLugares(ladoKey);
+  };
+  Array.prototype.forEach.call(document.getElementById('escala-' + ladoKey).querySelectorAll('button'), function (b) {
+    b.onclick = function () {
+      Array.prototype.forEach.call(document.getElementById('escala-' + ladoKey).querySelectorAll('button'), function (x) { x.classList.remove('marcada', 'actual', 'deseado'); });
+      b.classList.add('marcada', ladoKey);
+      state.impacto[ladoKey].intensidad = Number(b.getAttribute('data-n'));
+      _redibujarMapaImpacto();
+    };
+  });
+  _wireCantidadYLugares(ladoKey);
+}
+
+function renderMapaImpacto() {
   app.innerHTML =
     progresoHtml() +
     '<h2>Tu mapa de impacto</h2>' +
-    '<p class="subtle" style="margin-top:0">Cuéntanos tu alcance y desde qué estado opera tu negocio — con eso armamos tu mapa.</p>' +
+    '<p class="subtle" style="margin-top:0">Marca dónde operas HOY y a dónde quieres LLEGAR — el nivel que elijas decide qué puedes puntear: Local = municipio(s), Estatal = estado(s), Nacional = México completo, Internacional = país(es).</p>' +
     '<div id="secMsg"></div>' +
-    '<h3 style="margin-top:4px">¿Cuál es tu alcance HOY?</h3>' +
-    '<label>Nivel actual <span class="req">*</span></label>' +
-    '<select id="iNivelActual">' +
-      '<option value="">Selecciona</option>' +
-      NIVELES_ALCANCE.map(function (n) { return '<option' + (imp.nivelActual === n ? ' selected' : '') + '>' + n + '</option>'; }).join('') +
-    '</select>' +
-    '<label>¿Qué tan consolidada está tu presencia en ese nivel? (1 = apenas comenzando, 5 = muy consolidada) <span class="req">*</span></label>' +
-    '<div class="escala-intensidad" id="escalaActual">' +
-      [1, 2, 3, 4, 5].map(function (n) {
-        return '<button type="button" data-n="' + n + '" class="' + (imp.intensidadActual === n ? 'marcada actual' : '') + '">' + n + '</button>';
-      }).join('') +
-    '</div>' +
-    '<h3>¿A qué alcance quieres LLEGAR?</h3>' +
-    '<label>Nivel deseado <span class="req">*</span></label>' +
-    '<select id="iNivelDeseado">' +
-      '<option value="">Selecciona</option>' +
-      NIVELES_ALCANCE.map(function (n) { return '<option' + (imp.nivelDeseado === n ? ' selected' : '') + '>' + n + '</option>'; }).join('') +
-    '</select>' +
-    '<label>¿Qué tan grande quieres que sea esa presencia? (1 = explorando, 5 = dominarlo) <span class="req">*</span></label>' +
-    '<div class="escala-intensidad" id="escalaDeseada">' +
-      [1, 2, 3, 4, 5].map(function (n) {
-        return '<button type="button" data-n="' + n + '" class="' + (imp.intensidadDeseada === n ? 'marcada deseado' : '') + '">' + n + '</button>';
-      }).join('') +
-    '</div>' +
-    '<h3>¿Desde dónde opera tu negocio?</h3>' +
-    '<label>Estado de tu operación principal <span class="req">*</span></label>' +
-    '<select id="iEstado">' +
-      '<option value="">Selecciona tu estado</option>' +
-      estadosOrdenados.map(function (e) { return '<option' + (imp.estado === e ? ' selected' : '') + '>' + e + '</option>'; }).join('') +
-    '</select>' +
-    '<p class="subtle" style="margin-top:0">Cómo se usa: el mapa se ancla en tu estado y dibuja dos círculos del tamaño que elegiste arriba — morado para tu alcance de hoy, naranja para el que quieres lograr. Si tu alcance es Estatal, el círculo usa el tamaño real de tu estado; si es Nacional o Internacional, usa una escala de país o de continente — así el tamaño responde de verdad a lo que marcaste, no solo "un poco más grande".</p>' +
+    _bloqueAlcance('actual', '¿Desde dónde opera tu negocio hoy?', '¿Qué tan consolidada está tu presencia ahí? (1 = apenas comenzando, 5 = muy consolidada)') +
+    _bloqueAlcance('deseado', '¿A qué alcance quieres LLEGAR?', '¿Qué tan grande quieres que sea esa presencia? (1 = explorando, 5 = dominarlo)') +
     '<div id="mapaImpacto"></div>' +
     '<div class="mapa-ficha" id="mapaImpactoFicha"></div>' +
     '<div class="leyenda-circulos">' +
@@ -572,106 +923,29 @@ function renderMapaImpacto() {
       '<button class="primary" id="btnSiguiente">Ver mi semáforo de mercado</button>' +
     '</div>';
 
-  var centroInicial = (imp.estado && ESTADO_CENTROS[imp.estado]) ? ESTADO_CENTROS[imp.estado] : CENTRO_MEXICO;
-  var zoomInicial = (imp.estado && ESTADO_CENTROS[imp.estado]) ? 6 : 4;
-
-  if (mapaImpactoLeaflet) { mapaImpactoLeaflet.remove(); mapaImpactoLeaflet = null; marcadorImpactoLeaflet = null; circuloActualLeaflet = null; circuloDeseadoLeaflet = null; }
-  mapaImpactoLeaflet = L.map('mapaImpacto').setView(centroInicial, zoomInicial);
+  if (mapaImpactoLeaflet) { mapaImpactoLeaflet.remove(); mapaImpactoLeaflet = null; }
+  mapaImpactoLeaflet = L.map('mapaImpacto').setView(CENTRO_MEXICO, 4);
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     maxZoom: 18,
     attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>'
   }).addTo(mapaImpactoLeaflet);
+  capasImpactoLeaflet = [];
 
-  function dibujarCirculos() {
-    var ficha = document.getElementById('mapaImpactoFicha');
-    var i2 = state.impacto || {};
-    if (!i2.estado) {
-      if (ficha) ficha.innerHTML = 'Selecciona tu estado para anclar el mapa y dibujar tus círculos de alcance.';
-      return;
-    }
-    var lat = i2.lat, lng = i2.lng;
-    if (marcadorImpactoLeaflet) marcadorImpactoLeaflet.setLatLng([lat, lng]); else marcadorImpactoLeaflet = L.marker([lat, lng]).addTo(mapaImpactoLeaflet);
-
-    if (i2.nivelDeseado && i2.intensidadDeseada) {
-      var radioDeseadoM = radioKmImpacto(i2.nivelDeseado, i2.intensidadDeseada, i2.estado) * 1000;
-      if (circuloDeseadoLeaflet) { circuloDeseadoLeaflet.setLatLng([lat, lng]); circuloDeseadoLeaflet.setRadius(radioDeseadoM); }
-      else circuloDeseadoLeaflet = L.circle([lat, lng], { radius: radioDeseadoM, color: '#FF7929', weight: 2, fillColor: '#FF7929', fillOpacity: 0.18 }).addTo(mapaImpactoLeaflet);
-    }
-    if (i2.nivelActual && i2.intensidadActual) {
-      var radioActualM = radioKmImpacto(i2.nivelActual, i2.intensidadActual, i2.estado) * 1000;
-      if (circuloActualLeaflet) { circuloActualLeaflet.setLatLng([lat, lng]); circuloActualLeaflet.setRadius(radioActualM); }
-      else circuloActualLeaflet = L.circle([lat, lng], { radius: radioActualM, color: '#631EEB', weight: 2, fillColor: '#631EEB', fillOpacity: 0.3 }).addTo(mapaImpactoLeaflet);
-    }
-    // Encuadra el mapa para que ambos círculos se vean completos — el radio
-    // ya no es un número parejo (puede ir de 20km Local a 2500km
-    // Internacional), así que un zoom fijo se vería mal en los extremos.
-    if (i2.nivelActual && i2.nivelDeseado) {
-      var radioMayorKm = Math.max(
-        radioKmImpacto(i2.nivelActual, i2.intensidadActual, i2.estado),
-        radioKmImpacto(i2.nivelDeseado, i2.intensidadDeseada, i2.estado),
-        5
-      );
-      var spanGrados = (radioMayorKm * 2.6) / 111.32;
-      var zoomAjustado = Math.max(2, Math.min(15, Math.floor(Math.log(360 / spanGrados) / Math.LN2) - 1));
-      mapaImpactoLeaflet.setView([lat, lng], zoomAjustado);
-    }
-    if (ficha) {
-      ficha.innerHTML = '<b>Zona marcada</b> — ' + escapeHtml(i2.estado) +
-        (i2.nivelActual && i2.nivelDeseado ?
-          ('. Hoy: ' + escapeHtml(i2.nivelActual) + ' (intensidad ' + i2.intensidadActual + '/5) · Quieres llegar a: ' + escapeHtml(i2.nivelDeseado) + ' (intensidad ' + i2.intensidadDeseada + '/5).') : '.');
-    }
-  }
-
-  // Lanza la petición del mapa real al servidor en cuanto los cinco campos
-  // (estado + ambos pares nivel/intensidad) ya están completos — antes solo
-  // se disparaba hasta dar clic en "Siguiente", lo que le dejaba muy poco
-  // tiempo al servidor para responder antes de que la persona llegara al
-  // botón de descargar PDF (ver _cargarMapaImpactoPng y el await ampliado
-  // en descargarPulsoPdf, más abajo).
-  function actualizarImpacto(cambios) {
-    state.impacto = Object.assign({}, state.impacto || {}, cambios);
-    dibujarCirculos();
-    var i3 = state.impacto;
-    if (i3.estado && i3.nivelActual && i3.intensidadActual && i3.nivelDeseado && i3.intensidadDeseada) {
-      _cargarMapaImpactoPng();
-    }
-  }
-
-  dibujarCirculos();
-
-  document.getElementById('iNivelActual').onchange = function () { actualizarImpacto({ nivelActual: this.value }); };
-  document.getElementById('iNivelDeseado').onchange = function () { actualizarImpacto({ nivelDeseado: this.value }); };
-  document.getElementById('iEstado').onchange = function () {
-    var estadoElegido = this.value;
-    var centroEstado = ESTADO_CENTROS[estadoElegido];
-    if (!centroEstado) { actualizarImpacto({ estado: '', tocado: false }); return; }
-    actualizarImpacto({ estado: estadoElegido, lat: centroEstado[0], lng: centroEstado[1], tocado: true });
-  };
-  Array.prototype.forEach.call(document.getElementById('escalaActual').querySelectorAll('button'), function (b) {
-    b.onclick = function () {
-      Array.prototype.forEach.call(document.getElementById('escalaActual').querySelectorAll('button'), function (x) { x.classList.remove('marcada', 'actual'); });
-      b.classList.add('marcada', 'actual');
-      actualizarImpacto({ intensidadActual: Number(b.getAttribute('data-n')) });
-    };
-  });
-  Array.prototype.forEach.call(document.getElementById('escalaDeseada').querySelectorAll('button'), function (b) {
-    b.onclick = function () {
-      Array.prototype.forEach.call(document.getElementById('escalaDeseada').querySelectorAll('button'), function (x) { x.classList.remove('marcada', 'deseado'); });
-      b.classList.add('marcada', 'deseado');
-      actualizarImpacto({ intensidadDeseada: Number(b.getAttribute('data-n')) });
-    };
-  });
+  _wireAlcance('actual');
+  _wireAlcance('deseado');
+  _redibujarMapaImpacto();
 
   document.getElementById('btnAtras').onclick = function () { state.paso = 1; render(); };
   document.getElementById('btnSiguiente').onclick = async function () {
     var msgBox = document.getElementById('secMsg');
-    var imp2 = state.impacto || {};
-    if (!imp2.nivelActual || !imp2.intensidadActual) { msgBox.innerHTML = '<div class="msg error">Selecciona tu alcance actual y qué tan consolidada está tu presencia ahí.</div>'; return; }
-    if (!imp2.nivelDeseado || !imp2.intensidadDeseada) { msgBox.innerHTML = '<div class="msg error">Selecciona el alcance que quieres lograr y qué tan grande quieres esa presencia.</div>'; return; }
-    if (!imp2.estado) { msgBox.innerHTML = '<div class="msg error">Selecciona el estado donde opera tu negocio.</div>'; return; }
+    var imp = state.impacto;
+    if (!imp.actual.nivel || !imp.actual.intensidad) { msgBox.innerHTML = '<div class="msg error">Selecciona tu alcance actual y qué tan consolidada está tu presencia ahí.</div>'; return; }
+    if (!imp.deseado.nivel || !imp.deseado.intensidad) { msgBox.innerHTML = '<div class="msg error">Selecciona el alcance que quieres lograr y qué tan grande quieres esa presencia.</div>'; return; }
+    if (imp.actual.nivel !== 'Nacional' && _cantidadLugaresCompletos('actual') === 0) { msgBox.innerHTML = '<div class="msg error">Marca al menos un ' + _etiquetaTipoLugar(imp.actual.nivel) + ' de tu alcance actual.</div>'; return; }
+    if (imp.deseado.nivel !== 'Nacional' && _cantidadLugaresCompletos('deseado') === 0) { msgBox.innerHTML = '<div class="msg error">Marca al menos un ' + _etiquetaTipoLugar(imp.deseado.nivel) + ' del alcance que quieres lograr.</div>'; return; }
 
-    // Por si todavía no se había disparado (ver actualizarImpacto arriba) —
-    // _cargarMapaImpactoPng memoiza, así que llamarla de nuevo aquí no
+    // Por si todavía no se había disparado (ver _redibujarMapaImpacto arriba)
+    // — _cargarMapaImpactoPng memoiza, así que llamarla de nuevo aquí no
     // duplica la solicitud si ya está en curso o ya respondió.
     _cargarMapaImpactoPng();
 
@@ -692,7 +966,7 @@ function renderMapaImpacto() {
       'Mayor oportunidad: ' + peor.nombre + ' (' + peor.subtotal + '/' + peor.max + '). ' +
       categorias.map(function (c) { return c.nombre + ': ' + c.subtotal + '/' + c.max; }).join(' — ') + '. ' +
       'Giro: ' + (state.giro || '—') + ' · Tipo de venta: ' + (state.tipoVenta || '—') + '. ' +
-      'Alcance hoy: ' + (imp2.nivelActual || '—') + ' (' + (imp2.intensidadActual || '—') + '/5) en ' + (imp2.estado || '—') + ' · Alcance deseado: ' + (imp2.nivelDeseado || '—') + ' (' + (imp2.intensidadDeseada || '—') + '/5). ' +
+      'Alcance hoy: ' + (imp.actual.nivel || '—') + ' (' + (imp.actual.intensidad || '—') + '/5) en ' + _lugaresTexto('actual') + ' · Alcance deseado: ' + (imp.deseado.nivel || '—') + ' (' + (imp.deseado.intensidad || '—') + '/5) en ' + _lugaresTexto('deseado') + '. ' +
       'Historia local: ' + (state.historia || '—');
     await jsonp('capturarClienteDiagnostico', {
       organizacion: d.organizacion,
@@ -898,8 +1172,8 @@ function interpretacionReglasPM(d, r) {
   // la persona marcó en su mapa de impacto (sin IA, solo con lo que ya
   // respondió) — o, si no hay brecha, cierra invitando a profundizar.
   var imp = state.impacto || {};
-  if (imp.nivelActual && imp.nivelDeseado && imp.nivelActual !== imp.nivelDeseado) {
-    t += 'Hoy marcaste tu alcance como ' + imp.nivelActual + ' y quieres llegar a ' + imp.nivelDeseado + '. Esa brecha no se cierra solo con más esfuerzo de venta: como describe Pierre Bourdieu (1980) sobre el peso de las disposiciones heredadas del pasado, lo que te funcionó en tu alcance actual no necesariamente te funciona igual en el que quieres lograr — por eso, además de cerrar el vacío de ' + r.peor.nombre.toLowerCase() + ', te dejamos cinco recomendaciones puntuales pensadas específicamente para ese salto.';
+  if (imp.actual && imp.deseado && imp.actual.nivel && imp.deseado.nivel && imp.actual.nivel !== imp.deseado.nivel) {
+    t += 'Hoy marcaste tu alcance como ' + imp.actual.nivel + ' y quieres llegar a ' + imp.deseado.nivel + '. Esa brecha no se cierra solo con más esfuerzo de venta: como describe Pierre Bourdieu (1980) sobre el peso de las disposiciones heredadas del pasado, lo que te funcionó en tu alcance actual no necesariamente te funciona igual en el que quieres lograr — por eso, además de cerrar el vacío de ' + r.peor.nombre.toLowerCase() + ', te dejamos cinco recomendaciones puntuales pensadas específicamente para ese salto.';
   } else {
     t += 'Este pulso es un primer acercamiento automatizado; una investigación de mercado completa —bajo metodología de Práctica Social, observando lo que tus clientes y tu competencia realmente hacen, no solo lo que dicen— permite convertir estas cinco categorías, tu historia local y tu mapa de impacto en decisiones de negocio concretas.';
   }
@@ -948,8 +1222,8 @@ function renderResultado() {
   var r = state.resultado;
   var rec = RECOMENDACION_SEMAFORO[r.semaforo.clave];
   if (!state.interpretacionReglas) state.interpretacionReglas = interpretacionReglasPM(state.datos || {}, r);
-  if (!state.recomendacionesPM) state.recomendacionesPM = recomendacionesPM((state.impacto || {}).nivelDeseado);
-  var imp = state.impacto || {};
+  if (!state.recomendacionesPM) state.recomendacionesPM = recomendacionesPM(state.impacto.deseado.nivel);
+  var imp = state.impacto;
 
   var categoriasHtml = r.categorias.map(function (c) {
     var pct = Math.round((c.subtotal / c.max) * 100);
@@ -980,8 +1254,8 @@ function renderResultado() {
     '<h3>Tu mapa de impacto</h3>' +
     '<div id="mapaImpactoRecap"></div>' +
     '<div class="leyenda-circulos">' +
-      '<span><span class="leyenda-punto actual"></span>Hoy: ' + escapeHtml(imp.nivelActual || '—') + ' (' + (imp.intensidadActual || '—') + '/5)</span>' +
-      '<span><span class="leyenda-punto deseado"></span>Meta: ' + escapeHtml(imp.nivelDeseado || '—') + ' (' + (imp.intensidadDeseada || '—') + '/5)</span>' +
+      '<span><span class="leyenda-punto actual"></span>Hoy: ' + escapeHtml(imp.actual.nivel || '—') + ' (' + (imp.actual.intensidad || '—') + '/5) — ' + escapeHtml(_lugaresTexto('actual')) + '</span>' +
+      '<span><span class="leyenda-punto deseado"></span>Meta: ' + escapeHtml(imp.deseado.nivel || '—') + ' (' + (imp.deseado.intensidad || '—') + '/5) — ' + escapeHtml(_lugaresTexto('deseado')) + '</span>' +
     '</div>' +
     '<h3>Tu reflexión histórica</h3>' +
     '<div class="categoria-resultado"><p style="margin:0">' + escapeHtml(state.historia || '') + '</p></div>' +
@@ -1005,23 +1279,28 @@ function renderResultado() {
     '</div>';
 
   if (mapaImpactoRecapLeaflet) { mapaImpactoRecapLeaflet.remove(); mapaImpactoRecapLeaflet = null; }
-  if (imp.tocado) {
-    mapaImpactoRecapLeaflet = L.map('mapaImpactoRecap', { zoomControl: false, dragging: false, scrollWheelZoom: false }).setView([imp.lat, imp.lng], 7);
+  if (_hayMapaImpacto()) {
+    mapaImpactoRecapLeaflet = L.map('mapaImpactoRecap', { zoomControl: false, dragging: false, scrollWheelZoom: false }).setView(CENTRO_MEXICO, 4);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       maxZoom: 18,
       attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>'
     }).addTo(mapaImpactoRecapLeaflet);
-    L.marker([imp.lat, imp.lng]).addTo(mapaImpactoRecapLeaflet);
-    if (imp.nivelDeseado) L.circle([imp.lat, imp.lng], { radius: radioKmImpacto(imp.nivelDeseado, imp.intensidadDeseada, imp.estado) * 1000, color: '#FF7929', weight: 2, fillColor: '#FF7929', fillOpacity: 0.18 }).addTo(mapaImpactoRecapLeaflet);
-    if (imp.nivelActual) L.circle([imp.lat, imp.lng], { radius: radioKmImpacto(imp.nivelActual, imp.intensidadActual, imp.estado) * 1000, color: '#631EEB', weight: 2, fillColor: '#631EEB', fillOpacity: 0.3 }).addTo(mapaImpactoRecapLeaflet);
-    // Zoom calculado a mano (en vez de fitBounds+getBounds sobre un círculo
-    // todavía no agregado al mapa, que en algunos navegadores truena) a
-    // partir del radio mayor de los dos círculos, para que ambos queden
-    // visibles completos.
-    var radioMayorKmRecap = Math.max(radioKmImpacto(imp.nivelActual, imp.intensidadActual, imp.estado), radioKmImpacto(imp.nivelDeseado, imp.intensidadDeseada, imp.estado), 5);
-    var spanGradosRecap = (radioMayorKmRecap * 2.6) / 111.32;
-    var zoomRecap = Math.max(2, Math.min(15, Math.floor(Math.log(360 / spanGradosRecap) / Math.LN2) - 1));
-    mapaImpactoRecapLeaflet.setView([imp.lat, imp.lng], zoomRecap);
+    var lugaresActualRecap = _lugaresResueltos('actual');
+    var lugaresDeseadoRecap = _lugaresResueltos('deseado');
+    function dibujarLadoRecap(lugares, colorHex, opacidad) {
+      lugares.forEach(function (l) {
+        L.circleMarker([l.lat, l.lng], { radius: 6, color: colorHex, weight: 2, fillColor: colorHex, fillOpacity: 0.95 }).addTo(mapaImpactoRecapLeaflet);
+        L.circle([l.lat, l.lng], { radius: Math.max(l.radioKm, 1) * 1000, color: colorHex, weight: 2, fillColor: colorHex, fillOpacity: opacidad }).addTo(mapaImpactoRecapLeaflet);
+      });
+    }
+    dibujarLadoRecap(lugaresActualRecap, '#631EEB', 0.3);
+    dibujarLadoRecap(lugaresDeseadoRecap, '#FF7929', 0.18);
+    // fitBounds en vez de un zoom calculado a mano — ahora puede haber
+    // varios puntos dispersos (incluso en distintos países), no un único
+    // anclaje cerca de un estado.
+    var todosLosPuntosRecap = lugaresActualRecap.concat(lugaresDeseadoRecap).map(function (l) { return [l.lat, l.lng]; });
+    if (todosLosPuntosRecap.length === 1) mapaImpactoRecapLeaflet.setView(todosLosPuntosRecap[0], 6);
+    else if (todosLosPuntosRecap.length > 1) mapaImpactoRecapLeaflet.fitBounds(L.latLngBounds(todosLosPuntosRecap), { padding: [24, 24], maxZoom: 11 });
   }
 
   document.getElementById('btnDescargarPdf').onclick = function () { descargarPulsoPdf(); };
@@ -1038,7 +1317,7 @@ function renderResultado() {
 // dentro de _enviarResultadoMuestraCorreo (para que el procesador en
 // segundo plano genere su propia ampliación con IA del lado del servidor).
 function _paramsInterpretacionIA() {
-  var d = state.datos || {}, r = state.resultado, imp = state.impacto || {};
+  var d = state.datos || {}, r = state.resultado, imp = state.impacto;
   return {
     muestra: 'PulsoMercado',
     nombre: d.nombre,
@@ -1051,11 +1330,12 @@ function _paramsInterpretacionIA() {
     puntajeTotal: r.puntajeTotal,
     peorCategoria: r.peor.nombre,
     historiaLocal: state.historia,
-    nivelActual: imp.nivelActual,
-    nivelDeseado: imp.nivelDeseado,
+    nivelActual: imp.actual.nivel,
+    nivelDeseado: imp.deseado.nivel,
     giro: state.giro,
     tipoVenta: state.tipoVenta,
-    estado: imp.estado,
+    lugaresActualTexto: _lugaresTexto('actual'),
+    lugaresDeseadoTexto: _lugaresTexto('deseado'),
     sitioWebTrampa: d.sitioWebTrampa
   };
 }
@@ -1081,16 +1361,23 @@ function _iniciarCadenaIACorreo() {
  * de plano falla o tarda demasiado, el PDF cae al esquema de dos círculos
  * dibujados directamente con jsPDF (ver descargarPulsoPdf). */
 var _promesaMapaImpactoPng = null;
+function _mapaImpactoPayload() {
+  return JSON.stringify({
+    actual: { nivel: state.impacto.actual.nivel, lugares: _lugaresResueltos('actual') },
+    deseado: { nivel: state.impacto.deseado.nivel, lugares: _lugaresResueltos('deseado') }
+  });
+}
+// Ahora manda el mapa por POST (jsonpPost), no por GET (jsonp) — con varios
+// lugares por lado el payload puede fácilmente superar el límite práctico
+// de una URL; ver _despacharAccionPlataforma en WebApp.gs, que ya enruta
+// cualquier acción no listada (incluida obtenerMapaImpactoPng) tanto desde
+// doGet como desde doPost sin cambios adicionales de ruteo.
 function _cargarMapaImpactoPng() {
-  var imp = state.impacto || {};
-  if (!imp.tocado || state.mapaPngBase64) return Promise.resolve();
+  if (!_hayMapaImpacto() || state.mapaPngBase64) return Promise.resolve();
   if (_promesaMapaImpactoPng) return _promesaMapaImpactoPng;
   var d = state.datos || {};
-  _promesaMapaImpactoPng = jsonp('obtenerMapaImpactoPng', {
-    lat: imp.lat, lng: imp.lng,
-    nivelActual: imp.nivelActual, intensidadActual: imp.intensidadActual,
-    nivelDeseado: imp.nivelDeseado, intensidadDeseada: imp.intensidadDeseada,
-    estado: imp.estado,
+  _promesaMapaImpactoPng = jsonpPost('obtenerMapaImpactoPng', {
+    mapaImpacto: _mapaImpactoPayload(),
     email: d.email,
     sitioWebTrampa: d.sitioWebTrampa
   }).then(function (resp) {
@@ -1110,7 +1397,7 @@ function _cargarMapaImpactoPng() {
 function _enviarResultadoMuestraCorreo() {
   if (state.correoResultadoEnviado) return;
   state.correoResultadoEnviado = true;
-  var d = state.datos || {}, r = state.resultado, imp = state.impacto || {};
+  var d = state.datos || {}, r = state.resultado, imp = state.impacto;
   var secciones = [
     { titulo: 'Interpretación de tu resultado', parrafos: (state.interpretacionReglas || '').split('\n\n').filter(function (p) { return p.trim(); }) },
     { titulo: 'Tus 5 recomendaciones', parrafos: (state.recomendacionesPM || []).map(function (rec, idx) { return (idx + 1) + '. ' + rec; }) },
@@ -1120,9 +1407,8 @@ function _enviarResultadoMuestraCorreo() {
   }));
   var resumenTexto = 'Pulso de Mercado: ' + r.semaforo.etiqueta + ' (' + r.puntajeTotal + '/40). ' +
     'Mayor oportunidad: ' + r.peor.nombre + ' (' + r.peor.subtotal + '/' + r.peor.max + '). ' +
-    'Alcance hoy: ' + (imp.nivelActual || '—') + ' · Alcance deseado: ' + (imp.nivelDeseado || '—') + '.';
-  var mapaImpactoCorreo = imp.tocado ?
-    JSON.stringify({ lat: imp.lat, lng: imp.lng, nivelActual: imp.nivelActual, intensidadActual: imp.intensidadActual, nivelDeseado: imp.nivelDeseado, intensidadDeseada: imp.intensidadDeseada, estado: imp.estado }) : '';
+    'Alcance hoy: ' + (imp.actual.nivel || '—') + ' en ' + _lugaresTexto('actual') + ' · Alcance deseado: ' + (imp.deseado.nivel || '—') + ' en ' + _lugaresTexto('deseado') + '.';
+  var mapaImpactoCorreo = _hayMapaImpacto() ? _mapaImpactoPayload() : '';
   jsonpPost('enviarResultadoMuestra', {
     tipoMuestra: 'PulsoMercado',
     nombre: d.nombre,
@@ -1151,21 +1437,36 @@ function _enviarResultadoMuestraCorreo() {
  * mapa (ver _cargarMapaImpactoPng) todavía no llegó o falló — jsPDF ya
  * sabe dibujar círculos nativamente (doc.circle), así que aquí no hace
  * falta aproximar un polígono como en el mapa territorial. ---- */
-function _dibujarMapaImpactoEsquematico(doc, x, y, ancho, alto, imp) {
+function _dibujarMapaImpactoEsquematico(doc, x, y, ancho, alto, lugaresActual, lugaresDeseado) {
   doc.setFillColor(250, 248, 255);
   doc.setDrawColor(230, 226, 245); doc.setLineWidth(1);
   doc.roundedRect(x, y, ancho, alto, 8, 8, 'FD');
-  var cx = x + ancho / 2, cyBase = y + alto / 2;
-  var radioMayorPt = Math.min(ancho, alto) / 2 - 14;
-  var radioActualRel = radioKmImpacto(imp.nivelActual, imp.intensidadActual, imp.estado);
-  var radioDeseadoRel = radioKmImpacto(imp.nivelDeseado, imp.intensidadDeseada, imp.estado);
-  var escalaPt = radioMayorPt / Math.max(radioActualRel, radioDeseadoRel, 1);
-  doc.setDrawColor(255, 121, 41); doc.setFillColor(255, 121, 41);
-  doc.circle(cx, cyBase, Math.max(radioDeseadoRel * escalaPt, 4), 'FD');
-  doc.setDrawColor(99, 30, 235); doc.setFillColor(99, 30, 235);
-  doc.circle(cx, cyBase, Math.max(radioActualRel * escalaPt, 3), 'FD');
-  doc.setFillColor(34, 34, 34);
-  doc.circle(cx, cyBase, 2, 'F');
+
+  // Una fila de círculos por lado (en vez de dos círculos concéntricos como
+  // antes) — ahora puede haber varios lugares por lado, así que cada uno
+  // recibe su propio círculo, escalado entre sí según su radioKm relativo,
+  // con el nombre del lugar debajo.
+  function dibujarFila(lugares, colorRgb, yFila, altoFila) {
+    if (!lugares.length) return;
+    var n = lugares.length;
+    var anchoSlot = ancho / n;
+    var radioMax = Math.max.apply(null, lugares.map(function (l) { return l.radioKm; }).concat([1]));
+    lugares.forEach(function (l, i) {
+      var cx = x + anchoSlot * i + anchoSlot / 2;
+      var cy = yFila + altoFila * 0.5;
+      var radioPt = Math.max((l.radioKm / radioMax) * (Math.min(anchoSlot, altoFila) * 0.32), 4);
+      doc.setDrawColor(colorRgb[0], colorRgb[1], colorRgb[2]);
+      doc.setFillColor(colorRgb[0], colorRgb[1], colorRgb[2]);
+      doc.circle(cx, cy, radioPt, 'FD');
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(7.5);
+      doc.setTextColor(80, 80, 90);
+      var etiquetaCorta = (doc.splitTextToSize(l.etiqueta, anchoSlot - 4) || [''])[0];
+      doc.text(etiquetaCorta, cx, yFila + altoFila - 4, { align: 'center' });
+    });
+  }
+  var altoFila = (alto - 10) / 2;
+  dibujarFila(lugaresActual, [99, 30, 235], y + 5, altoFila);
+  dibujarFila(lugaresDeseado, [255, 121, 41], y + 5 + altoFila, altoFila);
 }
 
 /* ---- Descargable en PDF ---- */
@@ -1184,7 +1485,7 @@ async function descargarPulsoPdf() {
   // caer al esquema. Esto reemplaza la espera única de 6s que David reportó
   // insuficiente.
   var btnPdf = document.getElementById('btnDescargarPdf');
-  if ((state.impacto || {}).tocado && !state.mapaPngBase64) {
+  if (_hayMapaImpacto() && !state.mapaPngBase64) {
     if (btnPdf) { btnPdf.disabled = true; btnPdf.textContent = 'Preparando tu mapa...'; }
     await Promise.race([
       _cargarMapaImpactoPng(),
@@ -1199,7 +1500,8 @@ async function descargarPulsoPdf() {
     }
     if (btnPdf) { btnPdf.disabled = false; btnPdf.textContent = 'Descargar mi resultado en PDF'; }
   }
-  var r = state.resultado, d = state.datos || {}, imp = state.impacto || {};
+  var r = state.resultado, d = state.datos || {}, imp = state.impacto;
+  var lugaresActualPdf = _lugaresResueltos('actual'), lugaresDeseadoPdf = _lugaresResueltos('deseado');
   var rec = RECOMENDACION_SEMAFORO[r.semaforo.clave];
   var doc = new window.jspdf.jsPDF({ unit: 'pt', format: 'letter' });
   var purple = [99, 30, 235];
@@ -1243,7 +1545,7 @@ async function descargarPulsoPdf() {
   // patrón que el mapa territorial), marcados como tales para que no se
   // confundan con el mapa real.
   var usoEsquemaMapa = false;
-  if (imp.tocado) {
+  if (_hayMapaImpacto()) {
     var altoMapaPdf = 190;
     if (y + altoMapaPdf + 34 > 730) { doc.addPage(); y = 60; }
     doc.setFont('helvetica', 'bold'); doc.setFontSize(11);
@@ -1259,15 +1561,15 @@ async function descargarPulsoPdf() {
         var escala = Math.min((anchoTexto - margenInterno * 2) / imgW, (altoMapaPdf - margenInterno * 2) / imgH);
         var wFinal = imgW * escala, hFinal = imgH * escala;
         doc.addImage(state.mapaPngBase64, 'PNG', margenIzq + (anchoTexto - wFinal) / 2, y + (altoMapaPdf - hFinal) / 2, wFinal, hFinal);
-      } catch (eImg) { _dibujarMapaImpactoEsquematico(doc, margenIzq, y, anchoTexto, altoMapaPdf, imp); usoEsquemaMapa = true; }
+      } catch (eImg) { _dibujarMapaImpactoEsquematico(doc, margenIzq, y, anchoTexto, altoMapaPdf, lugaresActualPdf, lugaresDeseadoPdf); usoEsquemaMapa = true; }
     } else {
-      _dibujarMapaImpactoEsquematico(doc, margenIzq, y, anchoTexto, altoMapaPdf, imp);
+      _dibujarMapaImpactoEsquematico(doc, margenIzq, y, anchoTexto, altoMapaPdf, lugaresActualPdf, lugaresDeseadoPdf);
       usoEsquemaMapa = true;
     }
     y += altoMapaPdf + 10;
     doc.setFont('helvetica', 'normal'); doc.setFontSize(9);
     doc.setTextColor(107, 107, 120);
-    doc.text('Morado = tu alcance hoy (' + (imp.nivelActual || '—') + ') · Naranja = el alcance que quieres lograr (' + (imp.nivelDeseado || '—') + ')', margenIzq, y);
+    doc.text('Morado = tu alcance hoy (' + (imp.actual.nivel || '—') + ') · Naranja = el alcance que quieres lograr (' + (imp.deseado.nivel || '—') + ')', margenIzq, y);
     y += 16;
     if (usoEsquemaMapa) {
       doc.setFont('helvetica', 'italic'); doc.setFontSize(8.5);
