@@ -482,6 +482,20 @@ thead{position:sticky;top:0;z-index:2;}
     </form>
     <div style="margin-top:24px;"><button class="btn btn-primary" id="btnContinuarContacto">Continuar al dashboard →</button></div>
   </div>
+
+  <div id="ligaUsadaBox" class="card" style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:26px 24px;box-shadow:var(--sh-sm);display:none;">
+    <h1 style="font-size:21px;margin:0 0 8px;">Esta liga ya fue utilizada</h1>
+    <p style="color:var(--tx-light);font-size:13.5px;margin:0 0 4px;">Cada liga personalizada se puede usar una sola vez. Si quieres hacer otra prueba (esta u otra), déjanos tus datos y te mandamos una liga nueva.</p>
+    <div id="ligaUsadaMsg"></div>
+    <form id="ligaUsadaForm">
+      <div class="campo" style="margin-top:14px;"><label>Nombre de contacto <span style="color:var(--naranja)">*</span></label><input type="text" id="opNombre"></div>
+      <div class="campo" style="margin-top:14px;"><label>Correo electrónico <span style="color:var(--naranja)">*</span></label><input type="email" id="opEmail" placeholder="nombre@tuorganizacion.com"></div>
+      <div class="campo" style="margin-top:14px;"><label>Prueba(s) que te interesan <span style="color:var(--naranja)">*</span></label>
+        <div style="border:1px solid var(--border);border-radius:8px;padding:10px 12px;max-height:220px;overflow-y:auto;" id="opPruebasList"></div>
+      </div>
+    </form>
+    <div style="margin-top:24px;"><button class="btn btn-primary" id="btnOtraPrueba">Enviar solicitud</button></div>
+  </div>
 </main>
 
 <div class="dash-wrap" id="dashWrap" style="display:none">
@@ -535,6 +549,7 @@ thead{position:sticky;top:0;z-index:2;}
   <div class="table-wrap" id="tableWrap" style="display:none"><div class="table-toolbar"><input type="text" id="gSearch" placeholder="Buscar en todos los campos…" oninput="globalSearch(this.value)"/><button class="btn btn-out btn-sm" onclick="exportCSV()">Exportar CSV</button><span id="tblInfo" style="font-size:.77rem;color:var(--tx-light);margin-left:auto;"></span></div><div class="tbl-scroll"><table id="dataTable"><thead id="tHead"></thead><tbody id="tBody"></tbody></table></div><div class="pag" id="pag"></div></div>
   <div class="empty" id="emptyState"><h3>Sube tu archivo para comenzar</h3><p>El dashboard analizara tus datos, generara graficas, metricas comparativas y analisis cualitativo con perspectiva de investigacion social.</p></div>
   <div id="correoAviso"></div>
+  <div id="formularioFinalLiga"></div>
   <div class="cta" id="ctaBox" style="display:none">
     <h2>¿Quieres un análisis completo, con acompañamiento del equipo?</h2>
     <p>Este es un primer acercamiento automático a tus datos. El equipo de Sintropía Social puede profundizar el análisis, cruzar variables adicionales y acompañarte a interpretar los resultados con tu equipo.</p>
@@ -611,6 +626,72 @@ function jsonpPost(action, params, timeoutMs) {
 // ── PASO 0: datos de contacto (antes de mostrar el dashboard) ──
 var contactData = null;
 var correoResultadoEnviado = false;
+
+/* ============================================================
+ * Liga personalizada de un solo uso ("Muestra abierta" — ver
+ * apiGenerarEnlaceMuestra en WebApp.gs). Si la URL trae ?token=...,
+ * se salta el Paso 0 (datos de contacto) — ya se precargan desde la
+ * liga — y se va directo al área de subir archivo. El "resultado" de
+ * esta muestra es el dashboard ya generado (ver initDash): en cuanto
+ * se construye el análisis cualitativo, la liga se marca como
+ * utilizada y, en vez de mandar el correo de inmediato, se muestra un
+ * formulario (mismos campos del Paso 0) para confirmar los datos antes
+ * de registrar el lead y mandar el correo — ver _enviarResultadoMuestraCorreo
+ * y renderFormularioFinalLiga. Si la liga ya se usó, se muestra la caja
+ * "¿Deseas otra prueba?" en vez del flujo normal. Mismo patrón ya
+ * validado en muestra_se.html / diagnostico.html.
+ * ============================================================ */
+var TOKEN_LIGA_URL = new URLSearchParams(location.search).get('token') || '';
+var TOKEN_LIGA = ''; // solo se llena si la liga es válida y sigue pendiente
+var ligaMarcadaCompletada = false;
+var formularioFinalEnviado = false;
+
+var CATALOGO_MUESTRAS_ABIERTAS = [
+  { clave: 'SemaforoSE', nombre: 'Estudio socioeconómico y gestión de riesgos' },
+  { clave: 'AnalisisDatos', nombre: 'Dashboard interactivo de tus datos' },
+  { clave: 'PulsoMercado', nombre: 'Pulso de Mercado' },
+  { clave: 'DisenioInstruccional', nombre: 'Diseño instruccional de cursos' },
+  { clave: 'IMES', nombre: 'IMES Preparatoria' },
+  { clave: 'IMESUniversidad', nombre: 'IMES Universidad' },
+  { clave: 'Simulacion', nombre: '"Tres puertas al trabajo"' },
+  { clave: 'Diagnostico', nombre: 'Diagnóstico Social' },
+  { clave: 'Territorio', nombre: 'Mapa Territorial de tu proyecto' },
+  { clave: 'Seguimiento', nombre: 'Sintropía Track' },
+  { clave: 'BusquedaEmpleo', nombre: 'Estoy buscando empleo' },
+  { clave: 'CitasPDF', nombre: 'Buscador de citas PDF' },
+  { clave: 'InstrumentoIdea', nombre: '¿Necesitas un instrumento a tu medida?' }
+];
+
+function mostrarLigaYaUsada(){
+  document.getElementById('contactStep').style.display='none';
+  var lista = document.getElementById('opPruebasList');
+  lista.innerHTML = CATALOGO_MUESTRAS_ABIERTAS.map(function(m){
+    return '<label style="display:flex;align-items:center;gap:8px;font-weight:400;margin:4px 0;font-size:13px;">' +
+      '<input type="checkbox" class="opPruebaChk" value="'+m.clave+'" style="width:auto"> '+escapeHtml(m.nombre) +
+    '</label>';
+  }).join('');
+  document.getElementById('ligaUsadaBox').style.display='';
+  document.getElementById('btnOtraPrueba').onclick = async function(){
+    var msgBox = document.getElementById('ligaUsadaMsg');
+    var nombre = document.getElementById('opNombre').value.trim();
+    var email = document.getElementById('opEmail').value.trim();
+    var pruebas = Array.prototype.map.call(document.querySelectorAll('.opPruebaChk:checked'), function(c){ return c.value; });
+    if (!nombre) { msgBox.innerHTML = '<div class="msg-contacto">Escribe tu nombre.</div>'; return; }
+    if (!email || email.indexOf('@') === -1) { msgBox.innerHTML = '<div class="msg-contacto">Escribe un correo electrónico válido.</div>'; return; }
+    if (!pruebas.length) { msgBox.innerHTML = '<div class="msg-contacto">Elige al menos una prueba.</div>'; return; }
+    var btn = document.getElementById('btnOtraPrueba');
+    btn.disabled = true; btn.textContent = 'Enviando...';
+    var r = await jsonp('registrarSolicitudOtraPrueba', { nombre: nombre, correo: email, pruebas: JSON.stringify(pruebas) });
+    btn.disabled = false; btn.textContent = 'Enviar solicitud';
+    if (r && r.ok) {
+      document.getElementById('ligaUsadaBox').innerHTML =
+        '<h1 style="font-size:21px;margin:0 0 8px;">¡Listo!</h1>' +
+        '<p style="color:var(--tx-light);font-size:13.5px;">' + escapeHtml(r.msg || 'Gracias — en breve te compartimos tu(s) liga(s) nueva(s).') + '</p>';
+    } else {
+      msgBox.innerHTML = '<div class="msg-contacto">' + escapeHtml((r && r.error) || 'No se pudo enviar tu solicitud, intenta de nuevo.') + '</div>';
+    }
+  };
+}
 
 document.getElementById('btnContinuarContacto').onclick = function () {
   var msgBox = document.getElementById('contactMsg');
@@ -847,8 +928,78 @@ function initDash(){
   // quede en la página.
   setTimeout(function(){
     buildAnalysis();
-    _enviarResultadoMuestraCorreo();
+    // Liga personalizada: "un solo uso" aplica a la prueba (llegar a ver el
+    // dashboard/análisis), no al correo — se marca como usada en cuanto se
+    // llega aquí, sin esperar al formulario final. El registro en CRM y el
+    // correo se posponen hasta que esa confirmación llega (ver
+    // renderFormularioFinalLiga) — los datos precargados desde la liga
+    // todavía no se han confirmado (falta la categoría).
+    if (TOKEN_LIGA && !ligaMarcadaCompletada) {
+      ligaMarcadaCompletada = true;
+      jsonp('completarEnlaceMuestra', { token: TOKEN_LIGA });
+    }
+    if (TOKEN_LIGA) {
+      renderFormularioFinalLiga();
+    } else {
+      _enviarResultadoMuestraCorreo();
+    }
   },350);
+}
+
+// Formulario final (solo liga personalizada): mismos campos del Paso 0,
+// pero AL FINAL — precargados con lo que ya se sabía por la liga. Solo al
+// enviarlo se registra el lead en CRM y se dispara el correo con el
+// análisis completo (ver _enviarResultadoMuestraCorreo).
+function renderFormularioFinalLiga(){
+  var box = document.getElementById('formularioFinalLiga');
+  if (!box) return;
+  if (formularioFinalEnviado) {
+    box.innerHTML = '<div style="background:var(--bg2);border:1px solid rgba(99,30,235,.18);border-radius:9px;padding:10px 13px;font-size:13.5px;color:var(--tx);margin:12px 0;">Gracias — te enviamos tu análisis completo a tu correo.</div>';
+    return;
+  }
+  var d = contactData || {};
+  var categoriasOpc=['Gobierno y Sector Público','ONG y Fundaciones','Educación','Salud y Bienestar','Universidad','Cámara empresarial','Empresa privada','Retail y Consumo','Fintech y Servicios','Tecnología y Telecom','Turismo y Hospitalidad','Organismo internacional','Otro'];
+  box.innerHTML =
+    '<div class="card" style="border-top:3px solid var(--morado);margin:16px 0;padding:20px 22px;">' +
+      '<h3 style="font-size:1rem;margin:0 0 6px;">Recibe tu análisis completo por correo</h3>' +
+      '<p style="font-size:13px;color:var(--tx-light);margin:0 0 12px;">Confirma tus datos para que te mandemos tu análisis completo y, si nos autorizas, te contactemos con una propuesta.</p>' +
+      '<div id="ligaFinalMsg"></div>' +
+      '<form id="ligaFinalForm">' +
+        '<div class="campo" style="margin-top:10px;"><label>Nombre completo <span style="color:var(--naranja)">*</span></label><input type="text" id="lfNombre" value="'+escapeHtml(d.nombre||'')+'"></div>' +
+        '<div class="campo" style="margin-top:10px;"><label>Organización <span style="color:var(--naranja)">*</span></label><input type="text" id="lfOrganizacion" value="'+escapeHtml(d.organizacion||'')+'"></div>' +
+        '<div class="campo" style="margin-top:10px;"><label>Categoría <span style="color:var(--naranja)">*</span></label><select id="lfCategoria"><option value="">Selecciona una opción</option>' +
+          categoriasOpc.map(function(c){return '<option>'+escapeHtml(c)+'</option>';}).join('') +
+        '</select></div>' +
+        '<div class="campo" style="margin-top:10px;"><label>Correo electrónico <span style="color:var(--naranja)">*</span></label><input type="email" id="lfEmail" value="'+escapeHtml(d.email||'')+'"></div>' +
+        '<div class="campo" style="margin-top:10px;"><label>Teléfono (opcional)</label><input type="text" id="lfTelefono"></div>' +
+        '<div class="campo" style="margin-top:10px;"><label>Cargo (opcional)</label><input type="text" id="lfCargo"></div>' +
+        '<input type="text" id="lfTrampa" class="campo-trampa" tabindex="-1" autocomplete="off">' +
+      '</form>' +
+      '<div style="margin-top:16px;"><button class="btn btn-primary" id="btnLigaFinal">Enviar y recibir mi análisis completo</button></div>' +
+    '</div>';
+
+  document.getElementById('btnLigaFinal').onclick = function(){
+    var msgBox = document.getElementById('ligaFinalMsg');
+    var nombre = document.getElementById('lfNombre').value.trim();
+    var organizacion = document.getElementById('lfOrganizacion').value.trim();
+    var categoria = document.getElementById('lfCategoria').value;
+    var email = document.getElementById('lfEmail').value.trim();
+    if (!nombre || !organizacion) { msgBox.innerHTML = '<div class="msg-contacto">Escribe tu nombre y el de tu organización.</div>'; return; }
+    if (!categoria) { msgBox.innerHTML = '<div class="msg-contacto">Selecciona una categoría.</div>'; return; }
+    if (!email || email.indexOf('@') === -1) { msgBox.innerHTML = '<div class="msg-contacto">Escribe un correo electrónico válido.</div>'; return; }
+
+    contactData = {
+      nombre: nombre, organizacion: organizacion, categoria: categoria, email: email,
+      telefono: document.getElementById('lfTelefono').value.trim(),
+      cargo: document.getElementById('lfCargo').value.trim(),
+      sitioWebTrampa: document.getElementById('lfTrampa').value
+    };
+    var btn = document.getElementById('btnLigaFinal');
+    btn.disabled = true; btn.textContent = 'Enviando...';
+    formularioFinalEnviado = true;
+    _enviarResultadoMuestraCorreo();
+    renderFormularioFinalLiga();
+  };
 }
 
 // ── ANALYZE COL ──
@@ -1984,6 +2135,32 @@ function toast(msg,type){
   requestAnimationFrame(function(){t.classList.add('show');});
   setTimeout(function(){t.classList.remove('show');setTimeout(function(){if(t.parentNode)t.parentNode.removeChild(t);},300);},3200);
 }
+
+/* ---- Arranque: revisa si la URL trae una liga personalizada (?token=) ---- */
+async function iniciarLiga(){
+  if(!TOKEN_LIGA_URL) return;
+  var r = await jsonp('validarTokenMuestra', { token: TOKEN_LIGA_URL });
+  if(r && r.ok && r.herramienta === 'AnalisisDatos' && r.estatus === 'Pendiente'){
+    TOKEN_LIGA = TOKEN_LIGA_URL;
+    contactData = {
+      nombre: (r.datos && r.datos.nombre) || '',
+      organizacion: (r.datos && r.datos.organizacion) || '',
+      categoria: '', email: (r.datos && r.datos.correo) || '',
+      telefono: '', cargo: '', sitioWebTrampa: ''
+    };
+    document.getElementById('contactStep').style.display = 'none';
+    var dw = document.getElementById('dashWrap');
+    dw.style.display = '';
+    var orgInput = document.getElementById('orgName');
+    if (orgInput && !orgInput.value) orgInput.value = contactData.organizacion;
+  } else if (r && r.ok && r.herramienta === 'AnalisisDatos' && r.estatus === 'Completado'){
+    mostrarLigaYaUsada();
+  }
+  // Token inválido, ya usado por otra herramienta, o cualquier otro caso:
+  // sigue el flujo público normal (Paso 0 visible desde el HTML), igual
+  // que sin liga.
+}
+iniciarLiga();
 </script>
 </body>
 </html>

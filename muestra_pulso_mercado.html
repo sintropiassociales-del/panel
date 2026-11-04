@@ -542,12 +542,84 @@ var state = {
   interpretacionIA: null,
   recomendacionesPM: null,
   correoResultadoEnviado: false,
-  mapaPngBase64: null
+  mapaPngBase64: null,
+  token: '', ligaYaUsada: false, ligaMarcadaCompletada: false, formularioFinalEnviado: false
 };
 var app = document.getElementById('app');
 var TOTAL_PASOS = 4; // 0 datos · 1 preguntas (termina con la reflexión histórica) · 2 mapa de impacto · 3 resultado
 var mapaImpactoLeaflet = null, capasImpactoLeaflet = [];
 var mapaImpactoRecapLeaflet = null;
+
+/* ============================================================
+ * Liga personalizada de un solo uso ("Muestra abierta" — ver
+ * apiGenerarEnlaceMuestra en WebApp.gs). Si la URL trae ?token=...,
+ * se salta el Paso 0 (los datos ya se precargan desde la liga) y se va
+ * directo al cuestionario (Paso 1); el mapa de impacto (Paso 2) sí lo
+ * debe hacer la persona, porque la liga no lo puede adivinar. El
+ * formulario de datos reaparece AL FINAL, junto al resultado, y solo
+ * si se llena ahí se manda capturarClienteDiagnostico + se dispara el
+ * correo con el resultado completo — ver renderResultado() y
+ * renderFormularioFinalLiga(). Si la liga ya se usó, se muestra la
+ * caja "¿Deseas otra prueba?" (renderLigaYaUsada). Mismo patrón ya
+ * validado en muestra_se.html.
+ * ============================================================ */
+var TOKEN_LIGA_URL = new URLSearchParams(location.search).get('token') || '';
+
+var CATALOGO_MUESTRAS_ABIERTAS = [
+  { clave: 'SemaforoSE', nombre: 'Estudio socioeconómico y gestión de riesgos' },
+  { clave: 'AnalisisDatos', nombre: 'Dashboard interactivo de tus datos' },
+  { clave: 'PulsoMercado', nombre: 'Pulso de Mercado' },
+  { clave: 'DisenioInstruccional', nombre: 'Diseño instruccional de cursos' },
+  { clave: 'IMES', nombre: 'IMES Preparatoria' },
+  { clave: 'IMESUniversidad', nombre: 'IMES Universidad' },
+  { clave: 'Simulacion', nombre: '"Tres puertas al trabajo"' },
+  { clave: 'Diagnostico', nombre: 'Diagnóstico Social' },
+  { clave: 'Territorio', nombre: 'Mapa Territorial de tu proyecto' },
+  { clave: 'Seguimiento', nombre: 'Sintropía Track' },
+  { clave: 'BusquedaEmpleo', nombre: 'Estoy buscando empleo' },
+  { clave: 'CitasPDF', nombre: 'Buscador de citas PDF' },
+  { clave: 'InstrumentoIdea', nombre: '¿Necesitas un instrumento a tu medida?' }
+];
+
+function renderLigaYaUsada() {
+  app.innerHTML =
+    '<h1>Esta liga ya fue utilizada</h1>' +
+    '<p class="subtle">Cada liga personalizada se puede usar una sola vez. Si quieres hacer otra prueba (esta u otra), déjanos tus datos y te mandamos una liga nueva.</p>' +
+    '<div id="secMsg"></div>' +
+    '<form id="otraPruebaForm">' +
+      '<label>Nombre de contacto <span class="req">*</span></label><input type="text" id="opNombre">' +
+      '<label>Correo <span class="req">*</span></label><input type="email" id="opEmail" placeholder="nombre@tuorganizacion.com">' +
+      '<label>Prueba(s) que te interesan <span class="req">*</span></label>' +
+      '<div style="border:1.5px solid var(--border);border-radius:9px;padding:10px 12px;max-height:220px;overflow-y:auto">' +
+        CATALOGO_MUESTRAS_ABIERTAS.map(function (m, i) {
+          return '<label style="display:flex;align-items:center;gap:8px;font-weight:400;margin:4px 0">' +
+            '<input type="checkbox" class="opPruebaChk" value="' + m.clave + '" style="width:auto"> ' + escapeHtml(m.nombre) +
+          '</label>';
+        }).join('') +
+      '</div>' +
+    '</form>' +
+    '<div class="fila-botones"><button class="primary" id="btnOtraPrueba">Enviar solicitud</button></div>';
+
+  document.getElementById('btnOtraPrueba').onclick = async function () {
+    var msgBox = document.getElementById('secMsg');
+    var nombre = document.getElementById('opNombre').value.trim();
+    var email = document.getElementById('opEmail').value.trim();
+    var pruebas = Array.prototype.map.call(app.querySelectorAll('.opPruebaChk:checked'), function (c) { return c.value; });
+    if (!nombre) { msgBox.innerHTML = '<div class="msg error">Escribe tu nombre.</div>'; return; }
+    if (!email || email.indexOf('@') === -1) { msgBox.innerHTML = '<div class="msg error">Escribe un correo electrónico válido.</div>'; return; }
+    if (!pruebas.length) { msgBox.innerHTML = '<div class="msg error">Elige al menos una prueba.</div>'; return; }
+
+    var btn = document.getElementById('btnOtraPrueba');
+    btn.disabled = true; btn.textContent = 'Enviando...';
+    var r = await jsonp('registrarSolicitudOtraPrueba', { nombre: nombre, correo: email, pruebas: JSON.stringify(pruebas) });
+    btn.disabled = false; btn.textContent = 'Enviar solicitud';
+    if (r && r.ok) {
+      app.innerHTML = '<h1>¡Listo!</h1><p class="subtle">' + escapeHtml(r.msg || 'Gracias — en breve te compartimos tu(s) liga(s) nueva(s).') + '</p>';
+    } else {
+      msgBox.innerHTML = '<div class="msg error">' + escapeHtml((r && r.error) || 'No se pudo enviar tu solicitud, intenta de nuevo.') + '</div>';
+    }
+  };
+}
 
 function progresoHtml() {
   var html = '<div class="progreso">';
@@ -559,6 +631,7 @@ function progresoHtml() {
 }
 
 function render() {
+  if (state.ligaYaUsada) return renderLigaYaUsada();
   // Con el cuestionario de 20 preguntas + historia antes del mapa, la
   // persona siempre da clic en "Continuar" al fondo de una página larga —
   // sin esto, la siguiente pantalla (p. ej. el mapa) se dibuja fuera de la
@@ -968,20 +1041,27 @@ function renderMapaImpacto() {
       'Giro: ' + (state.giro || '—') + ' · Tipo de venta: ' + (state.tipoVenta || '—') + '. ' +
       'Alcance hoy: ' + (imp.actual.nivel || '—') + ' (' + (imp.actual.intensidad || '—') + '/5) en ' + _lugaresTexto('actual') + ' · Alcance deseado: ' + (imp.deseado.nivel || '—') + ' (' + (imp.deseado.intensidad || '—') + '/5) en ' + _lugaresTexto('deseado') + '. ' +
       'Historia local: ' + (state.historia || '—');
-    await jsonp('capturarClienteDiagnostico', {
-      organizacion: d.organizacion,
-      categoria: d.categoria,
-      ejeInteres: 'Investigación de Mercado',
-      nombreContacto: d.nombre,
-      cargo: d.cargo,
-      correo: d.email,
-      telefono: d.telefono,
-      leadMagnet: 'Pulso de Mercado',
-      consentimiento: 'Sí',
-      notas: resumenNotas,
-      respuestasCompletas: JSON.stringify(state.respuestas),
-      sitioWebTrampa: d.sitioWebTrampa
-    });
+    // Liga personalizada (?token=): los datos (nombre/organización/
+    // categoría/correo/consentimiento) todavía no se han vuelto a
+    // confirmar — eso pasa en el formulario que aparece junto al
+    // resultado (ver renderResultado/renderFormularioFinalLiga), así
+    // que capturarClienteDiagnostico se manda hasta allá, no aquí.
+    if (!state.token) {
+      await jsonp('capturarClienteDiagnostico', {
+        organizacion: d.organizacion,
+        categoria: d.categoria,
+        ejeInteres: 'Investigación de Mercado',
+        nombreContacto: d.nombre,
+        cargo: d.cargo,
+        correo: d.email,
+        telefono: d.telefono,
+        leadMagnet: 'Pulso de Mercado',
+        consentimiento: 'Sí',
+        notas: resumenNotas,
+        respuestasCompletas: JSON.stringify(state.respuestas),
+        sitioWebTrampa: d.sitioWebTrampa
+      });
+    }
     // El resultado se muestra siempre, incluso si el guardado del lead
     // falla por algún motivo de red.
     state.paso = 3;
@@ -1062,7 +1142,7 @@ function renderPreguntas() {
     bloquesHtml +
     historiaHtml +
     '<div class="fila-botones">' +
-      '<button class="secondary" id="btnAtras">Atrás</button>' +
+      (state.token ? '' : '<button class="secondary" id="btnAtras">Atrás</button>') +
       '<button class="primary" id="btnContinuarMapa">Continuar al mapa de impacto →</button>' +
     '</div>';
 
@@ -1087,7 +1167,8 @@ function renderPreguntas() {
     };
   });
 
-  document.getElementById('btnAtras').onclick = function () { state.paso = 0; render(); };
+  var btnAtrasPreguntas = document.getElementById('btnAtras');
+  if (btnAtrasPreguntas) btnAtrasPreguntas.onclick = function () { state.paso = 0; render(); };
   document.getElementById('btnContinuarMapa').onclick = function () {
     if (!state.giro) {
       document.getElementById('secMsg').innerHTML = '<div class="msg error">Selecciona el giro principal de tu negocio.</div>';
@@ -1225,6 +1306,14 @@ function renderResultado() {
   if (!state.recomendacionesPM) state.recomendacionesPM = recomendacionesPM(state.impacto.deseado.nivel);
   var imp = state.impacto;
 
+  // Liga personalizada: "un solo uso" aplica al cuestionario+mapa, no al
+  // correo — se marca como usada en cuanto se llega aquí (se ve el
+  // resultado inicial), sin esperar a que se llene el formulario final.
+  if (state.token && !state.ligaMarcadaCompletada) {
+    state.ligaMarcadaCompletada = true;
+    jsonp('completarEnlaceMuestra', { token: state.token });
+  }
+
   var categoriasHtml = r.categorias.map(function (c) {
     var pct = Math.round((c.subtotal / c.max) * 100);
     return '<div class="categoria-resultado">' +
@@ -1264,8 +1353,9 @@ function renderResultado() {
       interpretacionHtml +
       recomendacionesHtml +
     '</div>' +
-    '<p class="subtle" style="margin:4px 0 0">A la brevedad te llegará a tu correo una interpretación más completa y recomendaciones concretas para tu empresa. Si quieres que te ayudemos desde Sintropía a profundizar esta investigación de mercado, escríbenos.</p>' +
+    (state.token ? '' : '<p class="subtle" style="margin:4px 0 0">A la brevedad te llegará a tu correo una interpretación más completa y recomendaciones concretas para tu empresa. Si quieres que te ayudemos desde Sintropía a profundizar esta investigación de mercado, escríbenos.</p>') +
     '<div id="correoAviso"></div>' +
+    (state.token ? '<div id="formularioFinalLiga"></div>' : '') +
     '<div class="fila-botones">' +
       '<button class="secondary" id="btnDescargarPdf">Descargar mi resultado en PDF</button>' +
     '</div>' +
@@ -1305,10 +1395,95 @@ function renderResultado() {
 
   document.getElementById('btnDescargarPdf').onclick = function () { descargarPulsoPdf(); };
   // El correo se encola de inmediato (no espera a _iniciarCadenaIACorreo) —
-  // ver el porqué en el comentario de _enviarResultadoMuestraCorreo.
-  _enviarResultadoMuestraCorreo();
+  // ver el porqué en el comentario de _enviarResultadoMuestraCorreo. Con
+  // liga personalizada, en cambio, el registro en CRM y el correo se
+  // posponen hasta que la persona llena el formulario final (ver
+  // renderFormularioFinalLiga), porque todavía no se confirman sus datos.
+  if (state.token) {
+    renderFormularioFinalLiga();
+  } else {
+    _enviarResultadoMuestraCorreo();
+  }
   _iniciarCadenaIACorreo();
   _cargarMapaImpactoPng();
+}
+
+/* ---- Formulario final (solo liga personalizada): mismos campos que el
+ * paso 0 del flujo público, pero AL FINAL — precargados con lo que ya se
+ * sabía por la liga. Solo al enviarlo se registra el lead en CRM y se
+ * dispara el correo con el resultado completo. ---- */
+function renderFormularioFinalLiga() {
+  var box = document.getElementById('formularioFinalLiga');
+  if (!box) return;
+  if (state.formularioFinalEnviado) {
+    box.innerHTML = '<div class="msg" style="background:#EAF7EE;color:var(--verde)">Gracias — te enviamos la interpretación completa de tu resultado a tu correo.</div>';
+    return;
+  }
+  var d = state.datos || {};
+  box.innerHTML =
+    '<div class="categoria-resultado" style="border-color:var(--purple)">' +
+      '<div class="nombre" style="color:var(--purple-dark)">Recibe la interpretación completa por correo</div>' +
+      '<p class="subtle" style="margin:0 0 4px">Confirma tus datos para que te mandemos la interpretación completa y recomendaciones concretas para tu empresa.</p>' +
+      '<div id="secMsgFinal"></div>' +
+      '<form id="finalForm">' +
+        '<label>Nombre completo <span class="req">*</span></label><input type="text" id="fNombre" value="' + escapeHtml(d.nombre || '') + '">' +
+        '<label>Empresa <span class="req">*</span></label><input type="text" id="fOrganizacion" value="' + escapeHtml(d.organizacion || '') + '">' +
+        '<label>Categoría / sector <span class="req">*</span></label>' +
+        '<select id="fCategoria">' +
+          '<option value="">Selecciona una opción</option>' +
+          CATEGORIAS_CRM_OPCIONES.map(function (c) { return '<option>' + escapeHtml(c) + '</option>'; }).join('') +
+        '</select>' +
+        '<label>Correo electrónico <span class="req">*</span></label><input type="email" id="fEmail" placeholder="nombre@tuempresa.com" value="' + escapeHtml(d.email || '') + '">' +
+        '<label>Teléfono (opcional)</label><input type="text" id="fTelefono" value="' + escapeHtml(d.telefono || '') + '">' +
+        '<label>Cargo (opcional)</label><input type="text" id="fCargo" value="' + escapeHtml(d.cargo || '') + '">' +
+        '<input type="text" id="fTrampa" class="campo-trampa" tabindex="-1" autocomplete="off">' +
+        '<div class="consentimiento">' +
+          '<input type="checkbox" id="fConsentimiento">' +
+          '<label for="fConsentimiento">Autorizo a Sintropía Social a contactarme para compartirme mi resultado y contarme sobre sus servicios. Puedo pedir que borren mis datos cuando quiera escribiendo a comunicacion@sintropiasocial.com.</label>' +
+        '</div>' +
+      '</form>' +
+      '<div class="fila-botones"><button class="primary" id="btnEnviarFormularioFinal">Enviar y recibir mi interpretación completa</button></div>' +
+    '</div>';
+
+  document.getElementById('btnEnviarFormularioFinal').onclick = async function () {
+    var msgBox = document.getElementById('secMsgFinal');
+    var nombre = document.getElementById('fNombre').value.trim();
+    var organizacion = document.getElementById('fOrganizacion').value.trim();
+    var categoria = document.getElementById('fCategoria').value;
+    var email = document.getElementById('fEmail').value.trim();
+    var consentimiento = document.getElementById('fConsentimiento').checked;
+    if (!nombre || !organizacion) { msgBox.innerHTML = '<div class="msg error">Escribe tu nombre y el de tu empresa.</div>'; return; }
+    if (!categoria) { msgBox.innerHTML = '<div class="msg error">Selecciona una categoría.</div>'; return; }
+    if (!email || email.indexOf('@') === -1) { msgBox.innerHTML = '<div class="msg error">Escribe un correo electrónico válido.</div>'; return; }
+    if (!consentimiento) { msgBox.innerHTML = '<div class="msg error">Necesitamos tu autorización para poder mandarte tu resultado.</div>'; return; }
+
+    state.datos = {
+      nombre: nombre, organizacion: organizacion, categoria: categoria, email: email,
+      telefono: document.getElementById('fTelefono').value.trim(),
+      cargo: document.getElementById('fCargo').value.trim(),
+      consentimiento: true,
+      sitioWebTrampa: document.getElementById('fTrampa').value
+    };
+
+    var btn = document.getElementById('btnEnviarFormularioFinal');
+    btn.disabled = true; btn.textContent = 'Enviando...';
+    var d2 = state.datos, r = state.resultado, imp2 = state.impacto;
+    var resumenNotas2 = 'Pulso de Mercado: ' + r.semaforo.etiqueta + ' (' + r.puntajeTotal + '/40). ' +
+      'Mayor oportunidad: ' + r.peor.nombre + ' (' + r.peor.subtotal + '/' + r.peor.max + '). ' +
+      r.categorias.map(function (c) { return c.nombre + ': ' + c.subtotal + '/' + c.max; }).join(' — ') + '. ' +
+      'Giro: ' + (state.giro || '—') + ' · Tipo de venta: ' + (state.tipoVenta || '—') + '. ' +
+      'Alcance hoy: ' + (imp2.actual.nivel || '—') + ' (' + (imp2.actual.intensidad || '—') + '/5) en ' + _lugaresTexto('actual') + ' · Alcance deseado: ' + (imp2.deseado.nivel || '—') + ' (' + (imp2.deseado.intensidad || '—') + '/5) en ' + _lugaresTexto('deseado') + '. ' +
+      'Historia local: ' + (state.historia || '—');
+    await jsonp('capturarClienteDiagnostico', {
+      organizacion: d2.organizacion, categoria: d2.categoria, ejeInteres: 'Investigación de Mercado',
+      nombreContacto: d2.nombre, cargo: d2.cargo, correo: d2.email, telefono: d2.telefono,
+      leadMagnet: 'Pulso de Mercado', consentimiento: 'Sí', notas: resumenNotas2,
+      respuestasCompletas: JSON.stringify(state.respuestas), sitioWebTrampa: d2.sitioWebTrampa
+    });
+    state.formularioFinalEnviado = true;
+    _enviarResultadoMuestraCorreo();
+    renderFormularioFinalLiga();
+  };
 }
 
 // Arma los parámetros para generarInterpretacionMuestra — se usan en DOS
@@ -1702,7 +1877,26 @@ async function descargarPulsoPdf() {
   doc.save('pulso-mercado-sintropia.pdf');
 }
 
-render();
+/* ---- Arranque: revisa si la URL trae una liga personalizada (?token=) ---- */
+async function iniciar() {
+  if (!TOKEN_LIGA_URL) { render(); return; }
+  var r = await jsonp('validarTokenMuestra', { token: TOKEN_LIGA_URL });
+  if (r && r.ok && r.herramienta === 'PulsoMercado' && r.estatus === 'Pendiente') {
+    state.token = TOKEN_LIGA_URL;
+    state.datos = {
+      nombre: (r.datos && r.datos.nombre) || '', organizacion: (r.datos && r.datos.organizacion) || '',
+      categoria: '', email: (r.datos && r.datos.correo) || '', telefono: '', cargo: '',
+      consentimiento: true, sitioWebTrampa: ''
+    };
+    state.paso = 1; // salta el paso 0 — va directo al cuestionario
+  } else if (r && r.ok && r.herramienta === 'PulsoMercado' && r.estatus === 'Completado') {
+    state.ligaYaUsada = true;
+  }
+  // Token inválido, ya usado por otra herramienta, o cualquier otro caso:
+  // sigue el flujo público normal (paso 0), igual que sin liga.
+  render();
+}
+iniciar();
 </script>
 </body>
 </html>
